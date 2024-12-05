@@ -4,18 +4,25 @@
 package bpflbr
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/cilium/ebpf"
 )
 
 type progFlags struct {
 	empty       bool
-	ids         map[uint32]string
-	tags        map[string]string
-	names       map[string]string
-	pinnedPaths map[string]string
+	ids         map[uint32]string // progID -> funcName
+	tags        map[string]string // tag -> funcName
+	names       map[string]string // entryFuncName -> funcName
+	pinnedPaths map[string]string // pinnedPath -> funcName
+	pids        map[uint32]string // pid -> funcName
 }
 
 func newProgFlags(pflags []ProgFlag) progFlags {
@@ -25,6 +32,7 @@ func newProgFlags(pflags []ProgFlag) progFlags {
 	pf.tags = make(map[string]string)
 	pf.names = make(map[string]string)
 	pf.pinnedPaths = make(map[string]string)
+	pf.pids = make(map[uint32]string)
 
 	for _, f := range pflags {
 		switch f.descriptor {
@@ -39,6 +47,9 @@ func newProgFlags(pflags []ProgFlag) progFlags {
 
 		case progFlagDescriptorPinned:
 			pf.pinnedPaths[f.pinned] = f.funcName
+
+		case progFlagDescriptorPid:
+			pf.pids[f.pid] = f.funcName
 		}
 	}
 
@@ -49,7 +60,8 @@ func (p progFlags) allID() bool {
 	return len(p.ids) != 0 &&
 		len(p.tags) == 0 &&
 		len(p.names) == 0 &&
-		len(p.pinnedPaths) == 0
+		len(p.pinnedPaths) == 0 &&
+		len(p.pids) == 0
 }
 
 func (p *bpfProgs) prepareProgInfoByID(id ebpf.ProgramID, funcName string) error {
@@ -109,6 +121,79 @@ func (p *bpfProgs) prepareProgInfoByPinnedPath(pflag ProgFlag) error {
 	}
 
 	return p.addTracing(id, funcName, prog)
+}
+
+func (p *bpfProgs) addProgByID(id ebpf.ProgramID, funcName string) error {
+	prog, err := ebpf.NewProgramFromID(id)
+	if err != nil {
+		return fmt.Errorf("failed to load prog from ID %d: %w", id, err)
+	}
+	defer prog.Close()
+
+	info, err := prog.Info()
+	if err != nil {
+		return fmt.Errorf("failed to get prog info: %w", err)
+	}
+
+	funcName, err = getProgFuncName(funcName, info)
+	if err != nil {
+		return fmt.Errorf("failed to get prog func name: %w", err)
+	}
+
+	return p.addTracing(id, funcName, prog)
+}
+
+func (p *bpfProgs) prepareProgInfoByPid(pflag ProgFlag) error {
+	dirpath := fmt.Sprintf("/proc/%d/fd", pflag.pid)
+	return fs.WalkDir(os.DirFS(dirpath), ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		filepath := filepath.Join(dirpath, d.Name())
+		link, err := os.Readlink(filepath)
+		if err != nil {
+			return nil
+		}
+
+		if strings.TrimSpace(link) != "anon_inode:bpf-prog" {
+			return nil
+		}
+
+		fdinfoPath := fmt.Sprintf("/proc/%d/fdinfo/%s", pflag.pid, d.Name())
+		fd, err := os.Open(fdinfoPath)
+		if err != nil {
+			return nil
+		}
+		defer fd.Close()
+
+		scanner := bufio.NewScanner(fd)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if !strings.HasPrefix(line, "prog_id:") {
+				continue
+			}
+
+			progID := strings.Fields(line)[1]
+			id, err := strconv.ParseUint(progID, 10, 32)
+			if err != nil {
+				return fmt.Errorf("failed to parse progID %s from %s: %w", progID, fdinfoPath, err)
+			}
+
+			err = p.addProgByID(ebpf.ProgramID(id), pflag.funcName)
+			if err != nil {
+				return err
+			}
+
+			break
+		}
+
+		if err = scanner.Err(); err != nil {
+			return fmt.Errorf("failed to scan %s: %w", fdinfoPath, err)
+		}
+
+		return nil
+	})
 }
 
 func (p *bpfProgs) prepareProgInfo(progID ebpf.ProgramID, pflags progFlags) error {
@@ -176,8 +261,14 @@ func (p *bpfProgs) prepareProgInfos(pflags []ProgFlag) error {
 	}
 
 	for _, f := range pflags {
-		if f.descriptor == progFlagDescriptorPinned {
+		switch f.descriptor {
+		case progFlagDescriptorPinned:
 			if err := p.prepareProgInfoByPinnedPath(f); err != nil {
+				return err
+			}
+
+		case progFlagDescriptorPid:
+			if err := p.prepareProgInfoByPid(f); err != nil {
 				return err
 			}
 		}

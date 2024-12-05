@@ -18,6 +18,7 @@ const (
 	progFlagDescriptorPinned = "pinned"
 	progFlagDescriptorTag    = "tag"
 	progFlagDescriptorName   = "name"
+	progFlagDescriptorPid    = "pid"
 )
 
 const (
@@ -40,6 +41,7 @@ type ProgFlag struct {
 	pinned string
 	tag    string
 	name   string
+	pid    uint32
 
 	descriptor string
 	funcName   string
@@ -76,6 +78,16 @@ func parseProgFlag(p string) (ProgFlag, error) {
 		if pf.name == "" {
 			return pf, errors.New("name must not be empty")
 		}
+		return pf, nil
+
+	case "pid":
+		pf.descriptor = progFlagDescriptorPid
+		id, pf.funcName, _ = strings.Cut(funcName, ":")
+		pid, err := strconv.ParseUint(id, 10, 32)
+		if err != nil {
+			return pf, fmt.Errorf("failed to parse pid %s from %s: %w", funcName, p, err)
+		}
+		pf.pid = uint32(pid)
 		return pf, nil
 
 	default:
@@ -123,7 +135,7 @@ func ParseFlags() (*Flags, error) {
 	var flags Flags
 
 	f := flag.NewFlagSet("bpflbr", flag.ExitOnError)
-	f.StringSliceVarP(&flags.progs, "prog", "p", nil, "bpf prog info for bpflbr in format PROG[,PROG,..], PROG: PROGID[:<prog function name>], PROGID: <prog ID> or 'i/id:<prog ID>' or 'p/pinned:<pinned file>' or 't/tag:<prog tag>' or 'n/name:<prog full name>'; all bpf progs will be traced by default")
+	f.StringSliceVarP(&flags.progs, "prog", "p", nil, "bpf prog info for bpflbr in format PROG[,PROG,..], PROG: PROGID[:<prog function name>], PROGID: <prog ID> or 'i/id:<prog ID>' or 'p/pinned:<pinned file>' or 't/tag:<prog tag>' or 'n/name:<prog full name>' or 'pid:<pid>'; all bpf progs will be traced by default")
 	f.StringSliceVarP(&flags.kfuncs, "kfunc", "k", nil, "kernel functions for bpflbr")
 	f.StringVarP(&flags.outputFile, "output", "o", "", "output file for the result, default is stdout")
 	f.BoolVar(&flags.disasm, "dump-jited", false, "dump native insn info of bpf prog, the one bpf prog must be provided by --prog (its function name will be ignored) [Deprecated, use --disasm instead]")
