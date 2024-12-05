@@ -28,6 +28,7 @@ func NewBPFTracing(spec *ebpf.CollectionSpec, reusedMaps map[string]*ebpf.Map, i
 	var cfg LbrConfig
 	cfg.SetSuppressLbr(suppressLbr)
 	cfg.SetOutputStack(outputFuncStack)
+	cfg.FilterPid = uint32(filterPid)
 
 	if err := spec.Variables["lbr_config"].Set(cfg); err != nil {
 		return nil, fmt.Errorf("failed to set lbr config: %w", err)

@@ -10,11 +10,10 @@ struct lbr_config {
     __u32 suppress_lbr:1;
     __u32 output_stack:1;
     __u32 pad:30;
+    __u32 pid;
 };
 
-volatile const struct lbr_config lbr_config = {
-    .suppress_lbr = 0,
-};
+volatile const struct lbr_config lbr_config = {};
 #define cfg (&lbr_config)
 
 #define MAX_STACK_DEPTH 50
@@ -55,11 +54,19 @@ emit_lbr_event(void *ctx)
 
     if (!cfg->suppress_lbr)
         event->nr_bytes = bpf_get_branch_snapshot(event->lbr, sizeof(event->lbr), 0); /* required 5.16 kernel. */
+
+    /* Other filters must be after bpf_get_branch_snapshot() to avoid polluting
+     * LBR entries.
+     */
+
+    event->pid = bpf_get_current_pid_tgid() >> 32;
+    if (cfg->pid && event->pid != cfg->pid)
+        return BPF_OK;
+
     bpf_get_func_ret(ctx, (void *) &retval); /* required 5.17 kernel. */
     event->func_ret = retval;
     event->func_ip = bpf_get_func_ip(ctx); /* required 5.17 kernel. */
     event->cpu = cpu;
-    event->pid = bpf_get_current_pid_tgid() >> 32;
     bpf_get_current_comm(event->comm, sizeof(event->comm));
     event->func_stack_id = -1;
     if (cfg->output_stack)

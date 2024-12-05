@@ -9,7 +9,8 @@ const (
 )
 
 type LbrConfig struct {
-	Flags uint32
+	Flags     uint32
+	FilterPid uint32
 }
 
 func (cfg *LbrConfig) SetSuppressLbr(v bool) {

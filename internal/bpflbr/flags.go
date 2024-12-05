@@ -32,6 +32,7 @@ var (
 
 	suppressLbr     bool
 	outputFuncStack bool
+	filterPid       uint32
 )
 
 type ProgFlag struct {
@@ -133,6 +134,7 @@ func ParseFlags() (*Flags, error) {
 	f.StringVarP(&mode, "mode", "m", TracingModeExit, "mode of lbr tracing, exit or entry")
 	f.BoolVar(&suppressLbr, "suppress-lbr", false, "suppress LBR perf event")
 	f.BoolVar(&outputFuncStack, "output-stack", false, "output function call stack")
+	f.Uint32Var(&filterPid, "filter-pid", 0, "filter pid for tracing")
 
 	return &flags, f.Parse(os.Args)
 }
