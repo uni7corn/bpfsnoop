@@ -62,7 +62,6 @@ Usage of bpflbr:
   -d, --disasm                disasm bpf prog or kernel function
   -B, --disasm-bytes uint     disasm bytes of kernel function, must not 0
       --disasm-intel-syntax   use Intel asm syntax for disasm, ATT asm syntax by default
-      --dump-jited            dump native insn info of bpf prog, the one bpf prog must be provided by --prog (its function name will be ignored) [Deprecated, use --disasm instead]
   -k, --kfunc strings         kernel functions for bpflbr
   -m, --mode string           mode of lbr tracing, exit or entry (default "exit")
   -o, --output string         output file for the result, default is stdout
