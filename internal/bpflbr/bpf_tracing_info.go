@@ -15,6 +15,10 @@ type bpfTracingInfo struct {
 }
 
 func (p *bpfProgs) addTracing(id ebpf.ProgramID, funcName string, prog *ebpf.Program) error {
+	if prog.Type() == ebpf.Tracing {
+		return nil
+	}
+
 	key := fmt.Sprintf("%d:%s", id, funcName)
 	if _, ok := p.tracings[key]; ok {
 		return nil
