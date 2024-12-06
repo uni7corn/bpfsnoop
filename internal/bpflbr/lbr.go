@@ -166,6 +166,12 @@ func getLbrStack(event *Event, progs *bpfProgs, addr2line *Addr2Line, ksyms *Kal
 	nrEntries := event.NrBytes / int64(8*3)
 	entries := event.Entries[:nrEntries]
 	if !verbose {
+		// Skip the first 14 entries as they are entries for fexit_fn
+		// and bpf_get_branch_snapshot helper.
+		const nrSkip = 14
+
+		entries = entries[nrSkip:]
+
 		if isProg {
 			for i := range entries {
 				if progInfo.contains(entries[i].From) || progInfo.contains(entries[i].To) {
@@ -180,12 +186,6 @@ func getLbrStack(event *Event, progs *bpfProgs, addr2line *Addr2Line, ksyms *Kal
 					break
 				}
 			}
-		} else {
-			// Skip the first 14 entries as they are entries for fexit_fn
-			// and bpf_get_branch_snapshot helper.
-			const nrSkip = 14
-
-			entries = entries[nrSkip:]
 		}
 
 		if len(entries) == 0 {
@@ -222,13 +222,20 @@ func getFuncStack(event *Event, progs *bpfProgs, addr2line *Addr2Line, ksym *Kal
 	}
 	_ = funcStacks.Delete(id)
 
-	ips := data.IPs[3:] // Skip the first 3 entries as they are entries for fentry/fexit and its trampoline.
+	ips := data.IPs[:]
+	if !verbose {
+		ips = ips[3:] // Skip the first 3 entries as they are entries for fentry/fexit and its trampoline.
+	}
 	for _, ip := range ips {
 		if ip != 0 {
 			li := getLineInfo(uintptr(ip), progs, addr2line, ksym)
 
 			var sb strings.Builder
-			fmt.Fprintf(&sb, "  %-50s", fmt.Sprintf("%s+%#x", li.funcName, li.offset))
+			fmt.Fprint(&sb, "  ")
+			if verbose {
+				fmt.Fprintf(&sb, "0x%x:", ip)
+			}
+			fmt.Fprintf(&sb, "%-50s", fmt.Sprintf("%s+%#x", li.funcName, li.offset))
 			if li.fileName != "" {
 				fmt.Fprintf(&sb, "\t; %s:%d", li.fileName, li.fileLine)
 			}

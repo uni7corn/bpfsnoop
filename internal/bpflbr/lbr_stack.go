@@ -15,15 +15,19 @@ type branchEndpoint struct {
 	offset       uintptr
 	endpointName string // ${funcName}+${offset}
 
-	fileName string
-	fileLine uint32
-	lineInfo string // (${fileName}:${fileLine})
-	isProg   bool
+	fileName    string
+	fileLine    uint32
+	lineInfo    string // (${fileName}:${fileLine})
+	isProg      bool
 	fromVmlinux bool
 }
 
 func (b *branchEndpoint) updateInfo() {
-	b.endpointName = fmt.Sprintf("%#x:%s+%#x", b.addr, b.funcName, b.offset)
+	if verbose {
+		b.endpointName = fmt.Sprintf("%#x:%s+%#x", b.addr, b.funcName, b.offset)
+	} else {
+		b.endpointName = fmt.Sprintf("%s+%#x", b.funcName, b.offset)
+	}
 	if b.fileName != "" {
 		b.lineInfo = fmt.Sprintf("(%s:%d)", b.fileName, b.fileLine)
 	}
