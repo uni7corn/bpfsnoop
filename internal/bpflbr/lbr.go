@@ -172,7 +172,7 @@ func getLbrStack(event *Event, progs *bpfProgs, addr2line *Addr2Line, ksyms *Kal
 
 		entries = entries[nrSkip:]
 
-		if isProg {
+		if isProg && mode == TracingModeExit {
 			for i := range entries {
 				if progInfo.contains(entries[i].From) || progInfo.contains(entries[i].To) {
 					entries = entries[i:]
