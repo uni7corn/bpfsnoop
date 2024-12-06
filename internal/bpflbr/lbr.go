@@ -215,6 +215,9 @@ func getFuncStack(event *Event, progs *bpfProgs, addr2line *Addr2Line, ksym *Kal
 	var data FuncStack
 	err := funcStacks.Lookup(id, &data)
 	if err != nil {
+		if errors.Is(err, ebpf.ErrKeyNotExist) {
+			return stack, nil
+		}
 		return stack, fmt.Errorf("failed to lookup func stack map: %w", err)
 	}
 	_ = funcStacks.Delete(id)
