@@ -116,6 +116,10 @@ func main() {
 	assert.NoErr(err, "Failed to create func_stacks map: %v")
 	defer funcStacks.Close()
 
+	readyDataMap, err := ebpf.NewMap(bpfSpec.Maps[".data.ready"])
+	assert.NoErr(err, "Failed to create ready data map: %v")
+	defer readyDataMap.Close()
+
 	events, err := ebpf.NewMap(bpfSpec.Maps["events"])
 	assert.NoErr(err, "Failed to create events map: %v")
 	defer events.Close()
@@ -123,6 +127,7 @@ func main() {
 	reusedMaps := map[string]*ebpf.Map{
 		"events":      events,
 		".data.lbrs":  lbrs,
+		".data.ready": readyDataMap,
 		"func_stacks": funcStacks,
 	}
 
@@ -152,6 +157,9 @@ func main() {
 		defer f.Close()
 		w = f
 	}
+
+	err = readyDataMap.Put(uint32(0), uint32(1))
+	assert.NoErr(err, "Failed to update ready data map: %v")
 
 	log.Print("bpflbr is running..")
 

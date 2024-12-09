@@ -4,6 +4,8 @@
 #include "bpf_helpers.h"
 #include "bpf_tracing.h"
 
+__u32 ready SEC(".data.ready") = 0;
+
 #define MAX_LBR_ENTRIES 32
 
 struct lbr_config {
@@ -48,6 +50,9 @@ emit_lbr_event(void *ctx)
     struct event *event;
     __u64 retval;
     __u32 cpu;
+
+    if (!ready)
+        return BPF_OK;
 
     cpu = bpf_get_smp_processor_id();
     event = &lbr_events[cpu];
