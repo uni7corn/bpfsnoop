@@ -6,6 +6,7 @@ package bpflbr
 import (
 	"fmt"
 	"log"
+	"os"
 	"slices"
 
 	"github.com/cilium/ebpf/btf"
@@ -43,25 +44,44 @@ func FindKernelFuncs(funcs []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	kernelBtf, err := btf.LoadKernelSpec()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load kernel BTF: %w", err)
-	}
-
 	kfuncs := make([]string, 0, len(funcs))
 
-	iter := kernelBtf.Iterate()
-	for iter.Next() {
-		if fn, ok := iter.Type.(*btf.Func); ok && isGlobFunc(fn.Name, globs) {
-			funcProto := fn.Type.(*btf.FuncProto)
-			if len(funcProto.Params) <= MAX_BPF_FUNC_ARGS {
-				kfuncs = append(kfuncs, fn.Name)
-			} else if verbose {
-				log.Printf("Skip function %s with %d args because of limit %d args\n",
-					fn.Name, len(funcProto.Params), MAX_BPF_FUNC_ARGS)
+	iterBtfSpec := func(spec *btf.Spec) {
+		iter := spec.Iterate()
+		for iter.Next() {
+			if fn, ok := iter.Type.(*btf.Func); ok && isGlobFunc(fn.Name, globs) {
+				funcProto := fn.Type.(*btf.FuncProto)
+				if len(funcProto.Params) <= MAX_BPF_FUNC_ARGS {
+					kfuncs = append(kfuncs, fn.Name)
+				} else if verbose {
+					log.Printf("Skip function %s with %d args because of limit %d args\n",
+						fn.Name, len(funcProto.Params), MAX_BPF_FUNC_ARGS)
+				}
 			}
 		}
+	}
+
+	if kfuncAllKmods {
+		files, err := os.ReadDir("/sys/kernel/btf")
+		if err != nil {
+			return nil, fmt.Errorf("failed to read /sys/kernel/btf: %w", err)
+		}
+
+		for _, file := range files {
+			kmodBtf, err := btf.LoadKernelModuleSpec(file.Name())
+			if err != nil {
+				return nil, fmt.Errorf("failed to load kernel module BTF: %w", err)
+			}
+
+			iterBtfSpec(kmodBtf)
+		}
+	} else {
+		kernelBtf, err := btf.LoadKernelSpec()
+		if err != nil {
+			return nil, fmt.Errorf("failed to load kernel BTF: %w", err)
+		}
+
+		iterBtfSpec(kernelBtf)
 	}
 
 	slices.Sort(kfuncs)
