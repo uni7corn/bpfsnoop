@@ -62,11 +62,13 @@ Usage of bpflbr:
   -d, --disasm                disasm bpf prog or kernel function
   -B, --disasm-bytes uint     disasm bytes of kernel function, must not 0
       --disasm-intel-syntax   use Intel asm syntax for disasm, ATT asm syntax by default
-  -k, --kfunc strings         kernel functions for bpflbr
+      --filter-pid uint32     filter pid for tracing
+  -k, --kfunc strings         filter kernel functions by shell wildcards way
+      --kfunc-all-kmods       filter functions in all kernel modules
   -m, --mode string           mode of lbr tracing, exit or entry (default "exit")
   -o, --output string         output file for the result, default is stdout
       --output-stack          output function call stack
-  -p, --prog strings          bpf prog info for bpflbr in format PROG[,PROG,..], PROG: PROGID[:<prog function name>], PROGID: <prog ID> or 'i/id:<prog ID>' or 'p/pinned:<pinned file>' or 't/tag:<prog tag>' or 'n/name:<prog full name>'; all bpf progs will be traced by default
+  -p, --prog strings          bpf prog info for bpflbr in format PROG[,PROG,..], PROG: PROGID[:<prog function name>], PROGID: <prog ID> or 'i/id:<prog ID>' or 'p/pinned:<pinned file>' or 't/tag:<prog tag>' or 'n/name:<prog full name>' or 'pid:<pid>'; all bpf progs will be traced by default
       --suppress-lbr          suppress LBR perf event
   -v, --verbose               output verbose log
 ```
@@ -86,7 +88,7 @@ Usage of bpflbr:
       xlated 7544B  jited 3997B  memlock 12288B  map_ids 5449,5446,5447,5451,5450,5448,5444
       btf_id 6017
 
-# ./bpflbr -p 4483 --dump-jited
+# ./bpflbr -p 4483 --disasm
 ; bpf/kprobe_pwru.c:532:0 PWRU_ADD_KPROBE(3)
 0xffffffffc00c0e64: 0f 1f 44 00 00        nopl  (%rax, %rax)
 0xffffffffc00c0e69: 66 90                 nop
@@ -96,7 +98,7 @@ Usage of bpflbr:
 ...
 
 # echo "If want to show intel asm syntax"
-# BPFLBR_DUMP_INTEL_SYNTAX=1 ./bpflbr -p 4483 --dump-jited
+# ./bpflbr -p 4483 --disasm --disasm-intel-syntax
 ; bpf/kprobe_pwru.c:532:0 PWRU_ADD_KPROBE(3)
 0xffffffffc00bde9c: 0f 1f 44 00 00        nop   dword ptr [rax + rax]
 0xffffffffc00bdea1: 66 90                 nop
@@ -153,8 +155,6 @@ Func stack:
 
 ## TODO list
 
-- [ ] Develop `bpflbr` feature to filter kernel function with regexp.
-- [ ] Develop `bpflbr` feature to trace kernel functions with kprobe.multi, [bpf: Add multi kprobe link](https://github.com/torvalds/linux/commit/0dcac2725406).
 - [ ] Develop `bpflbr` feature to trace userspace functions with uretprobe (**HELP WANTED**).
 
 ## Acknowledgments
