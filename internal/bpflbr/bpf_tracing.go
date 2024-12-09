@@ -4,6 +4,7 @@
 package bpflbr
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sys/unix"
 )
 
 type bpfTracing struct {
@@ -61,6 +63,13 @@ func NewBPFTracing(spec *ebpf.CollectionSpec, reusedMaps map[string]*ebpf.Map, i
 	return &t, nil
 }
 
+func (t *bpfTracing) HaveTracing() bool {
+	t.llock.Lock()
+	defer t.llock.Unlock()
+
+	return len(t.links) > 0 || len(t.klnks) > 0
+}
+
 func (t *bpfTracing) Close() {
 	t.llock.Lock()
 	defer t.llock.Unlock()
@@ -91,11 +100,16 @@ func TracingProgName(mode string) string {
 func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]*ebpf.Map, info bpfTracingInfo) error {
 	spec = spec.Copy()
 
+	attachType := ebpf.AttachTraceFExit
+	if mode == TracingModeEntry {
+		attachType = ebpf.AttachTraceFEntry
+	}
+
 	tracingFuncName := TracingProgName(mode)
 	progSpec := spec.Programs[tracingFuncName]
 	progSpec.AttachTarget = info.prog
 	progSpec.AttachTo = info.funcName
-	progSpec.AttachType = ebpf.AttachTraceFExit
+	progSpec.AttachType = attachType
 
 	coll, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{
 		MapReplacements: reusedMaps,
@@ -110,7 +124,7 @@ func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]
 
 	l, err := link.AttachTracing(link.TracingOptions{
 		Program:    prog,
-		AttachType: ebpf.AttachTraceFExit,
+		AttachType: attachType,
 	})
 	if err != nil {
 		_ = prog.Close()
@@ -132,15 +146,23 @@ func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]
 func (t *bpfTracing) traceFunc(spec *ebpf.CollectionSpec, reusedMaps map[string]*ebpf.Map, fn string) error {
 	spec = spec.Copy()
 
+	attachType := ebpf.AttachTraceFExit
+	if mode == TracingModeEntry {
+		attachType = ebpf.AttachTraceFEntry
+	}
+
 	tracingFuncName := TracingProgName(mode)
 	progSpec := spec.Programs[tracingFuncName]
 	progSpec.AttachTo = fn
-	progSpec.AttachType = ebpf.AttachTraceFExit
+	progSpec.AttachType = attachType
 
 	coll, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{
 		MapReplacements: reusedMaps,
 	})
 	if err != nil {
+		if errors.Is(err, unix.ENOENT) {
+			return nil
+		}
 		return fmt.Errorf("failed to create bpf collection for tracing: %w", err)
 	}
 	defer coll.Close()
@@ -149,10 +171,19 @@ func (t *bpfTracing) traceFunc(spec *ebpf.CollectionSpec, reusedMaps map[string]
 	delete(coll.Programs, tracingFuncName)
 	l, err := link.AttachTracing(link.TracingOptions{
 		Program:    prog,
-		AttachType: ebpf.AttachTraceFExit,
+		AttachType: attachType,
 	})
 	if err != nil {
 		_ = prog.Close()
+		if errors.Is(err, unix.ENOENT) || errors.Is(err, unix.EINVAL) {
+			return nil
+		}
+		if errors.Is(err, unix.EBUSY) {
+			if verbose {
+				log.Printf("Cannot trace kernel function %s", fn)
+			}
+			return nil
+		}
 		return fmt.Errorf("failed to attach tracing: %w", err)
 	}
 

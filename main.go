@@ -95,8 +95,11 @@ func main() {
 	assert.NoErr(err, "Failed to get bpf progs: %v")
 	defer bpfProgs.Close()
 
+	kfuncs, err := bpflbr.FindKernelFuncs(flags.Kfuncs())
+	assert.NoErr(err, "Failed to find kernel functions: %v")
+
 	tracingTargets := bpfProgs.Tracings()
-	assert.True(len(tracingTargets)+len(flags.Kfuncs()) != 0, "No tracing target")
+	assert.True(len(tracingTargets)+len(kfuncs) != 0, "No tracing target")
 
 	bpflbr.VerboseLog("Tracing bpf progs or kernel functions ..")
 	bpfSpec, err := loadLbr()
@@ -131,14 +134,18 @@ func main() {
 		"func_stacks": funcStacks,
 	}
 
-	kfuncs := flags.Kfuncs()
 	if len(kfuncs) != 0 && len(progs) == 0 {
 		tracingTargets = tracingTargets[:0]
+	}
+
+	if len(kfuncs) > 20 {
+		log.Printf("bpflbr is tracing %d kernel functions, this may take a while", len(kfuncs))
 	}
 
 	tracings, err := bpflbr.NewBPFTracing(bpfSpec, reusedMaps, tracingTargets, kfuncs)
 	assert.NoVerifierErr(err, "Failed to trace: %v")
 	defer tracings.Close()
+	assert.True(tracings.HaveTracing(), "No tracing target")
 
 	err = bpfProgs.AddProgs(tracings.Progs(), engine, true)
 	assert.NoErr(err, "Failed to add bpf progs: %v")

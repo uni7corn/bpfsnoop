@@ -5,6 +5,7 @@ go 1.22.4
 require (
 	github.com/Asphaltt/addr2line v0.1.0
 	github.com/cilium/ebpf v0.16.1-0.20241204125435-9895aae6467e
+	github.com/gobwas/glob v0.2.3
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/knightsc/gapstone v4.0.1+incompatible
 	github.com/spf13/pflag v1.0.5
