@@ -7,6 +7,7 @@ import (
 	"debug/elf"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -33,7 +34,6 @@ func Disasm(f *Flags) {
 
 	if len(f.kfuncs) != 0 {
 		assert.SliceLen(f.kfuncs, 1, "Only one --kfunc is allowed for --disasm")
-		assert.True(f.disasmBytes != 0, "--disasm-bytes must be set for --disasm to disasm %v", f.kfuncs)
 
 		dumpKfunc(f.kfuncs[0], f.disasmBytes)
 		return
@@ -48,9 +48,13 @@ func readKcore(kaddr uint64, bytes uint) ([]byte, bool) {
 	kcoreElf, err := elf.NewFile(fd)
 	assert.NoErr(err, "Failed to read %s: %v", kcorePath)
 
-	data := make([]byte, bytes)
 	for _, prog := range kcoreElf.Progs {
 		if prog.Vaddr <= kaddr && kaddr < prog.Vaddr+prog.Memsz {
+			remain := uint(prog.Memsz + prog.Vaddr - kaddr)
+			if bytes == 0 {
+				bytes = 4096 // limit to 4KiB
+			}
+			data := make([]byte, min(bytes, remain))
 			n, err := fd.ReadAt(data, int64(prog.Off+kaddr-prog.Vaddr))
 			assert.NoErr(err, "Failed to read %s: %v", kcorePath)
 			return data[:n], true
@@ -136,12 +140,16 @@ func dumpKfunc(kfunc string, bytes uint) {
 
 	b, pc := data[:], uint64(kaddr)
 	for len(b) != 0 {
-		inst, err := engine.Disasm(b, pc, 1)
+		insts, err := engine.Disasm(b, pc, 1)
 		if err != nil && len(b) <= 10 {
 			break
 		}
 		if err != nil {
 			fmt.Print(sb.String())
+			if errors.Is(err, gapstone.ErrOK) {
+				log.Println("Finish disassembling early, pls try again")
+				break
+			}
 			assert.NoErr(err, "Failed to disasm: %v")
 		}
 
@@ -159,13 +167,15 @@ func dumpKfunc(kfunc string, bytes uint) {
 			prev = li
 		}
 
+		inst := insts[0]
+
 		var opcodes []string
-		for _, insn := range inst[0].Bytes {
+		for _, insn := range inst.Bytes {
 			opcodes = append(opcodes, fmt.Sprintf("%02x", insn))
 		}
 		opcode := strings.Join(opcodes, " ")
-		opstr := inst[0].OpStr
-		fmt.Fprintf(&sb, "%#x: %-19s\t%s\t%s", pc, opcode, inst[0].Mnemonic, opstr)
+		opstr := inst.OpStr
+		fmt.Fprintf(&sb, "%#x: %-19s\t%s\t%s", pc, opcode, inst.Mnemonic, opstr)
 
 		var endpoint *branchEndpoint
 		if strings.HasPrefix(opstr, "0x") {
@@ -185,7 +195,13 @@ func dumpKfunc(kfunc string, bytes uint) {
 		}
 		fmt.Fprintln(&sb)
 
-		insnSize := uint64(inst[0].Size)
+		if bytes == 0 && len(inst.Bytes) == 1 &&
+			(inst.Bytes[0] == 0xc3 /* retq */ ||
+				inst.Bytes[0] == 0xcc /* int3 */) {
+			break
+		}
+
+		insnSize := uint64(inst.Size)
 		pc += insnSize
 		b = b[insnSize:]
 	}
