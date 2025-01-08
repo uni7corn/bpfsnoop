@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -51,9 +52,6 @@ func readKcore(kaddr uint64, bytes uint) ([]byte, bool) {
 	for _, prog := range kcoreElf.Progs {
 		if prog.Vaddr <= kaddr && kaddr < prog.Vaddr+prog.Memsz {
 			remain := uint(prog.Memsz + prog.Vaddr - kaddr)
-			if bytes == 0 {
-				bytes = 4096 // limit to 4KiB
-			}
 			data := make([]byte, min(bytes, remain))
 			n, err := fd.ReadAt(data, int64(prog.Off+kaddr-prog.Vaddr))
 			assert.NoErr(err, "Failed to read %s: %v", kcorePath)
@@ -64,7 +62,37 @@ func readKcore(kaddr uint64, bytes uint) ([]byte, bool) {
 	return nil, false
 }
 
+func guessBytes(kaddr uintptr, ks *Kallsyms, bytes uint) uint {
+	if bytes != 0 {
+		return bytes
+	}
+
+	nxt, ok := ks.next(kaddr)
+	if !ok {
+		return 4096 // limit to 4KiB
+	}
+
+	return uint(nxt.addr) - uint(kaddr)
+}
+
+func trimTailingInsns(b []byte) []byte {
+	skipInsns := map[byte]struct{}{
+		0xcc: {}, // int3
+		0x90: {}, // nop
+	}
+
+	i := len(b) - 1
+	for ; i >= 0; i-- {
+		if _, ok := skipInsns[b[i]]; !ok {
+			break
+		}
+	}
+	return b[:i+1]
+}
+
 func dumpKfunc(kfunc string, bytes uint) {
+	assert.True(runtime.GOARCH == "amd64", "Only support amd64 arch")
+
 	VerboseLog("Reading /proc/kallsyms ..")
 	kallsyms, err := NewKallsyms()
 	assert.NoErr(err, "Failed to read /proc/kallsyms: %v")
@@ -81,10 +109,18 @@ func dumpKfunc(kfunc string, bytes uint) {
 		assert.True(ok, "Symbol %s not found in /proc/kallsyms", kfunc)
 
 		kaddr = entry.addr
+	} else {
+		entry, ok := kallsyms.find(uintptr(kaddr))
+		assert.True(ok, "Address %#x not found in /proc/kallsyms", kaddr)
+
+		kfunc = entry.name
 	}
 
-	data, ok := readKcore(kaddr, uint(bytes))
+	bytes = guessBytes(uintptr(kaddr), kallsyms, bytes)
+	data, ok := readKcore(kaddr, bytes)
 	assert.True(ok, "Failed to read kcore for %s", kfunc)
+	data = trimTailingInsns(data)
+	log.Printf("Disassembling %s at %#x (%d bytes) ..", kfunc, kaddr, len(data))
 
 	var addr2line *Addr2Line
 
@@ -147,8 +183,8 @@ func dumpKfunc(kfunc string, bytes uint) {
 		if err != nil {
 			fmt.Print(sb.String())
 			if errors.Is(err, gapstone.ErrOK) {
-				log.Println("Finish disassembling early, pls try again")
-				break
+				log.Printf("Finish disassembling early, %d bytes left", len(b))
+				log.Fatalf(`Please try: gdb -q -c /proc/kcore -ex 'disas/r %#v,+%d' -ex 'quit'`, pc, len(b))
 			}
 			assert.NoErr(err, "Failed to disasm: %v")
 		}

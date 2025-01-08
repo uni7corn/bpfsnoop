@@ -115,11 +115,10 @@ func (ks *Kallsyms) SysBPF() uint64 {
 	return ks.sysBPF
 }
 
-// find returns the symbol entry of the given address.
-func (ks *Kallsyms) find(kaddr uintptr) (*KsymEntry, bool) {
+func (ks *Kallsyms) index(kaddr uintptr) (int, bool) {
 	addr := uint64(kaddr)
 	if addr < ks.addrs[0] || addr > ks.addrs[len(ks.addrs)-1] {
-		return nil, false
+		return 0, false
 	}
 
 	total := len(ks.addrs)
@@ -128,7 +127,7 @@ func (ks *Kallsyms) find(kaddr uintptr) (*KsymEntry, bool) {
 		h := int(uint(i+j) >> 1)
 		if ks.addrs[h] <= addr {
 			if h+1 < total && ks.addrs[h+1] > addr {
-				return ks.a2s[ks.addrs[h]], true
+				return h, true
 			}
 			i = h + 1
 		} else {
@@ -136,5 +135,29 @@ func (ks *Kallsyms) find(kaddr uintptr) (*KsymEntry, bool) {
 		}
 	}
 
-	return ks.a2s[ks.addrs[i-1]], true
+	return i - 1, true
+}
+
+// find returns the symbol entry of the given address.
+func (ks *Kallsyms) find(kaddr uintptr) (*KsymEntry, bool) {
+	idx, ok := ks.index(kaddr)
+	if !ok {
+		return nil, false
+	}
+
+	return ks.a2s[ks.addrs[idx]], true
+}
+
+func (ks *Kallsyms) next(kaddr uintptr) (*KsymEntry, bool) {
+	idx, ok := ks.index(kaddr)
+	if !ok {
+		return nil, false
+	}
+
+	idx++
+	if idx >= len(ks.addrs) {
+		return nil, false
+	}
+
+	return ks.a2s[ks.addrs[idx]], true
 }

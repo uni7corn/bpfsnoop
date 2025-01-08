@@ -141,7 +141,7 @@ func ParseFlags() (*Flags, error) {
 	f.BoolVar(&kfuncAllKmods, "kfunc-all-kmods", false, "filter functions in all kernel modules")
 	f.StringVarP(&flags.outputFile, "output", "o", "", "output file for the result, default is stdout")
 	f.BoolVarP(&flags.disasm, "disasm", "d", false, "disasm bpf prog or kernel function")
-	f.UintVarP(&flags.disasmBytes, "disasm-bytes", "B", 0, "disasm bytes of kernel function, end at the very first retq/int3 insn or limit to 4096 if not provided")
+	f.UintVarP(&flags.disasmBytes, "disasm-bytes", "B", 0, "disasm bytes of kernel function, 0 to guess it automatically")
 	f.BoolVar(&disasmIntelSyntax, "disasm-intel-syntax", false, "use Intel asm syntax for disasm, ATT asm syntax by default")
 	f.BoolVarP(&verbose, "verbose", "v", false, "output verbose log")
 	f.StringVarP(&mode, "mode", "m", TracingModeExit, "mode of lbr tracing, exit or entry")

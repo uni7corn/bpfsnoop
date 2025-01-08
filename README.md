@@ -60,7 +60,7 @@ make
 # ./bpflbr -h
 Usage of bpflbr:
   -d, --disasm                disasm bpf prog or kernel function
-  -B, --disasm-bytes uint     disasm bytes of kernel function, must not 0
+  -B, --disasm-bytes uint     disasm bytes of kernel function, 0 to guess it automatically
       --disasm-intel-syntax   use Intel asm syntax for disasm, ATT asm syntax by default
       --filter-pid uint32     filter pid for tracing
   -k, --kfunc strings         filter kernel functions by shell wildcards way
