@@ -183,6 +183,14 @@ func dumpKfunc(kfunc string, bytes uint) {
 			break
 		}
 		if err != nil {
+			if b[0] == 0x82 {
+				fmt.Fprintf(&sb, "%#x: %-19s\t(bad)\n", pc, "82")
+
+				pc++
+				b = b[1:]
+				continue
+			}
+
 			fmt.Print(sb.String())
 			if errors.Is(err, gapstone.ErrOK) {
 				log.Printf("Finish disassembling early, %d bytes left", len(b))
