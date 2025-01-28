@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/Asphaltt/bpflbr/internal/assert"
+	"github.com/fatih/color"
 	"github.com/knightsc/gapstone"
 )
 
@@ -121,7 +122,9 @@ func dumpKfunc(kfunc string, bytes uint) {
 	data, ok := readKcore(kaddr, bytes)
 	assert.True(ok, "Failed to read kcore for %s", kfunc)
 	data = trimTailingInsns(data)
-	log.Printf("Disassembling %s at %#x (%d bytes) ..", kfunc, kaddr, len(data))
+	log.Printf("Disassembling %s at %s (%d bytes) ..",
+		color.New(color.FgYellow, color.Bold).Sprint(kfunc),
+		color.New(color.FgBlue).Sprintf("%#x", kaddr), len(data))
 
 	var addr2line *Addr2Line
 
@@ -155,24 +158,35 @@ func dumpKfunc(kfunc string, bytes uint) {
 	}
 
 	VerboseLog("Disassembling bpf progs ..")
-	bpfProgs, err := NewBPFProgs(engine, nil, false)
+	bpfProgs, err := NewBPFProgs(engine, nil, false, true)
 	assert.NoErr(err, "Failed to get bpf progs: %v")
 	defer bpfProgs.Close()
 
 	var sb strings.Builder
 
+	printLineInfo := func(li *branchEndpoint) {
+		gray := color.RGB(0x88, 0x88, 0x88)
+		gray.Fprintf(&sb, "; %s+%#x", li.funcName, li.offset)
+		if li.fileName != "" {
+			gray.Fprintf(&sb, " %s:%d", li.fileName, li.fileLine)
+		}
+		if li.isInline {
+			gray.Fprint(&sb, " [inline]")
+		}
+		if li.isProg {
+			gray.Fprint(&sb, " [bpf]")
+		}
+		fmt.Fprintln(&sb)
+	}
+
+	printInsnInfo := func(pc uint64, opcode string, mnemonic string, opstr string) {
+		fmt.Fprintf(&sb, "%s: %-19s\t%s\t%s",
+			color.New(color.FgBlue).Sprintf("%#x", pc), opcode,
+			color.GreenString(mnemonic), color.RedString(opstr))
+	}
+
 	li := getLineInfo(uintptr(kaddr), bpfProgs, addr2line, kallsyms)
-	fmt.Fprintf(&sb, "; %s+%#x", li.funcName, li.offset)
-	if li.fileName != "" {
-		fmt.Fprintf(&sb, " %s:%d", li.fileName, li.fileLine)
-	}
-	if li.isInline {
-		fmt.Fprintf(&sb, " [inline]")
-	}
-	if li.isProg {
-		fmt.Fprintf(&sb, " [bpf]")
-	}
-	fmt.Fprintln(&sb)
+	printLineInfo(li)
 
 	prev := li
 
@@ -184,7 +198,7 @@ func dumpKfunc(kfunc string, bytes uint) {
 		}
 		if err != nil {
 			if b[0] == 0x82 {
-				fmt.Fprintf(&sb, "%#x: %-19s\t(bad)\n", pc, "82")
+				printInsnInfo(pc, "82", "(bad)", "")
 
 				pc++
 				b = b[1:]
@@ -201,14 +215,7 @@ func dumpKfunc(kfunc string, bytes uint) {
 
 		li := getLineInfo(uintptr(pc), bpfProgs, addr2line, kallsyms)
 		if (li.fromVmlinux || li.isProg) && (prev.fileName != li.fileName || prev.fileLine != li.fileLine) {
-			fmt.Fprintf(&sb, "; %s+%#x", li.funcName, li.offset)
-			if li.fileName != "" {
-				fmt.Fprintf(&sb, " %s:%d", li.fileName, li.fileLine)
-			}
-			if li.isProg {
-				fmt.Fprintf(&sb, " [bpf]")
-			}
-			fmt.Fprintln(&sb)
+			printLineInfo(li)
 
 			prev = li
 		}
@@ -221,7 +228,7 @@ func dumpKfunc(kfunc string, bytes uint) {
 		}
 		opcode := strings.Join(opcodes, " ")
 		opstr := inst.OpStr
-		fmt.Fprintf(&sb, "%#x: %-19s\t%s\t%s", pc, opcode, inst.Mnemonic, opstr)
+		printInsnInfo(pc, opcode, inst.Mnemonic, opstr)
 
 		var endpoint *branchEndpoint
 		if strings.HasPrefix(opstr, "0x") {
@@ -231,18 +238,11 @@ func dumpKfunc(kfunc string, bytes uint) {
 			}
 		}
 		if endpoint != nil {
-			fmt.Fprintf(&sb, "\t; %s+%#x", endpoint.funcName, endpoint.offset)
-			if endpoint.fileName != "" {
-				fmt.Fprintf(&sb, " %s:%d", endpoint.fileName, endpoint.fileLine)
-			}
-			if endpoint.isInline {
-				fmt.Fprintf(&sb, " [inline]")
-			}
-			if endpoint.isProg {
-				fmt.Fprintf(&sb, " [bpf]")
-			}
+			fmt.Fprint(&sb, "\t")
+			printLineInfo(endpoint)
+		} else {
+			fmt.Fprintln(&sb)
 		}
-		fmt.Fprintln(&sb)
 
 		if bytes == 0 && len(inst.Bytes) == 1 &&
 			(inst.Bytes[0] == 0xc3 /* retq */ ||

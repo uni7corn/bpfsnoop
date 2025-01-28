@@ -15,7 +15,7 @@ type bpfTracingInfo struct {
 }
 
 func (p *bpfProgs) addTracing(id ebpf.ProgramID, funcName string, prog *ebpf.Program) error {
-	if prog.Type() == ebpf.Tracing {
+	if prog.Type() == ebpf.Tracing && !p.disasm {
 		return nil
 	}
 

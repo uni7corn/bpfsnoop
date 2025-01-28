@@ -16,13 +16,16 @@ type bpfProgs struct {
 	funcs map[uintptr]*bpfProgInfo // func IP -> prog info
 
 	tracings map[string]bpfTracingInfo // id:func -> prog, func
+
+	disasm bool // disassemble BPF programs instead of tracing them
 }
 
-func NewBPFProgs(engine gapstone.Engine, pflags []ProgFlag, onlyPrepare bool) (*bpfProgs, error) {
+func NewBPFProgs(engine gapstone.Engine, pflags []ProgFlag, onlyPrepare, disasm bool) (*bpfProgs, error) {
 	var progs bpfProgs
 	progs.progs = make(map[ebpf.ProgramID]*ebpf.Program, len(pflags))
 	progs.funcs = make(map[uintptr]*bpfProgInfo, len(pflags))
 	progs.tracings = make(map[string]bpfTracingInfo, len(pflags))
+	progs.disasm = disasm
 
 	var err error
 	defer func() {

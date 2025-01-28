@@ -90,7 +90,7 @@ func main() {
 	defer engine.Close()
 
 	bpflbr.VerboseLog("Disassembling bpf progs ..")
-	bpfProgs, err := bpflbr.NewBPFProgs(engine, progs, false)
+	bpfProgs, err := bpflbr.NewBPFProgs(engine, progs, false, false)
 	assert.NoErr(err, "Failed to get bpf progs: %v")
 	defer bpfProgs.Close()
 

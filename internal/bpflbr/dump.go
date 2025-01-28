@@ -12,13 +12,14 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/btf"
+	"github.com/fatih/color"
 	"github.com/knightsc/gapstone"
 
 	"github.com/Asphaltt/bpflbr/internal/assert"
 )
 
 func DumpProg(pf []ProgFlag) {
-	progs, err := NewBPFProgs(gapstone.Engine{}, pf, true)
+	progs, err := NewBPFProgs(gapstone.Engine{}, pf, true, true)
 	assert.NoErr(err, "Failed to get bpf progs: %v")
 	defer progs.Close()
 
@@ -63,7 +64,7 @@ func DumpProg(pf []ProgFlag) {
 	defer engine.Close()
 
 	VerboseLog("Disassembling bpf progs ..")
-	bpfProgs, err := NewBPFProgs(engine, nil, false)
+	bpfProgs, err := NewBPFProgs(engine, nil, false, true)
 	assert.NoErr(err, "Failed to get bpf progs: %v")
 	defer bpfProgs.Close()
 
@@ -104,6 +105,27 @@ func DumpProg(pf []ProgFlag) {
 
 	var sb strings.Builder
 
+	printLineInfo := func(li *branchEndpoint) {
+		gray := color.RGB(0x88, 0x88, 0x88)
+		gray.Fprintf(&sb, "; %s+%#x", li.funcName, li.offset)
+		if li.fileName != "" {
+			gray.Fprintf(&sb, " %s:%d", li.fileName, li.fileLine)
+		}
+		if li.isInline {
+			gray.Fprint(&sb, " [inline]")
+		}
+		if li.isProg {
+			gray.Fprint(&sb, " [bpf]")
+		}
+		fmt.Fprintln(&sb)
+	}
+
+	printInsnInfo := func(pc uint64, opcode string, mnemonic string, opstr string) {
+		fmt.Fprintf(&sb, "%s: %-19s\t%s\t%s",
+			color.New(color.FgBlue).Sprintf("%#x", pc), opcode,
+			color.GreenString(mnemonic), color.RedString(opstr))
+	}
+
 	insns := jitedInsns
 	for i, funcLen := range jitedFuncLens {
 		ksym := uint64(jitedKsyms[i])
@@ -117,7 +139,7 @@ func DumpProg(pf []ProgFlag) {
 				if fileName != "" && fileName[0] == '.' {
 					fileName = strings.TrimLeft(fileName, "./")
 				}
-				fmt.Fprintf(&sb, "; %s:%d:%d %s\n",
+				color.RGB(0x88, 0x88, 0x88).Fprintf(&sb, "; %s:%d:%d %s\n",
 					fileName, li.Line.LineNumber(), li.Line.LineColumn(),
 					strings.TrimSpace(li.Line.Line()))
 			}
@@ -131,7 +153,7 @@ func DumpProg(pf []ProgFlag) {
 			}
 			opcode := strings.Join(opcodes, " ")
 			opstr := inst[0].OpStr
-			fmt.Fprintf(&sb, "%#x: %-19s\t%s\t%s", kaddr, opcode, inst[0].Mnemonic, opstr)
+			printInsnInfo(kaddr, opcode, inst[0].Mnemonic, opstr)
 
 			var endpoint *branchEndpoint
 			if strings.HasPrefix(opstr, "0x") {
@@ -141,18 +163,11 @@ func DumpProg(pf []ProgFlag) {
 				}
 			}
 			if endpoint != nil {
-				fmt.Fprintf(&sb, "\t; %s+%#x", endpoint.funcName, endpoint.offset)
-				if endpoint.fileName != "" {
-					fmt.Fprintf(&sb, " %s:%d", endpoint.fileName, endpoint.fileLine)
-				}
-				if endpoint.isInline {
-					fmt.Fprintf(&sb, " [inline]")
-				}
-				if endpoint.isProg {
-					fmt.Fprintf(&sb, " [bpf]")
-				}
+				fmt.Fprint(&sb, "\t")
+				printLineInfo(endpoint)
+			} else {
+				fmt.Fprintln(&sb)
 			}
-			fmt.Fprintln(&sb)
 
 			insnSize := uint64(inst[0].Size)
 			pc += insnSize
