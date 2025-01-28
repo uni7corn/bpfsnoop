@@ -16,6 +16,15 @@ import (
 
 const kallsymsFilepath = "/proc/kallsyms"
 
+const (
+	kmodBuiltinPfx = "__builtin"
+	kmodBpf        = "bpf"
+)
+
+func isKernelBuiltinMod(mod string) bool {
+	return mod == "" || strings.HasPrefix(mod, kmodBuiltinPfx) || mod == kmodBpf
+}
+
 // KsymEntry represents a symbol entry in /proc/kallsyms.
 type KsymEntry struct {
 	addr  uint64
@@ -32,6 +41,13 @@ func (ke *KsymEntry) Addr() uint64 {
 // Name returns the name of the symbol.
 func (ke *KsymEntry) Name() string {
 	return ke.name
+}
+
+func (ke *KsymEntry) String() string {
+	if ke.mod == "" {
+		return fmt.Sprintf("%#x@%s", ke.addr, ke.name)
+	}
+	return fmt.Sprintf("%#x@%s[%s]", ke.addr, ke.name, ke.mod)
 }
 
 // Kallsyms represents all t/T symbols in /proc/kallsyms.
@@ -160,4 +176,33 @@ func (ks *Kallsyms) next(kaddr uintptr) (*KsymEntry, bool) {
 	}
 
 	return ks.a2s[ks.addrs[idx]], true
+}
+
+func (ks *Kallsyms) findBySymbol(symbol string) (*KsymEntry, bool) {
+	entry, ok := ks.n2s[symbol]
+	if ok {
+		return entry, true
+	}
+
+	suffixs := []string{
+		".constprop.0",
+		".isra.0",
+		".isra.0.cold",
+		".cold",
+		".part.0",
+	}
+	for _, suffix := range suffixs {
+		if entry, ok = ks.n2s[symbol+suffix]; ok {
+			return entry, true
+		}
+	}
+
+	nameLLVM := symbol + ".llvm." // llvm symbols
+	for name, entry := range ks.n2s {
+		if strings.HasPrefix(name, nameLLVM) {
+			return entry, true
+		}
+	}
+
+	return nil, false
 }

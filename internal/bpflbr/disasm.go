@@ -105,10 +105,11 @@ func dumpKfunc(kfunc string, bytes uint) {
 	}
 	if err != nil {
 		// kfunc may be a symbol name
-		entry, ok := kallsyms.n2s[kfunc]
+		entry, ok := kallsyms.findBySymbol(kfunc)
 		assert.True(ok, "Symbol %s not found in /proc/kallsyms", kfunc)
 
 		kaddr = entry.addr
+		kfunc = entry.name
 	} else {
 		entry, ok := kallsyms.find(uintptr(kaddr))
 		assert.True(ok, "Address %#x not found in /proc/kallsyms", kaddr)
@@ -138,11 +139,9 @@ func dumpKfunc(kfunc string, bytes uint) {
 		textAddr, err := ReadTextAddrFromVmlinux(vmlinux)
 		assert.NoErr(err, "Failed to read .text address from vmlinux: %v")
 
-		kaslrOffset := textAddr - kallsyms.Stext()
-		VerboseLog("KASLR offset: 0x%x", kaslrOffset)
-
 		VerboseLog("Creating addr2line from vmlinux ..")
-		addr2line, err = NewAddr2Line(vmlinux, kaslrOffset, kallsyms.SysBPF())
+		kaslr := NewKaslr(kallsyms.Stext(), textAddr)
+		addr2line, err = NewAddr2Line(vmlinux, kaslr, kallsyms.SysBPF())
 		assert.NoErr(err, "Failed to create addr2line: %v")
 	}
 
@@ -166,6 +165,9 @@ func dumpKfunc(kfunc string, bytes uint) {
 	fmt.Fprintf(&sb, "; %s+%#x", li.funcName, li.offset)
 	if li.fileName != "" {
 		fmt.Fprintf(&sb, " %s:%d", li.fileName, li.fileLine)
+	}
+	if li.isInline {
+		fmt.Fprintf(&sb, " [inline]")
 	}
 	if li.isProg {
 		fmt.Fprintf(&sb, " [bpf]")
@@ -224,6 +226,9 @@ func dumpKfunc(kfunc string, bytes uint) {
 			fmt.Fprintf(&sb, "\t; %s+%#x", endpoint.funcName, endpoint.offset)
 			if endpoint.fileName != "" {
 				fmt.Fprintf(&sb, " %s:%d", endpoint.fileName, endpoint.fileLine)
+			}
+			if endpoint.isInline {
+				fmt.Fprintf(&sb, " [inline]")
 			}
 			if endpoint.isProg {
 				fmt.Fprintf(&sb, " [bpf]")

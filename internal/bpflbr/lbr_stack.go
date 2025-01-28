@@ -17,7 +17,8 @@ type branchEndpoint struct {
 
 	fileName    string
 	fileLine    uint32
-	lineInfo    string // (${fileName}:${fileLine})
+	lineInfo    string // (${fileName}:${fileLine})[inline]
+	isInline    bool
 	isProg      bool
 	fromVmlinux bool
 }
@@ -29,7 +30,11 @@ func (b *branchEndpoint) updateInfo() {
 		b.endpointName = fmt.Sprintf("%s+%#x", b.funcName, b.offset)
 	}
 	if b.fileName != "" {
-		b.lineInfo = fmt.Sprintf("(%s:%d)", b.fileName, b.fileLine)
+		if b.isInline {
+			b.lineInfo = fmt.Sprintf("(%s:%d)[inline]", b.fileName, b.fileLine)
+		} else {
+			b.lineInfo = fmt.Sprintf("(%s:%d)", b.fileName, b.fileLine)
+		}
 	}
 }
 

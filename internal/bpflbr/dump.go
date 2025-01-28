@@ -52,11 +52,9 @@ func DumpProg(pf []ProgFlag) {
 		textAddr, err := ReadTextAddrFromVmlinux(vmlinux)
 		assert.NoErr(err, "Failed to read .text address from vmlinux: %v")
 
-		kaslrOffset := textAddr - kallsyms.Stext()
-		VerboseLog("KASLR offset: 0x%x", kaslrOffset)
-
 		VerboseLog("Creating addr2line from vmlinux ..")
-		addr2line, err = NewAddr2Line(vmlinux, kaslrOffset, kallsyms.SysBPF())
+		kaslr := NewKaslr(kallsyms.Stext(), textAddr)
+		addr2line, err = NewAddr2Line(vmlinux, kaslr, kallsyms.SysBPF())
 		assert.NoErr(err, "Failed to create addr2line: %v")
 	}
 
@@ -146,6 +144,9 @@ func DumpProg(pf []ProgFlag) {
 				fmt.Fprintf(&sb, "\t; %s+%#x", endpoint.funcName, endpoint.offset)
 				if endpoint.fileName != "" {
 					fmt.Fprintf(&sb, " %s:%d", endpoint.fileName, endpoint.fileLine)
+				}
+				if endpoint.isInline {
+					fmt.Fprintf(&sb, " [inline]")
 				}
 				if endpoint.isProg {
 					fmt.Fprintf(&sb, " [bpf]")

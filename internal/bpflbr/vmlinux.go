@@ -21,11 +21,19 @@ func uname() (*unix.Utsname, error) {
 	return &uts, nil
 }
 
-// FindVmlinux tries to find vmlinux file from common locations.
-func FindVmlinux() (string, error) {
+func getRelease() (string, error) {
 	uts, err := uname()
 	if err != nil {
 		return "", fmt.Errorf("failed to get uname: %w", err)
+	}
+	return nullTerminatedStr(uts.Release[:]), nil
+}
+
+// FindVmlinux tries to find vmlinux file from common locations.
+func FindVmlinux() (string, error) {
+	release, err := getRelease()
+	if err != nil {
+		return "", fmt.Errorf("failed to get release: %w", err)
 	}
 
 	locations := []string{
@@ -38,7 +46,6 @@ func FindVmlinux() (string, error) {
 		"/usr/lib/debug/lib/modules/%s/vmlinux",
 	}
 
-	release := nullTerminatedStr(uts.Release[:])
 	for _, loc := range locations {
 		var filepath string
 		cnt := strings.Count(loc, "%s")

@@ -117,49 +117,6 @@ func Run(reader *ringbuf.Reader, progs *bpfProgs, addr2line *Addr2Line, ksyms *K
 	}
 }
 
-func getLineInfo(addr uintptr, progs *bpfProgs, a2l *Addr2Line, ksyms *Kallsyms) *branchEndpoint {
-	if li, ok := progs.get(addr); ok {
-		var ep branchEndpoint
-		ep.addr = addr
-		ep.offset = addr - li.ksymAddr
-		ep.funcName = li.funcName
-		ep.fileName = li.fileName
-		ep.fileLine = li.fileLine
-		ep.isProg = true
-		ep.updateInfo()
-		return &ep
-	}
-
-	var ep branchEndpoint
-	ep.addr = addr
-	defer ep.updateInfo()
-
-	if ksym, ok := ksyms.find(addr); ok {
-		ep.funcName = ksym.name
-		ep.offset = addr - uintptr(ksym.addr)
-	}
-
-	if a2l == nil {
-		return &ep
-	}
-
-	li, err := a2l.get(addr)
-	if err != nil {
-		return &ep
-	}
-
-	fileName := li.File
-	if strings.HasPrefix(fileName, a2l.buildDir) {
-		fileName = fileName[len(a2l.buildDir):]
-	}
-
-	ep.funcName = li.Func
-	ep.fileName = fileName
-	ep.fileLine = uint32(li.Line)
-	ep.fromVmlinux = true
-	return &ep
-}
-
 func getLbrStack(event *Event, progs *bpfProgs, addr2line *Addr2Line, ksyms *Kallsyms, stack *lbrStack) bool {
 	progInfo, isProg := progs.funcs[event.FuncIP]
 

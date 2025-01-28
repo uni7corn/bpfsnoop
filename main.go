@@ -51,7 +51,8 @@ func main() {
 
 	if !flags.SuppressLbr() {
 		lbrPerfEvents, err := bpflbr.OpenLbrPerfEvent()
-		if err != nil && errors.Is(err, unix.ENOENT) {
+		if err != nil &&
+			(errors.Is(err, unix.ENOENT) || errors.Is(err, unix.EOPNOTSUPP)) {
 			log.Fatalln("LBR is not supported on current system")
 		}
 		assert.NoErr(err, "Failed to open LBR perf event: %v")
@@ -78,11 +79,9 @@ func main() {
 		textAddr, err := bpflbr.ReadTextAddrFromVmlinux(vmlinux)
 		assert.NoErr(err, "Failed to read .text address from vmlinux: %v")
 
-		kaslrOffset := textAddr - kallsyms.Stext()
-		bpflbr.VerboseLog("KASLR offset: 0x%x", kaslrOffset)
-
 		bpflbr.VerboseLog("Creating addr2line from vmlinux ..")
-		addr2line, err = bpflbr.NewAddr2Line(vmlinux, kaslrOffset, kallsyms.SysBPF())
+		kaslr := bpflbr.NewKaslr(kallsyms.Stext(), textAddr)
+		addr2line, err = bpflbr.NewAddr2Line(vmlinux, kaslr, kallsyms.SysBPF())
 		assert.NoErr(err, "Failed to create addr2line: %v")
 	}
 
