@@ -90,7 +90,7 @@ func main() {
 	defer engine.Close()
 
 	bpflbr.VerboseLog("Disassembling bpf progs ..")
-	bpfProgs, err := bpflbr.NewBPFProgs(engine, progs, false, false)
+	bpfProgs, err := bpflbr.NewBPFProgs(progs, false, false)
 	assert.NoErr(err, "Failed to get bpf progs: %v")
 	defer bpfProgs.Close()
 
@@ -146,7 +146,7 @@ func main() {
 	defer tracings.Close()
 	assert.True(tracings.HaveTracing(), "No tracing target")
 
-	err = bpfProgs.AddProgs(tracings.Progs(), engine, true)
+	err = bpfProgs.AddProgs(tracings.Progs(), true)
 	assert.NoErr(err, "Failed to add bpf progs: %v")
 
 	kallsyms, err = bpflbr.NewKallsyms()

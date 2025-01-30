@@ -158,7 +158,7 @@ func dumpKfunc(kfunc string, bytes uint) {
 	}
 
 	VerboseLog("Disassembling bpf progs ..")
-	bpfProgs, err := NewBPFProgs(engine, nil, false, true)
+	bpfProgs, err := NewBPFProgs(nil, false, true)
 	assert.NoErr(err, "Failed to get bpf progs: %v")
 	defer bpfProgs.Close()
 

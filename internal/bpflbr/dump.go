@@ -19,7 +19,7 @@ import (
 )
 
 func DumpProg(pf []ProgFlag) {
-	progs, err := NewBPFProgs(gapstone.Engine{}, pf, true, true)
+	progs, err := NewBPFProgs(pf, true, true)
 	assert.NoErr(err, "Failed to get bpf progs: %v")
 	defer progs.Close()
 
@@ -64,7 +64,7 @@ func DumpProg(pf []ProgFlag) {
 	defer engine.Close()
 
 	VerboseLog("Disassembling bpf progs ..")
-	bpfProgs, err := NewBPFProgs(engine, nil, false, true)
+	bpfProgs, err := NewBPFProgs(nil, false, true)
 	assert.NoErr(err, "Failed to get bpf progs: %v")
 	defer bpfProgs.Close()
 

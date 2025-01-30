@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/cilium/ebpf"
-	"github.com/knightsc/gapstone"
 	"golang.org/x/exp/maps"
 )
 
@@ -20,7 +19,7 @@ type bpfProgs struct {
 	disasm bool // disassemble BPF programs instead of tracing them
 }
 
-func NewBPFProgs(engine gapstone.Engine, pflags []ProgFlag, onlyPrepare, disasm bool) (*bpfProgs, error) {
+func NewBPFProgs(pflags []ProgFlag, onlyPrepare, disasm bool) (*bpfProgs, error) {
 	var progs bpfProgs
 	progs.progs = make(map[ebpf.ProgramID]*ebpf.Program, len(pflags))
 	progs.funcs = make(map[uintptr]*bpfProgInfo, len(pflags))
@@ -44,7 +43,7 @@ func NewBPFProgs(engine gapstone.Engine, pflags []ProgFlag, onlyPrepare, disasm 
 	}
 
 	for id, prog := range progs.progs {
-		if err := progs.addProg(prog, id, engine, false); err != nil {
+		if err := progs.addProg(prog, id, false); err != nil {
 			return nil, err
 		}
 	}
@@ -52,8 +51,8 @@ func NewBPFProgs(engine gapstone.Engine, pflags []ProgFlag, onlyPrepare, disasm 
 	return &progs, nil
 }
 
-func (b *bpfProgs) addProg(prog *ebpf.Program, id ebpf.ProgramID, engine gapstone.Engine, isLbr bool) error {
-	progInfo, err := newBPFProgInfo(prog, engine)
+func (b *bpfProgs) addProg(prog *ebpf.Program, id ebpf.ProgramID, isLbr bool) error {
+	progInfo, err := newBPFProgInfo(prog)
 	if err != nil {
 		return fmt.Errorf("failed to create BPF program info for ID(%d): %w", id, err)
 	}
@@ -63,7 +62,7 @@ func (b *bpfProgs) addProg(prog *ebpf.Program, id ebpf.ProgramID, engine gapston
 	return nil
 }
 
-func (b *bpfProgs) AddProgs(progs []*ebpf.Program, engine gapstone.Engine, isLbr bool) error {
+func (b *bpfProgs) AddProgs(progs []*ebpf.Program, isLbr bool) error {
 	for _, prog := range progs {
 		info, err := prog.Info()
 		if err != nil {
@@ -75,7 +74,7 @@ func (b *bpfProgs) AddProgs(progs []*ebpf.Program, engine gapstone.Engine, isLbr
 			return fmt.Errorf("failed to get prog ID")
 		}
 
-		err = b.addProg(prog, id, engine, isLbr)
+		err = b.addProg(prog, id, isLbr)
 		if err != nil {
 			return fmt.Errorf("failed to add BPF program: %w", err)
 		}

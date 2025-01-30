@@ -10,7 +10,6 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/btf"
-	"github.com/knightsc/gapstone"
 )
 
 type bpfProgKaddrRange struct {
@@ -62,7 +61,7 @@ type bpfProgInfo struct {
 	isLbrProg bool
 }
 
-func newBPFProgInfo(prog *ebpf.Program, engine gapstone.Engine) (*bpfProgInfo, error) {
+func newBPFProgInfo(prog *ebpf.Program) (*bpfProgInfo, error) {
 	pinfo, err := prog.Info()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get prog info: %w", err)
@@ -91,40 +90,21 @@ func newBPFProgInfo(prog *ebpf.Program, engine gapstone.Engine) (*bpfProgInfo, e
 		return nil, fmt.Errorf("line info number %d != jited line info number %d", len(lines), len(jitedLineInfos))
 	}
 
-	jited2li := make(map[uint64]btf.LineOffset, len(jitedLineInfos))
-	for i, kaddr := range jitedLineInfos {
-		jited2li[kaddr] = lines[i]
-	}
-
 	var progInfo bpfProgInfo
 	progInfo.progs = make([]*bpfProgAddrLineInfo, 0, len(jitedFuncLens))
 
 	insns := jitedInsns
 	for i, funcLen := range jitedFuncLens {
-		ksym := uint64(jitedKsyms[i])
-		fnInsns := insns[:funcLen]
-		pc := uint64(0)
-
 		var info bpfProgAddrLineInfo
 		info.kaddrRange.start = jitedKsyms[i]
 		info.kaddrRange.end = info.kaddrRange.start + uintptr(funcLen)
 		info.funcName = strings.TrimSpace(funcInfos[i].Func.Name)
 
-		for len(fnInsns) > 0 {
-			kaddr := ksym + pc
-			if li, ok := jited2li[kaddr]; ok {
+		for i, kaddr := range jitedLineInfos {
+			if info.kaddrRange.start <= uintptr(kaddr) && uintptr(kaddr) < info.kaddrRange.end {
 				info.jitedLineInfo = append(info.jitedLineInfo, uintptr(kaddr))
-				info.lineInfos = append(info.lineInfos, li)
+				info.lineInfos = append(info.lineInfos, lines[i])
 			}
-
-			inst, err := engine.Disasm(fnInsns, kaddr, 1)
-			if err != nil {
-				return nil, fmt.Errorf("failed to disasm instruction: %w", err)
-			}
-
-			instSize := uint64(inst[0].Size)
-			pc += instSize
-			fnInsns = fnInsns[instSize:]
 		}
 
 		progInfo.progs = append(progInfo.progs, &info)
