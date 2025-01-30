@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Asphaltt/bpflbr/internal/strx"
 	"golang.org/x/sys/unix"
 )
 
@@ -26,7 +27,7 @@ func getRelease() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get uname: %w", err)
 	}
-	return nullTerminatedStr(uts.Release[:]), nil
+	return strx.NullTerminated(uts.Release[:]), nil
 }
 
 // FindVmlinux tries to find vmlinux file from common locations.

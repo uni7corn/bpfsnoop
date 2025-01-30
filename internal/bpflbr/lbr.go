@@ -10,6 +10,7 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/Asphaltt/bpflbr/internal/strx"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/ringbuf"
 	"golang.org/x/sys/unix"
@@ -91,7 +92,7 @@ func Run(reader *ringbuf.Reader, progs *bpfProgs, addr2line *Addr2Line, ksyms *K
 		if mode != TracingModeEntry {
 			fmt.Fprintf(&sb, " retval=%d/%#x", event.Retval, uint64(event.Retval))
 		}
-		fmt.Fprintf(&sb, " cpu=%d process=(%d:%s)", event.CPU, event.Pid, nullTerminated(event.Comm[:]))
+		fmt.Fprintf(&sb, " cpu=%d process=(%d:%s)", event.CPU, event.Pid, strx.NullTerminated(event.Comm[:]))
 
 		hasFuncEntries := len(funcStack) > 0
 		if hasLbrEntries || hasFuncEntries {
