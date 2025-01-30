@@ -16,6 +16,10 @@ type bpfProgKaddrRange struct {
 	start, end uintptr
 }
 
+func (r *bpfProgKaddrRange) contains(addr uintptr) bool {
+	return r.start <= addr && addr < r.end
+}
+
 type bpfProgAddrLineInfo struct {
 	kaddrRange bpfProgKaddrRange
 	funcName   string
@@ -33,7 +37,7 @@ type bpfProgLineInfo struct {
 }
 
 func (b *bpfProgAddrLineInfo) get(addr uintptr) (*bpfProgLineInfo, bool) {
-	if addr < b.kaddrRange.start || addr >= b.kaddrRange.end {
+	if !b.kaddrRange.contains(addr) {
 		return nil, false
 	}
 
@@ -127,7 +131,7 @@ func (b *bpfProgInfo) get(addr uintptr) (*bpfProgLineInfo, bool) {
 
 func (b *bpfProgInfo) contains(addr uintptr) bool {
 	for _, prog := range b.progs {
-		if addr >= prog.kaddrRange.start && addr < prog.kaddrRange.end {
+		if prog.kaddrRange.contains(addr) {
 			return true
 		}
 	}

@@ -95,8 +95,8 @@ func (b *bpfProgs) Tracings() []bpfTracingInfo {
 
 func (b *bpfProgs) get(addr uintptr) (*bpfProgLineInfo, bool) {
 	for _, info := range b.funcs {
-		if line, ok := info.get(addr); ok {
-			return line, true
+		if info.contains(addr) {
+			return info.get(addr)
 		}
 	}
 
