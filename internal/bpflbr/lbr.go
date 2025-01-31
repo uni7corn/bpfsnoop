@@ -13,6 +13,7 @@ import (
 	"github.com/Asphaltt/bpflbr/internal/strx"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/ringbuf"
+	"github.com/fatih/color"
 	"golang.org/x/sys/unix"
 )
 
@@ -88,9 +89,17 @@ func Run(reader *ringbuf.Reader, progs *bpfProgs, addr2line *Addr2Line, ksyms *K
 			}
 		}
 
-		fmt.Fprintf(&sb, "Recv a record for %s with", targetName)
-		if mode != TracingModeEntry {
-			fmt.Fprintf(&sb, " retval=%d/%#x", event.Retval, uint64(event.Retval))
+		if noColorOutput {
+			fmt.Fprintf(&sb, "Recv a record for %s with", targetName)
+			if mode != TracingModeEntry {
+				fmt.Fprintf(&sb, " retval=%d/%#x", event.Retval, uint64(event.Retval))
+			}
+		} else {
+			targetName = color.New(color.FgYellow, color.Bold).Sprint(targetName)
+			fmt.Fprintf(&sb, "Recv a record for %s with", targetName)
+			if mode != TracingModeEntry {
+				color.New(color.FgRed).Fprintf(&sb, " retval=%d/%#x", event.Retval, uint64(event.Retval))
+			}
 		}
 		fmt.Fprintf(&sb, " cpu=%d process=(%d:%s)", event.CPU, event.Pid, strx.NullTerminated(event.Comm[:]))
 

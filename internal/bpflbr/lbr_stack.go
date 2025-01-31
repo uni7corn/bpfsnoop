@@ -6,6 +6,8 @@ package bpflbr
 import (
 	"fmt"
 	"io"
+
+	"github.com/fatih/color"
 )
 
 type branchEndpoint struct {
@@ -38,16 +40,37 @@ func (b *branchEndpoint) updateInfo() {
 	}
 }
 
-func (b *branchEndpoint) format(f string) string {
-	switch {
-	case b.endpointName != "" && b.lineInfo != "":
-		return fmt.Sprintf(f, b.endpointName, b.lineInfo)
-	case b.endpointName != "":
-		return fmt.Sprintf(f, b.endpointName, "")
-	case b.lineInfo != "":
-		return fmt.Sprintf(f, "", b.lineInfo)
-	default:
-		return fmt.Sprintf(f, fmt.Sprintf("%#x", b.addr), "")
+func (b *branchEndpoint) format(w io.Writer, nameLen, infoLen int) {
+	if noColorOutput {
+		sfmt := fmt.Sprintf("%%-%ds %%-%ds", nameLen, infoLen)
+		fmt.Fprintf(w, sfmt, b.endpointName, b.lineInfo)
+		return
+	}
+
+	if verbose {
+		color.New(color.FgBlue).Fprintf(w, "%#x", b.addr)
+		fmt.Fprint(w, ":")
+	}
+	color.RGB(0xE1, 0xD5, 0x77 /* light yellow */).Fprint(w, b.funcName)
+	fmt.Fprintf(w, "+%#x", b.offset)
+	if nameLen > len(b.endpointName) {
+		fmt.Fprintf(w, "%-*s", nameLen-len(b.endpointName), "")
+	}
+
+	fmt.Fprint(w, " ")
+
+	if b.fileName != "" {
+		fmt.Fprint(w, "(")
+		color.RGB(0x88, 0x88, 0x88 /* gray */).Fprintf(w, "%s:%d", b.fileName, b.fileLine)
+		fmt.Fprint(w, ")")
+		if b.isInline {
+			fmt.Fprint(w, "[inline]")
+		}
+		if infoLen > len(b.lineInfo) {
+			fmt.Fprintf(w, "%-*s", infoLen-len(b.lineInfo), "")
+		}
+	} else {
+		fmt.Fprintf(w, "%-*s", infoLen, "")
 	}
 }
 
@@ -55,9 +78,10 @@ type branchEntry struct {
 	from, to *branchEndpoint
 }
 
-func (e *branchEntry) format(leftFmt, rightFmt string) string {
-	l, r := e.from.format(leftFmt), e.to.format(rightFmt)
-	return fmt.Sprintf("%s -> %s", l, r)
+func (e *branchEntry) format(w io.Writer, lNameLen, lInfoLen, rNameLen, rInfoLen int) {
+	e.from.format(w, lNameLen, lInfoLen)
+	fmt.Fprint(w, " -> ")
+	e.to.format(w, rNameLen, rInfoLen)
 }
 
 type branchRecord struct {
@@ -134,43 +158,47 @@ func (s *lbrStack) pushEntry(entry branchEntry) {
 	}
 }
 
-func (s *lbrStack) outputRecord(w io.Writer, lfmt, rfmt string, r *branchRecord, idx int) {
-	fmt.Fprintf(w, "[#%02d] %s\n", idx, r.entries[0].format(lfmt, rfmt))
+func (s *lbrStack) outputRecord(w io.Writer, r *branchRecord, idx int, lNameLen, lInfoLen, rNameLen, rInfoLen int) {
+	fmt.Fprintf(w, "[#%02d] ", idx)
+	r.entries[0].format(w, lNameLen, lInfoLen, rNameLen, rInfoLen)
+	fmt.Fprintln(w)
 
 	i := 1
 	for ; i < len(r.entries); i++ {
 		entry := r.entries[i]
-		fmt.Fprintf(w, "      %s\n", entry.format(lfmt, rfmt))
+		fmt.Fprintf(w, "      ")
+		entry.format(w, lNameLen, lInfoLen, rNameLen, rInfoLen)
+		fmt.Fprintln(w)
 	}
 }
 
-func (s *lbrStack) getLeftFmt() string {
+func (s *lbrStack) getLeftFmt() (int, int) {
 	var maxFromNameLen, maxFromLinfoLen int
 	for _, r := range s.stack {
 		maxFromNameLen = max(maxFromNameLen, r.maxFromNameLen)
 		maxFromLinfoLen = max(maxFromLinfoLen, r.maxFromLinfoLen)
 	}
 
-	return fmt.Sprintf("%%-%ds %%-%ds", maxFromNameLen, maxFromLinfoLen)
+	return maxFromNameLen, maxFromLinfoLen
 }
 
-func (s *lbrStack) getRightFmt() string {
+func (s *lbrStack) getRightFmt() (int, int) {
 	var maxToNameLen, maxToLinfoLen int
 	for _, r := range s.stack {
 		maxToNameLen = max(maxToNameLen, r.maxToNameLen)
 		maxToLinfoLen = max(maxToLinfoLen, r.maxToLinfoLen)
 	}
 
-	return fmt.Sprintf("%%-%ds %%-%ds", maxToNameLen, maxToLinfoLen)
+	return maxToNameLen, maxToLinfoLen
 }
 
 func (s *lbrStack) output(w io.Writer) {
 	idx := 31
-	lfmt := s.getLeftFmt()
-	rfmt := s.getRightFmt()
+	ln, li := s.getLeftFmt()
+	rn, ri := s.getRightFmt()
 
 	for _, r := range s.stack {
-		s.outputRecord(w, lfmt, rfmt, r, idx)
+		s.outputRecord(w, r, idx, ln, li, rn, ri)
 		idx--
 	}
 }

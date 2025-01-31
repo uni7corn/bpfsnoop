@@ -35,6 +35,7 @@ var (
 	outputFuncStack bool
 	filterPid       uint32
 	kfuncAllKmods   bool
+	noColorOutput   bool
 )
 
 type ProgFlag struct {
@@ -149,7 +150,11 @@ func ParseFlags() (*Flags, error) {
 	f.BoolVar(&outputFuncStack, "output-stack", false, "output function call stack")
 	f.Uint32Var(&filterPid, "filter-pid", 0, "filter pid for tracing")
 
-	return &flags, f.Parse(os.Args)
+	err := f.Parse(os.Args)
+
+	noColorOutput = flags.outputFile != "" || !isatty(os.Stdout.Fd())
+
+	return &flags, err
 }
 
 func (f *Flags) ParseProgs() ([]ProgFlag, error) {
