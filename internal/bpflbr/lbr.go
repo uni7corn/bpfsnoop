@@ -194,11 +194,15 @@ func getFuncStack(event *Event, progs *bpfProgs, addr2line *Addr2Line, ksym *Kal
 		ips = ips[3:] // Skip the first 3 entries as they are entries for fentry/fexit and its trampoline.
 	}
 	for _, ip := range ips {
-		if ip != 0 {
-			li := getLineInfo(uintptr(ip), progs, addr2line, ksym)
+		if ip == 0 {
+			continue
+		}
 
-			var sb strings.Builder
-			fmt.Fprint(&sb, "  ")
+		li := getLineInfo(uintptr(ip), progs, addr2line, ksym)
+
+		var sb strings.Builder
+		fmt.Fprint(&sb, "  ")
+		if noColorOutput {
 			if verbose {
 				fmt.Fprintf(&sb, "0x%x:", ip)
 			}
@@ -206,10 +210,23 @@ func getFuncStack(event *Event, progs *bpfProgs, addr2line *Addr2Line, ksym *Kal
 			if li.fileName != "" {
 				fmt.Fprintf(&sb, "\t; %s:%d", li.fileName, li.fileLine)
 			}
-			fmt.Fprintln(&sb)
+		} else {
+			if verbose {
+				color.New(color.FgBlue).Fprintf(&sb, "%#x", ip)
+				fmt.Fprint(&sb, ":")
+			}
 
-			stack = append(stack, sb.String())
+			offset := fmt.Sprintf("+%#x", li.offset)
+			color.RGB(0xE1, 0xD5, 0x77 /* light yellow */).Fprint(&sb, li.funcName)
+			fmt.Fprintf(&sb, "%-*s", 50-len(li.funcName), offset)
+			if li.fileName != "" {
+				color.RGB(0x88, 0x88, 0x88 /* gray */).Fprintf(&sb, "\t; %s:%d", li.fileName, li.fileLine)
+			}
 		}
+
+		fmt.Fprintln(&sb)
+
+		stack = append(stack, sb.String())
 	}
 
 	return stack, nil
