@@ -51,7 +51,10 @@ func getLineInfo(addr uintptr, progs *bpfProgs, a2l *Addr2Line, ksyms *Kallsyms)
 		fileName = fileName[len(a2l.buildDir):]
 	}
 
-	ep.funcName = li.Func
+	if ep.funcName == "" {
+		ep.funcName = li.Func
+	}
+
 	ep.fileName = fileName
 	ep.fileLine = uint32(li.Line)
 	ep.fromVmlinux = true
