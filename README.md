@@ -14,33 +14,11 @@ Here're some references to learn about LBR:
 
 ## bpflbr output example
 
-```bash
-# ./bpflbr -p n:kprobe_multi_skb_1,n:kprobe_multi_skb_2,n:kprobe_multi_skb_3,n:kprobe_multi_skb_4,n:kprobe_multi_skb_5
-2024/12/05 09:57:02 bpflbr is running..
-Recv a record for kprobe_multi_skb_1[bpf] with retval=0/0x0 cpu=0 process=(0:swapper/0) :
-LBR stack:
-[#31] 0xffffffffb4cafa14:bpf_get_func_ip_kprobe_multi+0x14 (kernel/trace/bpf_trace.c:1089)     -> 0xffffffffc018a2d4:kprobe_multi_skb_1+0xa4         (bpf/kprobe_pwru.c:502)
-      0xffffffffc018a317:kprobe_multi_skb_1+0xe7           (bpf/kprobe_pwru.c:508)             -> 0xffffffffb4d187c0:queue_stack_map_push_elem+0x0   (kernel/bpf/queue_stack_maps.c:191)
-      0xffffffffb4d1880f:queue_stack_map_push_elem+0x4f    (kernel/bpf/queue_stack_maps.c:210) -> 0xffffffffb5ab1e90:_raw_spin_lock_irqsave+0x0      (kernel/locking/spinlock.c:161)
-      0xffffffffb5ab1e99:_raw_spin_lock_irqsave+0x9        (kernel/locking/spinlock.c:162)     -> 0xffffffffb4b800f0:__raw_spin_lock_irqsave+0x0
-      0xffffffffb4b80131:__raw_spin_lock_irqsave+0x41                                          -> 0xffffffffb5ab1e9e:_raw_spin_lock_irqsave+0xe      (kernel/locking/spinlock.c:163)
-      0xffffffffb5ab1ea1:_raw_spin_lock_irqsave+0x11       (kernel/locking/spinlock.c:163)     -> 0xffffffffb4d18814:queue_stack_map_push_elem+0x54  (kernel/bpf/queue_stack_maps.c:210)
-      0xffffffffb4d1884d:queue_stack_map_push_elem+0x8d    (kernel/bpf/queue_stack_maps.c:224) -> 0xffffffffb5a9bc70:__memcpy+0x0                    (arch/x86/lib/memcpy_64.S:34)
-      0xffffffffb5a9bc70:__memcpy+0x0                      (arch/x86/lib/memcpy_64.S:34)       -> 0xffffffffb5a9bc90:memcpy_orig+0x0                 (arch/x86/lib/memcpy_64.S:47)
-      0xffffffffb5a9bc9c:memcpy_orig+0xc                   (arch/x86/lib/memcpy_64.S:57)       -> 0xffffffffb5a9bcd3:memcpy_orig+0x43                (arch/x86/lib/memcpy_64.S:84)
-      0xffffffffb5a9bd0c:memcpy_orig+0x7c                  (arch/x86/lib/memcpy_64.S:104)      -> 0xffffffffb5a9bce0:memcpy_orig+0x50                (arch/x86/lib/memcpy_64.S:93)
-      0xffffffffb5a9bd0c:memcpy_orig+0x7c                  (arch/x86/lib/memcpy_64.S:104)      -> 0xffffffffb5a9bce0:memcpy_orig+0x50                (arch/x86/lib/memcpy_64.S:93)
-      0xffffffffb5a9bd0c:memcpy_orig+0x7c                  (arch/x86/lib/memcpy_64.S:104)      -> 0xffffffffb5a9bce0:memcpy_orig+0x50                (arch/x86/lib/memcpy_64.S:93)
-      0xffffffffb5a9bd3e:memcpy_orig+0xae                  (arch/x86/lib/memcpy_64.S:127)      -> 0xffffffffb4d18852:queue_stack_map_push_elem+0x92  (kernel/bpf/queue_stack_maps.c:226)
-      0xffffffffb4d18876:queue_stack_map_push_elem+0xb6    (kernel/bpf/queue_stack_maps.c:230) -> 0xffffffffb5ab1da0:_raw_spin_unlock_irqrestore+0x0 (kernel/locking/spinlock.c:193)
-      0xffffffffb5ab1dcf:_raw_spin_unlock_irqrestore+0x2f  (kernel/locking/spinlock.c:195)     -> 0xffffffffb4d1887b:queue_stack_map_push_elem+0xbb  (kernel/bpf/queue_stack_maps.c:232)
-      0xffffffffb4d18894:queue_stack_map_push_elem+0xd4    (kernel/bpf/queue_stack_maps.c:232) -> 0xffffffffc018a31c:kprobe_multi_skb_1+0xec         (bpf/kprobe_pwru.c:526)
-      0xffffffffc018a322:kprobe_multi_skb_1+0xf2           (bpf/kprobe_pwru.c:526)             -> 0xffffffffc1b8103f:+0x0
-```
+The colorful output of `./bpflbr -v -k ip_rcv`:
+
+![lbr example](./img/lbr%20stack%20example.png)
 
 This is a function call stack from callers to callees based on LBR records provided by `bpf_get_branch_snapshot()`, [bpf: Introduce helper bpf_get_branch_snapshot](https://github.com/torvalds/linux/commit/856c02dbce4f).
-
-In this LBR stack, there is two details of [cilium/pwru](https://github.com/cilium/pwru): it called `bpf_get_func_ip()` and `bpf_map_push_elem()`.
 
 ## Dependencies
 
@@ -108,6 +86,10 @@ Usage of bpflbr:
 ...
 ```
 
+Colorful output (of `./bpflbr -d -k __netif_receive_skb_core -B 300`) by default:
+
+![disasm example](./img/disasm%20example.png)
+
 ## Feature: trace target with fentry
 
 By default, `bpflbr` traces targets with fexit. If you want to trace targets with fentry, you can use `--mode entry`.
@@ -116,42 +98,11 @@ It is really useful to trace the details before calling the target function/bpf-
 
 ## Feature: dump function stack without LBR
 
-As `bpflbr` is able to provide line info for an kernel address, it can provide line info for the addresses of function stack:
+As `bpflbr` is able to provide line info for an kernel address, it will provide line info for the addresses of function stack if dbgsym is available.
 
-```bash
-# ./bpflbr --suppress-lbr -k icmp_rcv --output-stack --mode entry
-2024/12/04 14:11:34 bpflbr is running..
-Recv a record for icmp_rcv with cpu=6 process=(0:swapper/6) :
-Func stack:
-  icmp_rcv+0x5                                        ; net/ipv4/icmp.c:1180
-  ip_local_deliver_finish+0x77                        ; net/ipv4/ip_input.c:233
-  ip_local_deliver+0x6e                               ; include/linux/netfilter.h:314
-  ip_sublist_rcv_finish+0x6f                          ; include/net/dst.h:461
-  ip_sublist_rcv+0x178                                ; net/ipv4/ip_input.c:640
-  ip_list_rcv+0x102                                   ; net/ipv4/ip_input.c:675
-  __netif_receive_skb_list_core+0x22d                 ; net/core/dev.c:5577
-  netif_receive_skb_list_internal+0x1a3               ; net/core/dev.c:5679
-  napi_complete_done+0x74                             ; include/net/gro.h:439
-  e1000_clean+0x7c
-  __napi_poll+0x30                                    ; net/core/dev.c:6576
-  net_rx_action+0x181                                 ; net/core/dev.c:6647
-  __do_softirq+0xde
-  __irq_exit_rcu+0xd7                                 ; kernel/softirq.c:427
-  irq_exit_rcu+0xe                                    ; kernel/softirq.c:647
-  common_interrupt+0xa4
-  asm_common_interrupt+0x27                           ; arch/x86/include/asm/idtentry.h:640
-  pv_native_safe_halt+0xb                             ; arch/x86/kernel/paravirt.c:128
-  acpi_idle_do_entry+0x40                             ; arch/x86/include/asm/perf_event.h:619
-  acpi_idle_enter+0xb6                                ; drivers/acpi/processor_idle.c:709
-  cpuidle_enter_state+0x8e                            ; drivers/cpuidle/cpuidle.c:267
-  cpuidle_enter+0x2e
-  call_cpuidle+0x23                                   ; kernel/sched/idle.c:135
-  cpuidle_idle_call+0x11d                             ; kernel/sched/idle.c:219
-  do_idle+0x87                                        ; kernel/sched/idle.c:314
-  cpu_startup_entry+0x2a                              ; kernel/sched/idle.c:409
-  start_secondary+0x129                               ; arch/x86/kernel/smpboot.c:224
-  secondary_startup_64_no_verify+0x184                ; arch/x86/kernel/head_64.S:461
-```
+The colorful output of `./bpflbr -v -k ip_rcv --suppress-lbr --output-stack`:
+
+![func stack example](./img/func%20stack%20example.png)
 
 ## TODO list
 
