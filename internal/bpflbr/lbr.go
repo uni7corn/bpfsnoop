@@ -44,6 +44,8 @@ func Run(reader *ringbuf.Reader, progs *bpfProgs, addr2line *Addr2Line, ksyms *K
 	lbrStack := newLBRStack()
 	funcStack := make([]string, 0, MAX_STACK_DEPTH)
 
+	useLbr := !suppressLbr
+
 	var sb strings.Builder
 
 	for {
@@ -62,7 +64,7 @@ func Run(reader *ringbuf.Reader, progs *bpfProgs, addr2line *Addr2Line, ksyms *K
 
 		event := (*Event)(unsafe.Pointer(&record.RawSample[0]))
 
-		if event.NrBytes < 0 && event.NrBytes == -int64(unix.ENOENT) {
+		if event.NrBytes < 0 && event.NrBytes == -int64(unix.ENOENT) && useLbr {
 			return fmt.Errorf("LBR not supported")
 		}
 
@@ -73,7 +75,7 @@ func Run(reader *ringbuf.Reader, progs *bpfProgs, addr2line *Addr2Line, ksyms *K
 			}
 		}
 
-		hasLbrEntries := event.NrBytes > 0 && event.Entries[0] != (LbrEntry{})
+		hasLbrEntries := useLbr && event.NrBytes > 0 && event.Entries[0] != (LbrEntry{})
 		hasLbrEntries = hasLbrEntries && getLbrStack(event, progs, addr2line, ksyms, lbrStack)
 
 		var targetName string
