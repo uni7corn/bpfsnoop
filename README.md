@@ -46,7 +46,7 @@ Usage of bpflbr:
   -m, --mode string           mode of lbr tracing, exit or entry (default "exit")
   -o, --output string         output file for the result, default is stdout
       --output-stack          output function call stack
-  -p, --prog strings          bpf prog info for bpflbr in format PROG[,PROG,..], PROG: PROGID[:<prog function name>], PROGID: <prog ID> or 'i/id:<prog ID>' or 'p/pinned:<pinned file>' or 't/tag:<prog tag>' or 'n/name:<prog full name>' or 'pid:<pid>'; all bpf progs will be traced by default
+  -p, --prog strings          bpf prog info for bpflbr in format PROG[,PROG,..], PROG: PROGID[:<prog function name>], PROGID: <prog ID> or 'i/id:<prog ID>' or 'p/pinned:<pinned file>' or 't/tag:<prog tag>' or 'n/name:<prog full name>' or 'pid:<pid>'; all bpf progs will be traced if '*' is specified
       --suppress-lbr          suppress LBR perf event
   -v, --verbose               output verbose log
 ```

@@ -17,7 +17,7 @@ import (
 )
 
 type progFlags struct {
-	empty       bool
+	all         bool
 	ids         map[uint32]string // progID -> funcName
 	tags        map[string]string // tag -> funcName
 	names       map[string]string // entryFuncName -> funcName
@@ -27,7 +27,6 @@ type progFlags struct {
 
 func newProgFlags(pflags []ProgFlag) progFlags {
 	var pf progFlags
-	pf.empty = len(pflags) == 0
 	pf.ids = make(map[uint32]string)
 	pf.tags = make(map[string]string)
 	pf.names = make(map[string]string)
@@ -35,6 +34,11 @@ func newProgFlags(pflags []ProgFlag) progFlags {
 	pf.pids = make(map[uint32]string)
 
 	for _, f := range pflags {
+		if f.all {
+			pf.all = true
+			return pf
+		}
+
 		switch f.descriptor {
 		case progFlagDescriptorID:
 			pf.ids[f.progID] = f.funcName
@@ -218,7 +222,7 @@ func (p *bpfProgs) prepareProgInfo(progID ebpf.ProgramID, pflags progFlags) erro
 		return fmt.Errorf("failed to get prog entry func name: %w", err)
 	}
 
-	if pflags.empty {
+	if pflags.all {
 		return p.addTracing(progID, entryFuncName, prog)
 	}
 

@@ -47,10 +47,17 @@ type ProgFlag struct {
 
 	descriptor string
 	funcName   string
+
+	all bool
 }
 
 func parseProgFlag(p string) (ProgFlag, error) {
 	var pf ProgFlag
+
+	if p == "*" {
+		pf.all = true
+		return pf, nil
+	}
 
 	id, funcName, ok := strings.Cut(p, ":")
 	switch id {
@@ -137,7 +144,7 @@ func ParseFlags() (*Flags, error) {
 	var flags Flags
 
 	f := flag.NewFlagSet("bpflbr", flag.ExitOnError)
-	f.StringSliceVarP(&flags.progs, "prog", "p", nil, "bpf prog info for bpflbr in format PROG[,PROG,..], PROG: PROGID[:<prog function name>], PROGID: <prog ID> or 'i/id:<prog ID>' or 'p/pinned:<pinned file>' or 't/tag:<prog tag>' or 'n/name:<prog full name>' or 'pid:<pid>'; all bpf progs will be traced by default")
+	f.StringSliceVarP(&flags.progs, "prog", "p", nil, "bpf prog info for bpflbr in format PROG[,PROG,..], PROG: PROGID[:<prog function name>], PROGID: <prog ID> or 'i/id:<prog ID>' or 'p/pinned:<pinned file>' or 't/tag:<prog tag>' or 'n/name:<prog full name>' or 'pid:<pid>'; all bpf progs will be traced if '*' is specified")
 	f.StringSliceVarP(&flags.kfuncs, "kfunc", "k", nil, "filter kernel functions by shell wildcards way")
 	f.BoolVar(&kfuncAllKmods, "kfunc-all-kmods", false, "filter functions in all kernel modules")
 	f.StringVarP(&flags.outputFile, "output", "o", "", "output file for the result, default is stdout")
