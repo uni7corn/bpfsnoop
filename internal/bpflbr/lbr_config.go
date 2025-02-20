@@ -6,11 +6,14 @@ package bpflbr
 const (
 	lbrConfigFlagSuppressLbrIdx = 0 + iota
 	lbrConfigFlagOutputStackIdx
+	lbrConfigFlagIsRetStrIdx
 )
 
 type LbrConfig struct {
 	Flags     uint32
 	FilterPid uint32
+	FnArgs    [MAX_BPF_FUNC_ARGS]FuncParamFlags
+	FnArgsNr  uint32
 }
 
 func (cfg *LbrConfig) SetSuppressLbr(v bool) {
@@ -22,5 +25,11 @@ func (cfg *LbrConfig) SetSuppressLbr(v bool) {
 func (cfg *LbrConfig) SetOutputStack(v bool) {
 	if v {
 		cfg.Flags |= 1 << lbrConfigFlagOutputStackIdx
+	}
+}
+
+func (cfg *LbrConfig) SetIsRetStr(v bool) {
+	if v {
+		cfg.Flags |= 1 << lbrConfigFlagIsRetStrIdx
 	}
 }

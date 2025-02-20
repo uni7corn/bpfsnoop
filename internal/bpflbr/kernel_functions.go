@@ -7,15 +7,33 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"slices"
 
+	"github.com/Asphaltt/bpflbr/internal/btfx"
 	"github.com/cilium/ebpf/btf"
 	"github.com/gobwas/glob"
 )
 
 const (
-	MAX_BPF_FUNC_ARGS = 12
+	MAX_BPF_FUNC_ARGS = 6
 )
+
+type FuncParamFlags struct {
+	IsNumberPtr bool
+	IsStr       bool
+}
+
+type KFunc struct {
+	Ksym     *KsymEntry
+	Func     *btf.Func
+	Prms     []FuncParamFlags
+	IsRetStr bool
+}
+
+func (k KFunc) Name() string {
+	return k.Func.Name
+}
+
+type KFuncs map[uintptr]KFunc
 
 func str2glob(funcs []string) ([]glob.Glob, error) {
 	globs := make([]glob.Glob, 0, len(funcs))
@@ -39,20 +57,34 @@ func isGlobFunc(fn string, globs []glob.Glob) bool {
 	return false
 }
 
-func FindKernelFuncs(funcs []string) ([]string, error) {
+func FindKernelFuncs(funcs []string, ksyms *Kallsyms) (KFuncs, error) {
+	if len(funcs) == 0 {
+		return KFuncs{}, nil
+	}
+
 	globs, err := str2glob(funcs)
 	if err != nil {
 		return nil, err
 	}
-	kfuncs := make([]string, 0, len(funcs))
+
+	kfuncs := make(KFuncs, len(funcs))
 
 	iterBtfSpec := func(spec *btf.Spec) {
 		iter := spec.Iterate()
 		for iter.Next() {
 			if fn, ok := iter.Type.(*btf.Func); ok && isGlobFunc(fn.Name, globs) {
+				ksym, ok := ksyms.n2s[fn.Name]
+				if !ok {
+					VerboseLog("Failed to find ksym for %s", fn.Name)
+					continue
+				}
+
 				funcProto := fn.Type.(*btf.FuncProto)
 				if len(funcProto.Params) <= MAX_BPF_FUNC_ARGS {
-					kfuncs = append(kfuncs, fn.Name)
+					kf := KFunc{Ksym: ksym, Func: fn}
+					kf.Prms = getFuncParams(fn)
+					kf.IsRetStr = btfx.IsStr(funcProto.Return)
+					kfuncs[uintptr(ksym.addr)] = kf
 				} else if verbose {
 					log.Printf("Skip function %s with %d args because of limit %d args\n",
 						fn.Name, len(funcProto.Params), MAX_BPF_FUNC_ARGS)
@@ -84,8 +116,9 @@ func FindKernelFuncs(funcs []string) ([]string, error) {
 		iterBtfSpec(kernelBtf)
 	}
 
-	slices.Sort(kfuncs)
-	kfuncs = slices.Compact(kfuncs)
+	if len(kfuncs) == 0 {
+		return nil, fmt.Errorf("no functions found for %v", funcs)
+	}
 
 	return kfuncs, nil
 }

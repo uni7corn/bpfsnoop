@@ -206,3 +206,11 @@ func (ks *Kallsyms) findBySymbol(symbol string) (*KsymEntry, bool) {
 
 	return nil, false
 }
+
+func (ks *Kallsyms) findSymbol(addr uint64) string {
+	e, ok := ks.a2s[addr]
+	if ok {
+		return e.name
+	}
+	return ""
+}

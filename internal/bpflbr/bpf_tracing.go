@@ -26,16 +26,25 @@ func (t *bpfTracing) Progs() []*ebpf.Program {
 	return t.progs
 }
 
-func NewBPFTracing(spec *ebpf.CollectionSpec, reusedMaps map[string]*ebpf.Map, infos []bpfTracingInfo, kfuncs []string) (*bpfTracing, error) {
+func setLbrConfig(spec *ebpf.CollectionSpec, args []FuncParamFlags, isRetStr bool) error {
 	var cfg LbrConfig
 	cfg.SetSuppressLbr(suppressLbr)
 	cfg.SetOutputStack(outputFuncStack)
-	cfg.FilterPid = uint32(filterPid)
-
-	if err := spec.Variables["lbr_config"].Set(cfg); err != nil {
-		return nil, fmt.Errorf("failed to set lbr config: %w", err)
+	cfg.SetIsRetStr(isRetStr)
+	cfg.FilterPid = filterPid
+	cfg.FnArgsNr = uint32(len(args))
+	for i, arg := range args {
+		cfg.FnArgs[i] = arg
 	}
 
+	if err := spec.Variables["lbr_config"].Set(cfg); err != nil {
+		return fmt.Errorf("failed to set lbr config: %w", err)
+	}
+
+	return nil
+}
+
+func NewBPFTracing(spec *ebpf.CollectionSpec, reusedMaps map[string]*ebpf.Map, infos []bpfTracingInfo, kfuncs KFuncs) (*bpfTracing, error) {
 	var t bpfTracing
 	t.links = make([]link.Link, 0, len(infos))
 
@@ -100,6 +109,10 @@ func TracingProgName(mode string) string {
 func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]*ebpf.Map, info bpfTracingInfo) error {
 	spec = spec.Copy()
 
+	if err := setLbrConfig(spec, info.params, false); err != nil {
+		return fmt.Errorf("failed to set lbr config: %w", err)
+	}
+
 	attachType := ebpf.AttachTraceFExit
 	if mode == TracingModeEntry {
 		attachType = ebpf.AttachTraceFEntry
@@ -143,8 +156,12 @@ func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]
 	return nil
 }
 
-func (t *bpfTracing) traceFunc(spec *ebpf.CollectionSpec, reusedMaps map[string]*ebpf.Map, fn string) error {
+func (t *bpfTracing) traceFunc(spec *ebpf.CollectionSpec, reusedMaps map[string]*ebpf.Map, fn KFunc) error {
 	spec = spec.Copy()
+
+	if err := setLbrConfig(spec, fn.Prms, fn.IsRetStr); err != nil {
+		return fmt.Errorf("failed to set lbr config: %w", err)
+	}
 
 	attachType := ebpf.AttachTraceFExit
 	if mode == TracingModeEntry {
@@ -153,7 +170,8 @@ func (t *bpfTracing) traceFunc(spec *ebpf.CollectionSpec, reusedMaps map[string]
 
 	tracingFuncName := TracingProgName(mode)
 	progSpec := spec.Programs[tracingFuncName]
-	progSpec.AttachTo = fn
+	fnName := fn.Func.Name
+	progSpec.AttachTo = fnName
 	progSpec.AttachType = attachType
 
 	coll, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{
@@ -178,9 +196,9 @@ func (t *bpfTracing) traceFunc(spec *ebpf.CollectionSpec, reusedMaps map[string]
 		if errors.Is(err, unix.ENOENT) || errors.Is(err, unix.EINVAL) {
 			return nil
 		}
-		if errors.Is(err, unix.EBUSY) {
+		if errors.Is(err, unix.EBUSY) /* Because no nop5 at the function entry, especially non-traceable funcs */ {
 			if verbose {
-				log.Printf("Cannot trace kernel function %s", fn)
+				log.Printf("Cannot trace kernel function %s", fnName)
 			}
 			return nil
 		}
@@ -188,7 +206,7 @@ func (t *bpfTracing) traceFunc(spec *ebpf.CollectionSpec, reusedMaps map[string]
 	}
 
 	if verbose {
-		log.Printf("Tracing kernel function %s", fn)
+		log.Printf("Tracing kernel function %s", fnName)
 	}
 
 	t.llock.Lock()

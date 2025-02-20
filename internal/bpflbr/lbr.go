@@ -10,11 +10,14 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/Asphaltt/bpflbr/internal/strx"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/fatih/color"
 	"golang.org/x/sys/unix"
+
+	"github.com/Asphaltt/bpflbr/internal/btfx"
+	"github.com/Asphaltt/bpflbr/internal/strx"
 )
 
 const (
@@ -26,6 +29,13 @@ type LbrEntry struct {
 	To    uintptr
 	Flags uint64
 }
+
+type LbrFnData struct {
+	Args [MAX_BPF_FUNC_ARGS][2]uint64 // raw data + pointed data
+	Str  [32]byte
+	Ret  [32]byte
+}
+
 type Event struct {
 	Entries [32]LbrEntry
 	NrBytes int64
@@ -35,16 +45,37 @@ type Event struct {
 	Pid     uint32
 	Comm    [16]byte
 	StackID int64
+	Func    LbrFnData
 }
+
 type FuncStack struct {
 	IPs [MAX_STACK_DEPTH]uint64
 }
 
-func Run(reader *ringbuf.Reader, progs *bpfProgs, addr2line *Addr2Line, ksyms *Kallsyms, funcStacks *ebpf.Map, w io.Writer) error {
+func Run(reader *ringbuf.Reader, progs *bpfProgs, addr2line *Addr2Line, ksyms *Kallsyms, kfuncs KFuncs, funcStacks *ebpf.Map, w io.Writer) error {
 	lbrStack := newLBRStack()
 	funcStack := make([]string, 0, MAX_STACK_DEPTH)
 
+	printRetval := mode == TracingModeExit
+	colorOutput := !noColorOutput
 	useLbr := !suppressLbr
+
+	funcParamColors := []*color.Color{
+		color.RGB(0x9d, 0x9d, 0x9d),
+		color.RGB(0x7a, 0x7a, 0x7a),
+		color.RGB(0x54, 0x54, 0x54),
+		color.RGB(0x9c, 0x91, 0x91),
+		color.RGB(0x7c, 0x74, 0x74),
+		color.RGB(0x5c, 0x54, 0x54),
+	}
+
+	findSymbol := func(addr uint64) string {
+		if prog, ok := progs.funcs[uintptr(addr)]; ok {
+			return prog.funcName + "[bpf]"
+		}
+
+		return ksyms.findSymbol(addr)
+	}
 
 	var sb strings.Builder
 
@@ -79,9 +110,13 @@ func Run(reader *ringbuf.Reader, progs *bpfProgs, addr2line *Addr2Line, ksyms *K
 		hasLbrEntries = hasLbrEntries && getLbrStack(event, progs, addr2line, ksyms, lbrStack)
 
 		var targetName string
+		var funcProto *btf.Func
+		var funcParams []FuncParamFlags
 		progInfo, isProg := progs.funcs[event.FuncIP]
 		if isProg {
-			targetName = progInfo.funcName() + "[bpf]"
+			targetName = progInfo.funcName + "[bpf]"
+			funcProto = progInfo.funcProto
+			funcParams = progInfo.funcParams
 		} else {
 			ksym, ok := ksyms.find(event.FuncIP)
 			if ok {
@@ -89,21 +124,69 @@ func Run(reader *ringbuf.Reader, progs *bpfProgs, addr2line *Addr2Line, ksyms *K
 			} else {
 				targetName = fmt.Sprintf("0x%x", event.FuncIP)
 			}
+
+			fn, ok := kfuncs[event.FuncIP]
+			if ok {
+				funcProto = fn.Func
+				funcParams = fn.Prms
+			}
 		}
 
-		if noColorOutput {
-			fmt.Fprintf(&sb, "Recv a record for %s with", targetName)
-			if mode != TracingModeEntry {
-				fmt.Fprintf(&sb, " retval=%d/%#x", event.Retval, uint64(event.Retval))
+		if colorOutput {
+			targetName = color.New(color.FgYellow, color.Bold).Sprint(targetName)
+		}
+		fmt.Fprint(&sb, targetName, " ")
+
+		if colorOutput {
+			color.New(color.FgBlue).Fprintf(&sb, "args")
+		} else {
+			fmt.Fprintf(&sb, "args")
+		}
+		fmt.Fprintf(&sb, "=(")
+		if funcProto != nil {
+			params := funcProto.Type.(*btf.FuncProto).Params
+			lastIdx := len(params) - 1
+			s := strx.NullTerminated(event.Func.Str[:])
+			for i, fnParam := range funcParams {
+				arg := event.Func.Args[i]
+
+				fp := btfx.ReprFuncParam(&params[i], i, fnParam.IsStr, fnParam.IsNumberPtr, arg[0], arg[1], s, findSymbol)
+				if colorOutput {
+					funcParamColors[i].Fprint(&sb, fp)
+				} else {
+					fmt.Fprintf(&sb, "%s", fp)
+				}
+
+				if i != lastIdx {
+					fmt.Fprintf(&sb, ", ")
+				}
 			}
 		} else {
-			targetName = color.New(color.FgYellow, color.Bold).Sprint(targetName)
-			fmt.Fprintf(&sb, "Recv a record for %s with", targetName)
-			if mode != TracingModeEntry {
-				color.New(color.FgRed).Fprintf(&sb, " retval=%d/%#x", event.Retval, uint64(event.Retval))
+			fmt.Fprintf(&sb, "..UNK..")
+		}
+		fmt.Fprintf(&sb, ")")
+
+		if printRetval {
+			retval := fmt.Sprintf("%d/%#x", event.Retval, uint64(event.Retval))
+			if funcProto != nil {
+				rettyp := funcProto.Type.(*btf.FuncProto).Return
+				retval = btfx.ReprFuncReturn(rettyp, event.Retval, strx.NullTerminated(event.Func.Ret[:]), findSymbol)
+			}
+			if colorOutput {
+				color.New(color.FgGreen).Fprintf(&sb, " retval")
+				fmt.Fprint(&sb, "=")
+				color.New(color.FgRed).Fprintf(&sb, "%s", retval)
+			} else {
+				fmt.Fprintf(&sb, " retval=%s", retval)
 			}
 		}
-		fmt.Fprintf(&sb, " cpu=%d process=(%d:%s)", event.CPU, event.Pid, strx.NullTerminated(event.Comm[:]))
+
+		if colorOutput {
+			color.New(color.FgCyan).Fprintf(&sb, " cpu=%d", event.CPU)
+			color.New(color.FgMagenta).Fprintf(&sb, " process=(%d:%s)", event.Pid, strx.NullTerminated(event.Comm[:]))
+		} else {
+			fmt.Fprintf(&sb, " cpu=%d process=(%d:%s)", event.CPU, event.Pid, strx.NullTerminated(event.Comm[:]))
+		}
 
 		hasFuncEntries := len(funcStack) > 0
 		if hasLbrEntries || hasFuncEntries {
