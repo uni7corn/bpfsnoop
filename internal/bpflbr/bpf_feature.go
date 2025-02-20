@@ -49,7 +49,7 @@ func DetectBPFFeatures(spec *ebpf.CollectionSpec) error {
 		return errors.New("ringbuf map not supported")
 	}
 
-	if !feat.HasBranchSnapshot {
+	if !feat.HasBranchSnapshot && !suppressLbr {
 		return errors.New("bpf_get_branch_snapshot() helper not supported")
 	}
 
