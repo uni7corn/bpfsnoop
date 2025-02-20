@@ -109,6 +109,7 @@ func main() {
 	assert.NoErr(err, "Failed to get possible cpu: %v")
 
 	lbrsMapSpec := bpfSpec.Maps[".data.lbrs"]
+	lbrsMapSpec.Flags |= unix.BPF_F_MMAPABLE
 	lbrsMapSpec.ValueSize = uint32(unsafe.Sizeof(bpflbr.Event{})) * uint32(numCPU)
 	lbrsMapSpec.Contents[0].Value = make([]byte, lbrsMapSpec.ValueSize)
 	lbrs, err := ebpf.NewMap(lbrsMapSpec)
@@ -118,7 +119,9 @@ func main() {
 	assert.NoErr(err, "Failed to create func_stacks map: %v")
 	defer funcStacks.Close()
 
-	readyDataMap, err := ebpf.NewMap(bpfSpec.Maps[".data.ready"])
+	readyDataMapSpec := bpfSpec.Maps[".data.ready"]
+	readyDataMapSpec.Flags |= unix.BPF_F_MMAPABLE
+	readyDataMap, err := ebpf.NewMap(readyDataMapSpec)
 	assert.NoErr(err, "Failed to create ready data map: %v")
 	defer readyDataMap.Close()
 

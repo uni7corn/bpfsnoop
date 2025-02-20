@@ -21,21 +21,7 @@ type BPFFeatures struct {
 }
 
 func DetectBPFFeatures(spec *ebpf.CollectionSpec) error {
-	mapSpec := spec.Maps[".bss"]
-	if mapSpec == nil {
-		return errors.New("missing .bss map")
-	}
-
-	bss, err := ebpf.NewMap(mapSpec)
-	if err != nil {
-		return fmt.Errorf("failed to create .bss map: %w", err)
-	}
-
-	coll, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{
-		MapReplacements: map[string]*ebpf.Map{
-			".bss": bss,
-		},
-	})
+	coll, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to create bpf collection: %w", err)
 	}
@@ -51,7 +37,7 @@ func DetectBPFFeatures(spec *ebpf.CollectionSpec) error {
 	nanosleep()
 
 	var feat BPFFeatures
-	if err := bss.Lookup(uint32(0), &feat); err != nil {
+	if err := coll.Maps[".bss"].Lookup(uint32(0), &feat); err != nil {
 		return fmt.Errorf("failed to lookup .bss: %w", err)
 	}
 

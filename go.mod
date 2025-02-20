@@ -4,7 +4,7 @@ go 1.22.4
 
 require (
 	github.com/Asphaltt/addr2line v0.1.1
-	github.com/cilium/ebpf v0.16.1-0.20241204125435-9895aae6467e
+	github.com/cilium/ebpf v0.17.3
 	github.com/fatih/color v1.18.0
 	github.com/gobwas/glob v0.2.3
 	github.com/hashicorp/golang-lru/v2 v2.0.7
@@ -22,7 +22,7 @@ require (
 
 require (
 	github.com/ianlancetaylor/demangle v0.0.0-20240912202439-0a2b6291aafd // indirect
-	golang.org/x/sys v0.26.0
+	golang.org/x/sys v0.30.0
 )
 
 replace github.com/knightsc/gapstone v4.0.1+incompatible => github.com/Asphaltt/gapstone v0.0.0-20241029140935-c5412a26abf7
