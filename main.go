@@ -169,6 +169,7 @@ func main() {
 
 	err = readyDataMap.Put(uint32(0), uint32(1))
 	assert.NoErr(err, "Failed to update ready data map: %v")
+	defer readyDataMap.Put(uint32(0), uint32(0))
 
 	log.Print("bpflbr is running..")
 
