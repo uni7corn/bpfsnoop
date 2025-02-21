@@ -172,6 +172,7 @@ func main() {
 	defer readyDataMap.Put(uint32(0), uint32(0))
 
 	log.Print("bpflbr is running..")
+	defer log.Print("bpflbr is exiting..")
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -189,5 +190,8 @@ func main() {
 	})
 
 	err = errg.Wait()
+	if err == bpflbr.ErrFinished {
+		return
+	}
 	assert.NoErr(err, "Failed: %v")
 }

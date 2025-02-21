@@ -36,6 +36,7 @@ var (
 	filterPid       uint32
 	kfuncAllKmods   bool
 	noColorOutput   bool
+	limitEvents     uint
 )
 
 type ProgFlag struct {
@@ -156,6 +157,7 @@ func ParseFlags() (*Flags, error) {
 	f.BoolVar(&suppressLbr, "suppress-lbr", false, "suppress LBR perf event")
 	f.BoolVar(&outputFuncStack, "output-stack", false, "output function call stack")
 	f.Uint32Var(&filterPid, "filter-pid", 0, "filter pid for tracing")
+	f.UintVar(&limitEvents, "limit-events", 0, "limited number events to output, 0 to output all events")
 
 	err := f.Parse(os.Args)
 

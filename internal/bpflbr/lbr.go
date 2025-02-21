@@ -79,7 +79,8 @@ func Run(reader *ringbuf.Reader, progs *bpfProgs, addr2line *Addr2Line, ksyms *K
 
 	var sb strings.Builder
 
-	for {
+	unlimited := limitEvents == 0
+	for i := int64(limitEvents); unlimited || i > 0; i-- {
 		record, err := reader.Read()
 		if err != nil {
 			if errors.Is(err, ringbuf.ErrClosed) {
@@ -210,6 +211,8 @@ func Run(reader *ringbuf.Reader, progs *bpfProgs, addr2line *Addr2Line, ksyms *K
 		lbrStack.reset()
 		funcStack = funcStack[:0]
 	}
+
+	return ErrFinished
 }
 
 func getLbrStack(event *Event, progs *bpfProgs, addr2line *Addr2Line, ksyms *Kallsyms, stack *lbrStack) bool {
