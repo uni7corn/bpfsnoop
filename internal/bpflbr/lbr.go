@@ -188,22 +188,18 @@ func Run(reader *ringbuf.Reader, progs *bpfProgs, addr2line *Addr2Line, ksyms *K
 		} else {
 			fmt.Fprintf(&sb, " cpu=%d process=(%d:%s)", event.CPU, event.Pid, strx.NullTerminated(event.Comm[:]))
 		}
+		fmt.Fprintln(&sb)
 
+		if hasLbrEntries {
+			fmt.Fprintln(&sb, "LBR stack:")
+			lbrStack.output(&sb)
+		}
 		hasFuncEntries := len(funcStack) > 0
-		if hasLbrEntries || hasFuncEntries {
-			fmt.Fprintln(&sb, " :")
-			if hasLbrEntries {
-				fmt.Fprintln(&sb, "LBR stack:")
-				lbrStack.output(&sb)
+		if hasFuncEntries {
+			fmt.Fprintln(&sb, "Func stack:")
+			for _, entry := range funcStack {
+				fmt.Fprint(&sb, entry)
 			}
-			if hasFuncEntries {
-				fmt.Fprintln(&sb, "Func stack:")
-				for _, entry := range funcStack {
-					fmt.Fprint(&sb, entry)
-				}
-			}
-		} else {
-			fmt.Fprintln(&sb)
 		}
 		fmt.Fprintln(w, sb.String())
 
