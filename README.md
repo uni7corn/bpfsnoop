@@ -112,7 +112,9 @@ The colorful output of `./bpflbr -v -k ip_rcv --suppress-lbr --output-stack`:
 
 ## TODO list
 
-- [ ] Develop `bpflbr` feature to trace userspace functions with uretprobe (**HELP WANTED**).
+- [ ] Filter kernel functions by their argument's name.
+- [ ] Filter function argument with [bice](https://github.com/leonhwangprojects/bice).
+- [ ] Output function argument's metadata dynamically like the way of `bice`.
 
 ## Acknowledgments
 
