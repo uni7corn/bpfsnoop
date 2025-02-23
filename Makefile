@@ -19,6 +19,7 @@ BPF_OBJ := lbr_bpfel.o lbr_bpfeb.o feat_bpfel.o feat_bpfeb.o
 BPF_SRC := bpf/lbr.c bpf/feature.c
 
 BPFLBR_OBJ := bpflbr
+BPFLBR_SRC := $(shell find internal -type f -name '*.go') main.go
 BPFLBR_CSM := $(BPFLBR_OBJ).sha256sum
 RELEASE_NOTES ?= release_notes.txt
 
@@ -27,7 +28,7 @@ RELEASE_NOTES ?= release_notes.txt
 $(BPF_OBJ): $(BPF_SRC)
 	$(GOGEN)
 
-$(BPFLBR_OBJ): $(BPF_OBJ)
+$(BPFLBR_OBJ): $(BPF_OBJ) $(BPFLBR_SRC)
 	$(GOBUILD_CGO_LDFLAGS) $(GOBUILD)
 
 .PHONY: local_release
