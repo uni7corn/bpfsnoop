@@ -115,6 +115,7 @@ The colorful output of `./bpflbr -v -k ip_rcv --suppress-lbr --output-stack`:
 - [ ] Filter kernel functions by their argument's name.
 - [ ] Filter function argument with [bice](https://github.com/leonhwangprojects/bice).
 - [ ] Output function argument's metadata dynamically like the way of `bice`.
+- [ ] Filter skb/xdp data with [pcap-filter(7)](https://www.tcpdump.org/manpages/pcap-filter.7.html).
 
 ## Acknowledgments
 
