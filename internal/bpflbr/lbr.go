@@ -212,18 +212,20 @@ func Run(reader *ringbuf.Reader, progs *bpfProgs, addr2line *Addr2Line, ksyms *K
 }
 
 func getLbrStack(event *Event, progs *bpfProgs, addr2line *Addr2Line, ksyms *Kallsyms, stack *lbrStack) bool {
-	progInfo, isProg := progs.funcs[event.FuncIP]
+	funcIP := event.FuncIP
+	progInfo, isProg := progs.funcs[funcIP]
 
 	nrEntries := event.NrBytes / int64(8*3)
 	entries := event.Entries[:nrEntries]
 	if !verbose {
-		// Skip the first 14 entries as they are entries for fexit_fn
-		// and bpf_get_branch_snapshot helper.
-		const nrSkip = 14
-
-		entries = entries[nrSkip:]
-
-		if isProg && mode == TracingModeExit {
+		if !isProg {
+			for i := range entries {
+				if ksym, ok := ksyms.find(entries[i].From); ok && ksym.addr == uint64(funcIP) {
+					entries = entries[i:]
+					break
+				}
+			}
+		} else if mode == TracingModeExit {
 			for i := range entries {
 				if progInfo.contains(entries[i].From) || progInfo.contains(entries[i].To) {
 					entries = entries[i:]
@@ -234,6 +236,13 @@ func getLbrStack(event *Event, progs *bpfProgs, addr2line *Addr2Line, ksyms *Kal
 			for i := len(entries) - 1; i >= 0; i-- {
 				if progInfo.contains(entries[i].From) || progInfo.contains(entries[i].To) {
 					entries = entries[:i+1]
+					break
+				}
+			}
+		} else {
+			for i := range entries {
+				if progInfo.contains(entries[i].From) {
+					entries = entries[i:]
 					break
 				}
 			}
