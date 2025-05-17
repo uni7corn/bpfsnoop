@@ -48,6 +48,8 @@ type Flags struct {
 	disasmBytes uint
 
 	showFuncProto bool
+
+	noVmlinux bool
 }
 
 func ParseFlags() (*Flags, error) {
@@ -80,12 +82,14 @@ func ParseFlags() (*Flags, error) {
 
 	f.BoolVarP(&flags.showFuncProto, "show-func-proto-internal", "S", false, "show function prototype of -p,-k")
 	f.UintVarP(&limitEvents, "limit-events-internal", "E", 0, "limited number events to output, 0 to output all events")
+	f.BoolVarP(&flags.noVmlinux, "no-vmlinux", "N", false, "do not load vmlinux")
 
 	f.MarkHidden("debug-log")
 	f.MarkHidden("output-flamegraph")
 	f.MarkHidden("show-func-proto-internal")
 	f.MarkHidden("limit-events-internal")
 	f.MarkHidden("trace-insn-debug-cnt")
+	f.MarkHidden("no-vmlinux")
 
 	err := f.Parse(os.Args)
 
@@ -130,6 +134,10 @@ func (f *Flags) OutputLbr() bool {
 	return outputLbr
 }
 
+func (f *Flags) OutputFuncStack() bool {
+	return outputFuncStack
+}
+
 func (f *Flags) OtherMode() string {
 	if mode == TracingModeExit {
 		return TracingModeEntry
@@ -140,4 +148,8 @@ func (f *Flags) OtherMode() string {
 
 func (f *Flags) ShowFuncProto() bool {
 	return f.showFuncProto
+}
+
+func (f *Flags) Vmlinux() bool {
+	return !f.noVmlinux
 }
