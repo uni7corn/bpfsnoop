@@ -18,7 +18,7 @@ import (
 
 const (
 	maxOutputArgCnt = 4
-	maxOutputStrLen = 32
+	maxOutputStrLen = 64
 )
 
 type ArgData struct {

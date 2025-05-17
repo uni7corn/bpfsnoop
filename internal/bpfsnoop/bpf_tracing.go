@@ -6,7 +6,6 @@ package bpfsnoop
 import (
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 
@@ -32,7 +31,7 @@ func (t *bpfTracing) Progs() []*ebpf.Program {
 	return t.progs
 }
 
-func setBpfsnoopConfig(spec *ebpf.CollectionSpec, funcIP uint64, args []FuncParamFlags, ret FuncParamFlags, bothEntryExit, withRet bool) error {
+func setBpfsnoopConfig(spec *ebpf.CollectionSpec, funcIP uint64, fnArgsNr, fnArgsBufSize int, bothEntryExit, withRet bool) error {
 	var cfg BpfsnoopConfig
 	cfg.SetOutputLbr(outputLbr)
 	cfg.SetOutputStack(outputFuncStack)
@@ -41,12 +40,9 @@ func setBpfsnoopConfig(spec *ebpf.CollectionSpec, funcIP uint64, args []FuncPara
 	cfg.SetBothEntryExit(bothEntryExit)
 	cfg.SetIsEntry(!withRet)
 	cfg.FilterPid = filterPid
-	cfg.FnArgsNr = uint32(len(args))
-	for i, arg := range args {
-		cfg.FnArgs[i] = arg.ParamFlags
-	}
-	cfg.FnRet = ret.ParamFlags
+	cfg.FnArgsNr = uint32(fnArgsNr)
 	cfg.WithRet = withRet
+	cfg.FnArgsBuf = uint32(fnArgsBufSize)
 
 	if err := spec.Variables["bpfsnoop_config"].Set(cfg); err != nil {
 		return fmt.Errorf("failed to set bpfsnoop config: %w", err)
@@ -74,6 +70,13 @@ func NewBPFTracing(spec, insnSpec *ebpf.CollectionSpec, reusedMaps map[string]*e
 	for _, fn := range kfuncs {
 		bothEntryExit := fn.Insn
 		fn := fn
+
+		if fn.IsTp {
+			errg.Go(func() error {
+				return t.traceFunc(spec, reusedMaps, fn, bothEntryExit, false)
+			})
+			continue
+		}
 
 		errg.Go(func() error {
 			return t.traceFunc(spec, reusedMaps, fn, bothEntryExit, mode == TracingModeExit)
@@ -297,10 +300,6 @@ func (t *bpfTracing) injectPktOutput(prog *ebpf.ProgramSpec, params []btf.FuncPa
 func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]*ebpf.Map, info bpfTracingInfo, bprogs *bpfProgs) error {
 	spec = spec.Copy()
 
-	if err := setBpfsnoopConfig(spec, uint64(info.funcIP), info.params, info.ret, false, mode == TracingModeExit); err != nil {
-		return fmt.Errorf("failed to set bpfsnoop config: %w", err)
-	}
-
 	traceeName := info.fn.Name
 	tracingFuncName := TracingProgName()
 	progSpec := spec.Programs[tracingFuncName]
@@ -317,6 +316,15 @@ func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]
 		return err
 	}
 	bprogs.funcs[info.funcIP].funcArgs = args
+	fnArgsBufSize, err := injectOutputFuncArgs(progSpec, info.params, info.ret, mode == TracingModeExit)
+	if err != nil {
+		return fmt.Errorf("failed to inject output func args: %w", err)
+	}
+	bprogs.funcs[info.funcIP].argsBufSz = fnArgsBufSize
+
+	if err := setBpfsnoopConfig(spec, uint64(info.funcIP), len(info.params), fnArgsBufSize, false, mode == TracingModeExit); err != nil {
+		return fmt.Errorf("failed to set bpfsnoop config: %w", err)
+	}
 
 	attachType := ebpf.AttachTraceFExit
 	if mode == TracingModeEntry {
@@ -367,11 +375,6 @@ func (t *bpfTracing) traceFunc(spec *ebpf.CollectionSpec, reusedMaps map[string]
 	isTracepoint := fn.IsTp
 	tracingFuncName := TracingProgName()
 
-	withRet := !isTracepoint && isExit
-	if err := setBpfsnoopConfig(spec, fn.Ksym.addr, fn.Prms, fn.Ret, bothEntryExit, withRet); err != nil {
-		return fmt.Errorf("failed to set bpfsnoop config: %w", err)
-	}
-
 	traceeName := fn.Func.Name
 	progSpec := spec.Programs[tracingFuncName]
 	funcProto := fn.Func.Type.(*btf.FuncProto)
@@ -388,6 +391,17 @@ func (t *bpfTracing) traceFunc(spec *ebpf.CollectionSpec, reusedMaps map[string]
 		return err
 	}
 	fn.Args = args
+
+	withRet := !isTracepoint && isExit
+	fnArgsBufSize, err := injectOutputFuncArgs(progSpec, fn.Prms, fn.Ret, withRet)
+	if err != nil {
+		return fmt.Errorf("failed to inject output func args: %w", err)
+	}
+	fn.Farg = fnArgsBufSize
+
+	if err := setBpfsnoopConfig(spec, fn.Ksym.addr, len(fn.Prms), fnArgsBufSize, bothEntryExit, withRet); err != nil {
+		return fmt.Errorf("failed to set bpfsnoop config: %w", err)
+	}
 
 	attachType := ebpf.AttachTraceFEntry
 	if isExit {
@@ -424,9 +438,7 @@ func (t *bpfTracing) traceFunc(spec *ebpf.CollectionSpec, reusedMaps map[string]
 			return nil
 		}
 		if errors.Is(err, unix.EBUSY) /* Because no nop5 at the function entry, especially non-traceable funcs */ {
-			if verbose {
-				log.Printf("Cannot trace kernel function %s", fnName)
-			}
+			VerboseLog("Cannot trace kernel function %s", fnName)
 			return nil
 		}
 		return fmt.Errorf("failed to attach tracing: %w", err)

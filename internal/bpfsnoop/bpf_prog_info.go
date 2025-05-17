@@ -28,6 +28,7 @@ type bpfProgFuncInfo struct {
 	funcParams []FuncParamFlags
 	retParam   FuncParamFlags
 	funcArgs   []funcArgumentOutput
+	argsBufSz  int
 	isRetStr   bool
 	pktOutput  bool
 

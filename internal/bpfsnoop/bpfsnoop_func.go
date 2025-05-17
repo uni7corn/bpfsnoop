@@ -15,6 +15,7 @@ type funcInfo struct {
 	args     []funcArgumentOutput
 	params   []FuncParamFlags
 	retParam FuncParamFlags
+	argsBuf  int
 	insnMode bool
 	pktTuple bool
 	isTp     bool
@@ -32,6 +33,7 @@ func getFuncInfo(event *Event, helpers *Helpers) *funcInfo {
 		info.retParam = progInfo.retParam
 		info.pktTuple = progInfo.pktOutput
 		info.isProg = true
+		info.argsBuf = progInfo.argsBufSz
 		return &info
 	}
 
@@ -53,6 +55,7 @@ func getFuncInfo(event *Event, helpers *Helpers) *funcInfo {
 	info.retParam = fn.Ret
 	info.insnMode = fn.Insn
 	info.pktTuple = fn.Pkt
+	info.argsBuf = fn.Farg
 
 	if fn.IsTp {
 		info.name = fn.Func.Name + "[tp]"

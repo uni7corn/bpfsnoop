@@ -19,6 +19,10 @@ import (
 )
 
 const (
+	sizeOfEvent = int(unsafe.Sizeof(Event{}))
+)
+
+const (
 	eventTypeUnspec uint16 = iota
 	eventTypeFuncEntry
 	eventTypeFuncExit
@@ -35,7 +39,6 @@ type Event struct {
 	Pid     uint32
 	Comm    [16]byte
 	StackID int64
-	Func    FnData
 }
 
 func ptr2bytes(p unsafe.Pointer, size int) []byte {
@@ -57,12 +60,10 @@ func Run(reader *ringbuf.Reader, helpers *Helpers, maps map[string]*ebpf.Map, w 
 
 	stacks := maps["bpfsnoop_stacks"]
 	lbrs := maps["bpfsnoop_lbrs"]
-	strs := maps["bpfsnoop_strs"]
 	pkts := maps["bpfsnoop_pkts"]
 	args := maps["bpfsnoop_args"]
 
 	var lbrData LbrData
-	var strData StrData
 	var pktData PktData
 	var argData ArgData
 
@@ -80,7 +81,7 @@ func Run(reader *ringbuf.Reader, helpers *Helpers, maps map[string]*ebpf.Map, w 
 	var sb strings.Builder
 
 	var record ringbuf.Record
-	record.RawSample = make([]byte, int(unsafe.Sizeof(Event{})))
+	record.RawSample = make([]byte, 4096)
 
 	unlimited := limitEvents == 0
 	for i := int64(limitEvents); unlimited || i > 0; i-- {
@@ -101,7 +102,7 @@ func Run(reader *ringbuf.Reader, helpers *Helpers, maps map[string]*ebpf.Map, w 
 			continue
 		}
 
-		if len(record.RawSample) < int(unsafe.Sizeof(Event{}))-int(unsafe.Sizeof(FnData{})) {
+		if len(record.RawSample) < sizeOfEvent {
 			continue
 		}
 
@@ -123,27 +124,33 @@ func Run(reader *ringbuf.Reader, helpers *Helpers, maps map[string]*ebpf.Map, w 
 			}
 		}
 
-		if !noColorOutput {
+		if colorfulOutput {
 			color.New(color.FgYellow, color.Bold).Fprint(&sb, fnInfo.name, " ")
 			color.New(color.FgBlue).Fprintf(&sb, "args")
 		} else {
 			fmt.Fprint(&sb, fnInfo.name, " args")
 		}
 
-		err = outputFnArgs(&sb, fnInfo, helpers, &strData, strs, event, findSymbol, event.Type == eventTypeFuncExit)
-		if err != nil {
-			return fmt.Errorf("failed to output function data: %w", err)
+		withRetval := event.Type == eventTypeFuncExit
+		if fnInfo.argsBuf != 0 {
+			b := record.RawSample[sizeOfEvent : sizeOfEvent+int(fnInfo.argsBuf)]
+			outputFnArgs(&sb, fnInfo, helpers, b, findSymbol, withRetval)
+		} else {
+			fmt.Fprint(&sb, "=()")
+			if withRetval {
+				fmt.Fprint(&sb, " retval=(void)")
+			}
 		}
 
-		if !noColorOutput {
+		if colorfulOutput {
 			color.New(color.FgCyan).Fprintf(&sb, " cpu=%d", event.CPU)
 			color.New(color.FgMagenta).Fprintf(&sb, " process=(%d:%s)", event.Pid, strx.NullTerminated(event.Comm[:]))
-			if withDuration && event.Type == eventTypeFuncExit {
+			if withDuration && withRetval {
 				color.RGB(0xFF, 0x00, 0x7F /* rose red */).Fprintf(&sb, " duration=%s", duration)
 			}
 		} else {
 			fmt.Fprintf(&sb, " cpu=%d process=(%d:%s)", event.CPU, event.Pid, strx.NullTerminated(event.Comm[:]))
-			if withDuration && event.Type == eventTypeFuncExit {
+			if withDuration && withRetval {
 				fmt.Fprintf(&sb, " duration=%s", duration)
 			}
 		}
@@ -169,12 +176,12 @@ func Run(reader *ringbuf.Reader, helpers *Helpers, maps map[string]*ebpf.Map, w 
 			return fmt.Errorf("failed to output function stack: %w", err)
 		}
 
-		if sess == nil || event.Type == eventTypeFuncExit {
+		if sess == nil || withRetval {
 			fmt.Fprintln(&sb)
 		}
 		if sess != nil {
 			sess.outputs = append(sess.outputs, sb.String())
-			if event.Type == eventTypeFuncExit {
+			if withRetval {
 				for _, output := range sess.outputs {
 					fmt.Fprint(w, output)
 				}

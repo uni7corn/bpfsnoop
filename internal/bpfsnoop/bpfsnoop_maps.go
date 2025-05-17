@@ -36,19 +36,9 @@ func PrepareBPFMaps(spec *ebpf.CollectionSpec) map[string]*ebpf.Map {
 	args, err := ebpf.NewMap(spec.Maps["bpfsnoop_args"])
 	assert.NoErr(err, "Failed to create bpfsnoop_args map: %v")
 
-	strsMapSpec := spec.Maps[".data.strs"]
-	strsMapSpec.Flags |= unix.BPF_F_MMAPABLE
-	strsMapSpec.ValueSize = uint32(unsafe.Sizeof(StrData{})) * uint32(numCPU)
-	strsMapSpec.Contents[0].Value = make([]byte, strsMapSpec.ValueSize)
-	strsData, err := ebpf.NewMap(strsMapSpec)
-	assert.NoErr(err, "Failed to create strs map: %v")
-
-	strs, err := ebpf.NewMap(spec.Maps["bpfsnoop_strs"])
-	assert.NoErr(err, "Failed to create bpfsnoop_strs map: %v")
-
 	pktsMapSpec := spec.Maps[".data.pkts"]
 	pktsMapSpec.Flags |= unix.BPF_F_MMAPABLE
-	pktsMapSpec.ValueSize = uint32(unsafe.Sizeof(StrData{})) * uint32(numCPU)
+	pktsMapSpec.ValueSize = uint32(unsafe.Sizeof(PktData{})) * uint32(numCPU)
 	pktsMapSpec.Contents[0].Value = make([]byte, pktsMapSpec.ValueSize)
 	pktsData, err := ebpf.NewMap(pktsMapSpec)
 	assert.NoErr(err, "Failed to create pkts map: %v")
@@ -67,13 +57,6 @@ func PrepareBPFMaps(spec *ebpf.CollectionSpec) map[string]*ebpf.Map {
 	readyData, err := ebpf.NewMap(readyDataMapSpec)
 	assert.NoErr(err, "Failed to create ready data map: %v")
 
-	evsMapSpec := spec.Maps[".data.events"]
-	evsMapSpec.Flags |= unix.BPF_F_MMAPABLE
-	evsMapSpec.ValueSize = uint32(unsafe.Sizeof(Event{})) * uint32(numCPU)
-	evsMapSpec.Contents[0].Value = make([]byte, evsMapSpec.ValueSize)
-	evsData, err := ebpf.NewMap(evsMapSpec)
-	assert.NoErr(err, "Failed to create events data map: %v")
-
 	events, err := ebpf.NewMap(spec.Maps["bpfsnoop_events"])
 	assert.NoErr(err, "Failed to create events map: %v")
 
@@ -82,12 +65,9 @@ func PrepareBPFMaps(spec *ebpf.CollectionSpec) map[string]*ebpf.Map {
 
 		"bpfsnoop_events": events,
 		"bpfsnoop_lbrs":   lbrs,
-		"bpfsnoop_strs":   strs,
 		"bpfsnoop_pkts":   pkts,
 		"bpfsnoop_args":   args,
-		".data.events":    evsData,
 		".data.lbrs":      lbrsData,
-		".data.strs":      strsData,
 		".data.pkts":      pktsData,
 		".data.args":      argsData,
 		".data.ready":     readyData,

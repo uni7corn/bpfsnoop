@@ -6,5 +6,6 @@
 
 #define BPFSNOOP_MAX_ENTRIES 65536
 #define MAX_FN_ARGS 12
+#define MAX_STR_LEN 64
 
 #endif // __BPFSNOOP_H_

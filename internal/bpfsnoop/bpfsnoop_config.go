@@ -15,11 +15,10 @@ const (
 type BpfsnoopConfig struct {
 	Flags     uint32
 	FilterPid uint32
-	FnArgs    [MAX_BPF_FUNC_ARGS]ParamFlags
 	FnArgsNr  uint32
-	FnRet     ParamFlags
 	WithRet   bool
-	Pad       uint8
+	Pad       [3]uint8
+	FnArgsBuf uint32
 }
 
 func (cfg *BpfsnoopConfig) SetOutputLbr(v bool) {

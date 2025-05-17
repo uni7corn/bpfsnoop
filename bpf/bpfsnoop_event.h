@@ -15,16 +15,6 @@ enum {
     BPFSNOOP_EVENT_TYPE_INSN,
 };
 
-struct bpfsnoop_fn_arg_data {
-    __u64 raw_data;
-    __u64 ptr_data;
-};
-
-struct bpfsnoop_fn_data {
-    struct bpfsnoop_fn_arg_data retval;
-    struct bpfsnoop_fn_arg_data args[MAX_FN_ARGS];
-};
-
 struct event {
     __u16 type;
     __u16 length;
@@ -35,16 +25,11 @@ struct event {
     __u32 pid;
     __u8 comm[16];
     __s64 func_stack_id;
-
-    /* fn_data must be the last attr of event in order to output arg data on
-     * demand.
-     */
-    struct bpfsnoop_fn_data fn_data;
 };
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 4096<<8);
+    __uint(max_entries, 64 * 1024 * 1024); /* 64MiB */
 } bpfsnoop_events SEC(".maps");
 
 #endif // __BPFSNOOP_EVENT_H_

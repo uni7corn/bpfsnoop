@@ -32,6 +32,7 @@ var (
 	kfuncAllKmods   bool
 	kfuncKmods      []string
 	noColorOutput   bool
+	colorfulOutput  bool
 	limitEvents     uint
 
 	debugTraceInsnCnt uint
@@ -95,6 +96,7 @@ func ParseFlags() (*Flags, error) {
 
 	outputFuncStack = outputFuncStack || outputFlameGraph != ""
 	noColorOutput = flags.outputFile != "" || !isatty(os.Stdout.Fd())
+	colorfulOutput = !noColorOutput
 	argFilter = prepareFuncArguments(filterArg)
 	argOutput = prepareFuncArgOutput(outputArg)
 	pktFilter = preparePacketFilter(filterPkt)

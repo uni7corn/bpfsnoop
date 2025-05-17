@@ -8,17 +8,11 @@
 
 #include "bpfsnoop.h"
 
-struct bpfsnoop_fn_arg_flags {
-    bool is_number_ptr;
-    bool is_str;
-};
-
 struct bpfsnoop_fn_args {
-    struct bpfsnoop_fn_arg_flags args[MAX_FN_ARGS];
-    __u32 nr_fn_args;
-    struct bpfsnoop_fn_arg_flags ret;
+    __u32 args_nr;
     bool with_retval;
-    __u8 pad;
+    __u8 pad[3];
+    __u32 buf_size;
 } __attribute__((packed));
 
 struct bpfsnoop_config {

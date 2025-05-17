@@ -12,7 +12,7 @@
 
 struct bpfsnoop_arg_data {
     __u64 data[4][2]; /* 4 attrs */
-    __u8 str[32];  /* 1 string */
+    __u8 str[MAX_STR_LEN];  /* 1 string */
 };
 
 struct bpfsnoop_arg_data bpfsnoop_arg_buff[1] SEC(".data.args");
