@@ -4,9 +4,12 @@
 package test
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/cilium/ebpf/btf"
 )
 
 func AssertEqual[T comparable](t *testing.T, got, want T) {
@@ -111,5 +114,13 @@ func AssertNotNil(t *testing.T, got any) {
 	t.Helper()
 	if got == nil {
 		t.Errorf("got nil, want not nil")
+	}
+}
+
+func AssertEqualBtf(t *testing.T, got, want btf.Type) {
+	t.Helper()
+	g, w := fmt.Sprintf("%v", got), fmt.Sprintf("%v", want)
+	if g != w {
+		t.Errorf("got %v, want %v", g, w)
 	}
 }

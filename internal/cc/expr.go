@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/Asphaltt/mybtf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/btf"
 	"rsc.io/c2go/cc"
@@ -132,11 +133,20 @@ func (c *compiler) compile(expr string) error {
 	return nil
 }
 
+type EvalResultType int
+
+const (
+	EvalResultTypeDefault EvalResultType = iota
+	EvalResultTypeDeref
+)
+
 type EvalResult struct {
 	Insns asm.Instructions
 	Reg   asm.Register
 	Btf   btf.Type
 	Mem   *btf.Member
+	Type  EvalResultType
+	Size  int
 
 	LabelUsed bool
 }
@@ -182,7 +192,14 @@ func CompileEvalExpr(opts CompileExprOptions) (EvalResult, error) {
 		c.regalloc.MarkUsed(reg)
 	}
 
-	val, err := c.eval(e)
+	evaluatingExpr := e
+	switch e.Op {
+	case cc.Indir:
+		res.Type = EvalResultTypeDeref
+		evaluatingExpr = e.Left
+	}
+
+	val, err := c.eval(evaluatingExpr)
 	if err != nil {
 		return res, fmt.Errorf("failed to evaluate expression: %w", err)
 	}
@@ -190,10 +207,29 @@ func CompileEvalExpr(opts CompileExprOptions) (EvalResult, error) {
 		return res, fmt.Errorf("disallow constant value (%d) expression: '%s'", val.num, opts.Expr)
 	}
 
+	switch res.Type {
+	case EvalResultTypeDeref:
+		t := mybtf.UnderlyingType(val.btf)
+		ptr, ok := t.(*btf.Pointer)
+		if !ok {
+			return res, fmt.Errorf("disallow non-pointer type %v for struct/union pointer dereference", t)
+		}
+
+		size, _ := btf.Sizeof(ptr.Target)
+		if size == 0 {
+			return res, fmt.Errorf("disallow zero size type %v for struct/union pointer dereference", ptr.Target)
+		}
+
+		res.Btf = ptr.Target
+		res.Size = size
+
+	default:
+		res.Btf = val.btf
+		res.Mem = val.mem
+	}
+
 	res.Insns = c.insns
 	res.Reg = val.reg
-	res.Btf = val.btf
-	res.Mem = val.mem
 	res.LabelUsed = c.labelExitUsed
 
 	return res, nil
