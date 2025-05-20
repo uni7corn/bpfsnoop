@@ -20,10 +20,22 @@ func outputFuncArgAttrs(sb *strings.Builder, info *funcInfo, data []byte, f btfx
 			fmt.Fprint(sb, ", ")
 		}
 
+		exception := data[arg.size-1]
+		if exception != 0 {
+			data = data[arg.size:]
+			s := fmt.Sprintf("(%s)'%s'=[NULL]", btfx.Repr(arg.t), arg.expr)
+			if colorfulOutput {
+				color.New(color.FgRed).Fprint(sb, s)
+			} else {
+				fmt.Fprint(sb, s)
+			}
+			continue
+		}
+
 		var argStr string
 		var argVal, argVal2 uint64
 		if arg.isStr {
-			argStr, data = readStrN(data, arg.size)
+			argStr, data = readStrN(data, arg.trueDataSize)
 		} else {
 			argVal, data = readUint64(data)
 			if arg.isNumPtr {
@@ -37,6 +49,8 @@ func outputFuncArgAttrs(sb *strings.Builder, info *funcInfo, data []byte, f btfx
 		} else {
 			fmt.Fprint(sb, s)
 		}
+
+		data = data[1:] // skip the exception result
 	}
 
 	fmt.Fprintln(sb)

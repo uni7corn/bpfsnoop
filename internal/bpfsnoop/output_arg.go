@@ -32,7 +32,9 @@ type funcArgumentOutput struct {
 	t    btf.Type
 	mem  *btf.Member
 	insn asm.Instructions
-	size int
+
+	size         int
+	trueDataSize int
 
 	vars []string
 
@@ -42,6 +44,8 @@ type funcArgumentOutput struct {
 
 type argDataOutput struct {
 	args []funcArgumentOutput
+
+	labelCnt int
 }
 
 func prepareArgOutput(expr string) (funcArgumentOutput, error) {
@@ -76,7 +80,7 @@ func prepareFuncArgOutput(exprs []string) argDataOutput {
 	return arg
 }
 
-func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, offset int) (int, error) {
+func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, offset int, labelExit string) (int, error) {
 	mode := cc.MemoryReadModeProbeRead
 	if _, err := spec.AnyTypeByName("bpf_rdonly_cast"); err == nil {
 		mode = cc.MemoryReadModeCoreRead
@@ -91,7 +95,7 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, o
 		Expr:          arg.expr,
 		Params:        params,
 		Spec:          spec,
-		LabelExit:     outputArgLabelExit,
+		LabelExit:     labelExit,
 		ReservedStack: argOutputStackOff,
 		UsedRegisters: []asm.Register{regBuff, regArgs},
 
@@ -114,6 +118,7 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, o
 		return 0, fmt.Errorf("invalid size of btf type %v: %d", res.Btf, size)
 	}
 
+	orgOffset := offset
 	insns := res.Insns
 	if !arg.isStr {
 		insns = append(insns,
@@ -128,20 +133,15 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, o
 				)
 			}
 
-			if offset != 0 {
-				insns = append(insns,
-					asm.Mov.Imm(asm.R2, 8),
-					asm.Mov.Reg(asm.R1, regBuff),
-					asm.Add.Imm(asm.R1, int32(offset)),
-					asm.FnProbeReadKernel.Call(),
-				)
-			} else {
-				insns = append(insns,
-					asm.Mov.Imm(asm.R2, 8),
-					asm.Mov.Reg(asm.R1, regBuff),
-					asm.FnProbeReadKernel.Call(),
-				)
-			}
+			insns = append(insns,
+				cc.JmpOff(asm.JEq, asm.R3, 0, 5),
+				asm.Mov.Imm(asm.R2, 8),
+				asm.Mov.Reg(asm.R1, regBuff),
+				asm.Add.Imm(asm.R1, int32(offset)),
+				asm.FnProbeReadKernel.Call(),
+				cc.Ja(1),
+				asm.StoreMem(regBuff, int16(offset), asm.R3, asm.DWord),
+			)
 
 			offset += 8
 		}
@@ -150,6 +150,11 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, o
 		if mybtf.IsCharArray(res.Btf) {
 			arr, _ := mybtf.UnderlyingType(res.Btf).(*btf.Array)
 			strSize = int(arr.Nelems)
+		} else {
+			res.LabelUsed = true
+			insns = append(insns,
+				asm.JEq.Imm(res.Reg, 0, labelExit),
+			)
 		}
 
 		if res.Reg != asm.R3 {
@@ -172,9 +177,26 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, o
 			)
 		}
 		offset += strSize
-		arg.size = strSize
 	}
 
+	arg.trueDataSize = offset - orgOffset
+
+	if res.LabelUsed {
+		insns = append(insns,
+			asm.Mov.Imm(asm.R0, 0),
+			cc.Ja(1),
+			asm.Mov.Imm(asm.R0, 1).WithSymbol(labelExit), // null-pointer dereferencing exception
+			asm.StoreMem(regBuff, int16(offset), asm.R0, asm.Byte),
+		)
+	} else {
+		insns = append(insns,
+			asm.Mov.Imm(asm.R0, 0),
+			asm.StoreMem(regBuff, int16(offset), asm.R0, asm.Byte),
+		)
+	}
+	offset += 1
+
+	arg.size = offset - orgOffset
 	arg.insn = insns
 	return offset, nil
 }
@@ -218,6 +240,12 @@ func (arg *argDataOutput) correctArgType(t btf.Type) (btf.Type, error) {
 	return t, nil
 }
 
+func (arg *argDataOutput) genExitLabel() string {
+	label := fmt.Sprintf("%s_%d", outputArgLabelExit, arg.labelCnt)
+	arg.labelCnt++
+	return label
+}
+
 func (arg *argDataOutput) matchParams(params []btf.FuncParam, checkArgType bool) ([]funcArgumentOutput, int, error) {
 	args := make([]funcArgumentOutput, 0, 12)
 
@@ -245,7 +273,7 @@ func (arg *argDataOutput) matchParams(params []btf.FuncParam, checkArgType bool)
 		}
 
 		a := a
-		offset, err = a.compile(params, spec, offset)
+		offset, err = a.compile(params, spec, offset, arg.genExitLabel())
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to compile expr '%s': %w", a.expr, err)
 		}
@@ -273,7 +301,7 @@ func (arg *argDataOutput) genInsns(args []funcArgumentOutput) asm.Instructions {
 	insns = slices.Concat(argsInsns...)
 
 	insns = append(insns,
-		asm.Return().WithSymbol(outputArgLabelExit),
+		asm.Return(),
 	)
 
 	return insns
