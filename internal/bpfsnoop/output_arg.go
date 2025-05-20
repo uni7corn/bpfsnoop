@@ -19,13 +19,8 @@ import (
 )
 
 const (
-	outputFuncArgData         = "output_arg_data"
-	outputFuncArgDataInternal = "__output_arg_data"
-
-	outputFuncArgDataLabelExit = "__output_arg_data_fail"
-
-	dataReg = asm.R8
-	argsReg = asm.R9
+	outputArgStub      = "output_arg"
+	outputArgLabelExit = "__output_arg_fail"
 
 	argOutputStackOff = 16
 )
@@ -86,13 +81,18 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, o
 		mode = cc.MemoryReadModeCoreRead
 	}
 
+	const (
+		regArgs = asm.R9
+		regBuff = asm.R8
+	)
+
 	res, err := cc.CompileEvalExpr(cc.CompileExprOptions{
 		Expr:          arg.expr,
 		Params:        params,
 		Spec:          spec,
-		LabelExit:     outputFuncArgDataLabelExit,
+		LabelExit:     outputArgLabelExit,
 		ReservedStack: argOutputStackOff,
-		UsedRegisters: []asm.Register{dataReg, argsReg},
+		UsedRegisters: []asm.Register{regBuff, regArgs},
 
 		MemoryReadMode: mode,
 	})
@@ -113,12 +113,12 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, o
 		return 0, fmt.Errorf("invalid size of btf type %v: %d", res.Btf, size)
 	}
 
-	dataSize := 16
 	insns := res.Insns
 	if !arg.isStr {
 		insns = append(insns,
-			asm.StoreMem(dataReg, int16(offset), res.Reg, asm.DWord),
+			asm.StoreMem(regBuff, int16(offset), res.Reg, asm.DWord),
 		)
+		offset += 8
 
 		if arg.isNumPtr {
 			if res.Reg != asm.R3 {
@@ -126,34 +126,49 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, o
 					asm.Mov.Reg(asm.R3, res.Reg),
 				)
 			}
-			insns = append(insns,
-				// R3 is ready to be used as a pointer to the data
-				asm.Mov.Imm(asm.R2, 8),
-				asm.Mov.Reg(asm.R1, dataReg),
-				asm.Add.Imm(asm.R1, int32(offset)),
-				asm.FnProbeReadKernel.Call(),
-			)
+
+			if offset != 0 {
+				insns = append(insns,
+					asm.Mov.Imm(asm.R2, 8),
+					asm.Mov.Reg(asm.R1, regBuff),
+					asm.Add.Imm(asm.R1, int32(offset)),
+					asm.FnProbeReadKernel.Call(),
+				)
+			} else {
+				insns = append(insns,
+					asm.Mov.Imm(asm.R2, 8),
+					asm.Mov.Reg(asm.R1, regBuff),
+					asm.FnProbeReadKernel.Call(),
+				)
+			}
+
+			offset += 8
 		}
-	} else {
+	} else /* isStr */ {
 		if res.Reg != asm.R3 {
 			insns = append(insns,
 				asm.Mov.Reg(asm.R3, res.Reg),
 			)
 		}
-		offset = 2 * maxOutputArgCnt * 8
-		insns = append(insns,
-			// R3 is ready to be used as a pointer to the string
-			asm.Mov.Imm(asm.R2, maxOutputStrLen),
-			asm.Mov.Reg(asm.R1, dataReg),
-			asm.Add.Imm(asm.R1, int32(offset)),
-			asm.FnProbeReadKernelStr.Call(),
-		)
-
-		dataSize = 0
+		if offset != 0 {
+			insns = append(insns,
+				asm.Mov.Imm(asm.R2, maxOutputStrLen),
+				asm.Mov.Reg(asm.R1, regBuff),
+				asm.Add.Imm(asm.R1, int32(offset)),
+				asm.FnProbeReadKernelStr.Call(),
+			)
+		} else {
+			insns = append(insns,
+				asm.Mov.Imm(asm.R2, maxOutputStrLen),
+				asm.Mov.Reg(asm.R1, regBuff),
+				asm.FnProbeReadKernelStr.Call(),
+			)
+		}
+		offset += maxOutputStrLen
 	}
 
 	arg.insn = insns
-	return dataSize, nil
+	return offset, nil
 }
 
 func (arg *funcArgumentOutput) match(params []btf.FuncParam) bool {
@@ -195,16 +210,12 @@ func (arg *argDataOutput) correctArgType(t btf.Type) (btf.Type, error) {
 	return t, nil
 }
 
-func (arg *argDataOutput) matchParams(params []btf.FuncParam, checkArgType bool) ([]funcArgumentOutput, error) {
-	args := make([]funcArgumentOutput, 0, maxOutputArgCnt)
-
-	strUsed := false
-	dataCnt := 0
-	offset := 0
+func (arg *argDataOutput) matchParams(params []btf.FuncParam, checkArgType bool) ([]funcArgumentOutput, int, error) {
+	args := make([]funcArgumentOutput, 0, 12)
 
 	spec, err := btf.LoadKernelSpec()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load kernel spec: %w", err)
+		return nil, 0, fmt.Errorf("failed to load kernel spec: %w", err)
 	}
 
 	params = slices.Clone(params)
@@ -212,48 +223,38 @@ func (arg *argDataOutput) matchParams(params []btf.FuncParam, checkArgType bool)
 		for i, p := range params {
 			t, err := arg.correctArgType(p.Type)
 			if err != nil {
-				return nil, fmt.Errorf("failed to correct arg type: %w", err)
+				return nil, 0, fmt.Errorf("failed to correct arg type: %w", err)
 			}
 
 			params[i].Type = t
 		}
 	}
 
+	offset := 0
 	for _, a := range arg.args {
 		if !a.match(params) {
 			continue
 		}
 
 		a := a
-		size, err := a.compile(params, spec, offset)
+		offset, err = a.compile(params, spec, offset)
 		if err != nil {
-			return nil, fmt.Errorf("failed to compile expr '%s': %w", a.expr, err)
+			return nil, 0, fmt.Errorf("failed to compile expr '%s': %w", a.expr, err)
 		}
 
-		if strUsed && a.isStr {
-			return nil, fmt.Errorf("only one string data is allowed")
-		}
-		strUsed = strUsed || a.isStr
-		if !a.isStr {
-			dataCnt++
-		}
-		if dataCnt > maxOutputArgCnt {
-			return nil, fmt.Errorf("up-to-%d arg-data is allowed", maxOutputArgCnt)
-		}
-
-		offset += size
 		args = append(args, a)
 	}
 
-	return args, nil
+	return args, offset, nil
 }
 
-func (arg *argDataOutput) injectArgs(args []funcArgumentOutput) asm.Instructions {
+func (arg *argDataOutput) genInsns(args []funcArgumentOutput) asm.Instructions {
+	// output_arg(__u64 *args, void *buff)
+
 	var insns asm.Instructions
 	insns = append(insns,
-		asm.Mov.Reg(argsReg, asm.R1),                                 // R9 = args
-		asm.Mov.Reg(dataReg, asm.R2),                                 // R8 = data
-		asm.StoreMem(asm.RFP, -argOutputStackOff, asm.R3, asm.DWord), // R10-16 = session_id
+		asm.Mov.Reg(asm.R9, asm.R1), // R9 = args
+		asm.Mov.Reg(asm.R8, asm.R2), // R8 = buff
 	)
 
 	argsInsns := make([]asm.Instructions, 0, len(args)+1)
@@ -264,18 +265,14 @@ func (arg *argDataOutput) injectArgs(args []funcArgumentOutput) asm.Instructions
 	insns = slices.Concat(argsInsns...)
 
 	insns = append(insns,
-		asm.LoadMem(asm.R2, asm.RFP, -argOutputStackOff, asm.DWord), // R2 = session_id
-		asm.Mov.Reg(asm.R1, dataReg),                                // R1 = data
-		asm.Call.Label(outputFuncArgDataInternal),
-		asm.Return().WithSymbol(outputFuncArgDataLabelExit),
+		asm.Return().WithSymbol(outputArgLabelExit),
 	)
 
 	return insns
 }
 
 func (arg *argDataOutput) clear(prog *ebpf.ProgramSpec) {
-	clearOutputSubprog(prog, outputFuncArgDataInternal)
-	clearOutputSubprog(prog, outputFuncArgData)
+	clearOutputSubprog(prog, outputArgStub)
 }
 
 func (arg *argDataOutput) inject(prog *ebpf.ProgramSpec, args []funcArgumentOutput) {
@@ -284,6 +281,6 @@ func (arg *argDataOutput) inject(prog *ebpf.ProgramSpec, args []funcArgumentOutp
 		return
 	}
 
-	insns := arg.injectArgs(args)
-	injectInsns(prog, outputFuncArgData, insns)
+	insns := arg.genInsns(args)
+	injectInsns(prog, outputArgStub, insns)
 }

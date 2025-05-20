@@ -15,6 +15,10 @@ import (
 	"github.com/bpfsnoop/bpfsnoop/internal/strx"
 )
 
+const (
+	maxOutputStrLen = 64
+)
+
 func outputFnRetval(sb *strings.Builder, info *funcInfo, s string, data []byte, f btfx.FindSymbol) {
 	var retval string
 	if info.proto != nil {

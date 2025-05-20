@@ -31,18 +31,19 @@ func (t *bpfTracing) Progs() []*ebpf.Program {
 	return t.progs
 }
 
-func setBpfsnoopConfig(spec *ebpf.CollectionSpec, funcIP uint64, fnArgsNr, fnArgsBufSize int, bothEntryExit, withRet bool) error {
+func setBpfsnoopConfig(spec *ebpf.CollectionSpec, funcIP uint64, fnArgsNr, fnArgsBufSize, argDataSize int, bothEntryExit, withRet bool) error {
 	var cfg BpfsnoopConfig
 	cfg.SetOutputLbr(outputLbr)
 	cfg.SetOutputStack(outputFuncStack)
 	cfg.SetOutputPktTuple(outputPkt)
-	cfg.SetOutputArgData(len(argOutput.args) != 0)
+	cfg.SetOutputArg(argDataSize != 0)
 	cfg.SetBothEntryExit(bothEntryExit)
 	cfg.SetIsEntry(!withRet)
 	cfg.FilterPid = filterPid
 	cfg.FnArgsNr = uint32(fnArgsNr)
 	cfg.WithRet = withRet
 	cfg.FnArgsBuf = uint32(fnArgsBufSize)
+	cfg.ArgDataSz = uint32(argDataSize)
 
 	if err := spec.Variables["bpfsnoop_config"].Set(cfg); err != nil {
 		return fmt.Errorf("failed to set bpfsnoop config: %w", err)
@@ -171,21 +172,21 @@ func (t *bpfTracing) injectArgFilter(prog *ebpf.ProgramSpec, params []btf.FuncPa
 	return nil
 }
 
-func (t *bpfTracing) injectArgOutput(prog *ebpf.ProgramSpec, params []btf.FuncParam, checkArgType bool, fnName string) ([]funcArgumentOutput, error) {
+func (t *bpfTracing) injectArgOutput(prog *ebpf.ProgramSpec, params []btf.FuncParam, checkArgType bool, fnName string) ([]funcArgumentOutput, int, error) {
 	if len(argOutput.args) == 0 {
-		return nil, nil
+		return nil, 0, nil
 	}
 
-	args, err := argOutput.matchParams(params, checkArgType)
+	args, size, err := argOutput.matchParams(params, checkArgType)
 	if err != nil {
-		return nil, fmt.Errorf("failed to match params: %w", err)
+		return nil, 0, fmt.Errorf("failed to match params: %w", err)
 	}
 
 	argOutput.inject(prog, args)
 
 	debugLogIf(len(args) != 0, "Injected --output-arg expr to func %s", fnName)
 
-	return args, nil
+	return args, size, nil
 }
 
 func (t *bpfTracing) injectSkbFilter(prog *ebpf.ProgramSpec, index int, typ btf.Type) error {
@@ -311,18 +312,19 @@ func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]
 	if err := t.injectArgFilter(progSpec, params, traceeName); err != nil {
 		return err
 	}
-	args, err := t.injectArgOutput(progSpec, params, true, traceeName)
+	args, argDataSize, err := t.injectArgOutput(progSpec, params, true, traceeName)
 	if err != nil {
 		return err
 	}
 	bprogs.funcs[info.funcIP].funcArgs = args
+	bprogs.funcs[info.funcIP].argDataSz = argDataSize
 	fnArgsBufSize, err := injectOutputFuncArgs(progSpec, info.params, info.ret, mode == TracingModeExit)
 	if err != nil {
 		return fmt.Errorf("failed to inject output func args: %w", err)
 	}
 	bprogs.funcs[info.funcIP].argsBufSz = fnArgsBufSize
 
-	if err := setBpfsnoopConfig(spec, uint64(info.funcIP), len(info.params), fnArgsBufSize, false, mode == TracingModeExit); err != nil {
+	if err := setBpfsnoopConfig(spec, uint64(info.funcIP), len(info.params), fnArgsBufSize, argDataSize, false, mode == TracingModeExit); err != nil {
 		return fmt.Errorf("failed to set bpfsnoop config: %w", err)
 	}
 
@@ -386,11 +388,12 @@ func (t *bpfTracing) traceFunc(spec *ebpf.CollectionSpec, reusedMaps map[string]
 	if err := t.injectArgFilter(progSpec, params, traceeName); err != nil {
 		return err
 	}
-	args, err := t.injectArgOutput(progSpec, params, false, traceeName)
+	args, argDataSize, err := t.injectArgOutput(progSpec, params, false, traceeName)
 	if err != nil {
 		return err
 	}
 	fn.Args = args
+	fn.Data = argDataSize
 
 	withRet := !isTracepoint && isExit
 	fnArgsBufSize, err := injectOutputFuncArgs(progSpec, fn.Prms, fn.Ret, withRet)
@@ -399,7 +402,7 @@ func (t *bpfTracing) traceFunc(spec *ebpf.CollectionSpec, reusedMaps map[string]
 	}
 	fn.Farg = fnArgsBufSize
 
-	if err := setBpfsnoopConfig(spec, fn.Ksym.addr, len(fn.Prms), fnArgsBufSize, bothEntryExit, withRet); err != nil {
+	if err := setBpfsnoopConfig(spec, fn.Ksym.addr, len(fn.Prms), fnArgsBufSize, argDataSize, bothEntryExit, withRet); err != nil {
 		return fmt.Errorf("failed to set bpfsnoop config: %w", err)
 	}
 

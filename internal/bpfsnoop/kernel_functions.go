@@ -53,6 +53,7 @@ type KFunc struct {
 	Prms []FuncParamFlags
 	Ret  FuncParamFlags
 	Farg int // fn args buffer size
+	Data int // arg output data size
 	Insn bool
 	IsTp bool
 	Pkt  bool

@@ -13,6 +13,7 @@ struct bpfsnoop_fn_args {
     bool with_retval;
     __u8 pad[3];
     __u32 buf_size;
+    __u32 data_size;
 } __attribute__((packed));
 
 struct bpfsnoop_config {

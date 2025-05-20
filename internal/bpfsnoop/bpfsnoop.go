@@ -61,11 +61,9 @@ func Run(reader *ringbuf.Reader, helpers *Helpers, maps map[string]*ebpf.Map, w 
 	stacks := maps["bpfsnoop_stacks"]
 	lbrs := maps["bpfsnoop_lbrs"]
 	pkts := maps["bpfsnoop_pkts"]
-	args := maps["bpfsnoop_args"]
 
 	var lbrData LbrData
 	var pktData PktData
-	var argData ArgData
 
 	fg := NewFlameGraph()
 	defer fg.Save(outputFlameGraph)
@@ -161,9 +159,10 @@ func Run(reader *ringbuf.Reader, helpers *Helpers, maps map[string]*ebpf.Map, w 
 			return fmt.Errorf("failed to output packet tuple: %w", err)
 		}
 
-		err = outputFuncArgAttrs(&sb, fnInfo, &argData, args, event, findSymbol)
-		if err != nil {
-			return fmt.Errorf("failed to output function arguments: %w", err)
+		if fnInfo.argData != 0 {
+			off := sizeOfEvent + int(fnInfo.argsBuf)
+			b := record.RawSample[off : off+fnInfo.argData]
+			outputFuncArgAttrs(&sb, fnInfo, b, findSymbol)
 		}
 
 		err = lbrStack.outputStack(&sb, helpers, &lbrData, lbrs, event)

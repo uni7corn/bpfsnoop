@@ -62,7 +62,6 @@ emit_bpfsnoop_event(void *ctx)
     struct bpfsnoop_sess *sess, sess_init = {};
     struct bpfsnoop_lbr_data *lbr;
     struct bpfsnoop_pkt_data *pkt;
-    struct bpfsnoop_arg_data *arg;
     __u64 fp, session_id = 0;
     __u64 args[MAX_FN_ARGS];
     bool can_output = false;
@@ -79,7 +78,6 @@ emit_bpfsnoop_event(void *ctx)
     cpu = bpf_get_smp_processor_id() & CPU_MASK;
     lbr = &bpfsnoop_lbr_buff[cpu];
     pkt = &bpfsnoop_pkt_buff[cpu];
-    arg = &bpfsnoop_arg_buff[cpu];
 
     can_output = !cfg->both_entry_exit || cfg->is_entry;
     if (cfg->output_lbr && can_output)
@@ -125,7 +123,7 @@ emit_bpfsnoop_event(void *ctx)
                                    : BPFSNOOP_EVENT_TYPE_FUNC_EXIT;
     }
 
-    buffer_sz = sizeof(*evt) + cfg->fn_args.buf_size;
+    buffer_sz = sizeof(*evt) + cfg->fn_args.buf_size + cfg->fn_args.data_size;
     buffer = bpf_ringbuf_reserve(&bpfsnoop_events, buffer_sz, 0);
     if (!buffer)
         return BPF_OK;
@@ -148,7 +146,7 @@ emit_bpfsnoop_event(void *ctx)
     if (cfg->output_pkt)
         output_pkt_data(args, pkt, session_id);
     if (cfg->output_arg)
-        output_arg_data(args, arg, session_id);
+        output_arg(args, buffer + sizeof(*evt) + cfg->fn_args.buf_size);
 
     bpf_ringbuf_submit(evt, 0);
 

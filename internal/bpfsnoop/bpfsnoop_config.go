@@ -19,6 +19,7 @@ type BpfsnoopConfig struct {
 	WithRet   bool
 	Pad       [3]uint8
 	FnArgsBuf uint32
+	ArgDataSz uint32
 }
 
 func (cfg *BpfsnoopConfig) SetOutputLbr(v bool) {
@@ -39,7 +40,7 @@ func (cfg *BpfsnoopConfig) SetOutputPktTuple(v bool) {
 	}
 }
 
-func (cfg *BpfsnoopConfig) SetOutputArgData(v bool) {
+func (cfg *BpfsnoopConfig) SetOutputArg(v bool) {
 	if v {
 		cfg.Flags |= 1 << configFlagOutputArgIdx
 	}
