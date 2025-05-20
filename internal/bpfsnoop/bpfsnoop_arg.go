@@ -23,7 +23,7 @@ func outputFuncArgAttrs(sb *strings.Builder, info *funcInfo, data []byte, f btfx
 		var argStr string
 		var argVal, argVal2 uint64
 		if arg.isStr {
-			argStr, data = readStr(data)
+			argStr, data = readStrN(data, arg.size)
 		} else {
 			argVal, data = readUint64(data)
 			if arg.isNumPtr {

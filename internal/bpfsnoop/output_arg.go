@@ -32,6 +32,7 @@ type funcArgumentOutput struct {
 	t    btf.Type
 	mem  *btf.Member
 	insn asm.Instructions
+	size int
 
 	vars []string
 
@@ -145,6 +146,12 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, o
 			offset += 8
 		}
 	} else /* isStr */ {
+		strSize := maxOutputStrLen
+		if mybtf.IsCharArray(res.Btf) {
+			arr, _ := mybtf.UnderlyingType(res.Btf).(*btf.Array)
+			strSize = int(arr.Nelems)
+		}
+
 		if res.Reg != asm.R3 {
 			insns = append(insns,
 				asm.Mov.Reg(asm.R3, res.Reg),
@@ -152,19 +159,20 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, o
 		}
 		if offset != 0 {
 			insns = append(insns,
-				asm.Mov.Imm(asm.R2, maxOutputStrLen),
+				asm.Mov.Imm(asm.R2, int32(strSize)),
 				asm.Mov.Reg(asm.R1, regBuff),
 				asm.Add.Imm(asm.R1, int32(offset)),
 				asm.FnProbeReadKernelStr.Call(),
 			)
 		} else {
 			insns = append(insns,
-				asm.Mov.Imm(asm.R2, maxOutputStrLen),
+				asm.Mov.Imm(asm.R2, int32(strSize)),
 				asm.Mov.Reg(asm.R1, regBuff),
 				asm.FnProbeReadKernelStr.Call(),
 			)
 		}
-		offset += maxOutputStrLen
+		offset += strSize
+		arg.size = strSize
 	}
 
 	arg.insn = insns

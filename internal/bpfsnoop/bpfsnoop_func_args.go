@@ -48,9 +48,13 @@ func readUint64(data []byte) (uint64, []byte) {
 	return num, data[8:]
 }
 
+func readStrN(data []byte, n int) (string, []byte) {
+	str := strx.NullTerminated(data[:n])
+	return str, data[n:]
+}
+
 func readStr(data []byte) (string, []byte) {
-	str := strx.NullTerminated(data[:maxOutputStrLen])
-	return str, data[maxOutputStrLen:]
+	return readStrN(data, maxOutputStrLen)
 }
 
 func outputFnArgs(sb *strings.Builder, info *funcInfo, helpers *Helpers, data []byte, f btfx.FindSymbol, withRetval bool) {
