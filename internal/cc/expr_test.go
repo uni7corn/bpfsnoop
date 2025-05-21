@@ -451,6 +451,54 @@ func TestCompileEvalExpr(t *testing.T) {
 		test.AssertErrorPrefix(t, err, "buf() size must be greater than 0")
 	})
 
+	t.Run("str(skb->cb, a, b)", func(t *testing.T) {
+		_, err := CompileEvalExpr(CompileExprOptions{
+			Expr:          "str(skb->cb, a, b)",
+			LabelExit:     "__label_exit",
+			Spec:          testBtf,
+			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
+			UsedRegisters: []asm.Register{asm.R8, asm.R9},
+		})
+		test.AssertHaveErr(t, err)
+		test.AssertErrorPrefix(t, err, "str() must have 1 or 2 arguments")
+	})
+
+	t.Run("str(skb->cb, a)", func(t *testing.T) {
+		_, err := CompileEvalExpr(CompileExprOptions{
+			Expr:          "str(skb->cb, a)",
+			LabelExit:     "__label_exit",
+			Spec:          testBtf,
+			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
+			UsedRegisters: []asm.Register{asm.R8, asm.R9},
+		})
+		test.AssertHaveErr(t, err)
+		test.AssertErrorPrefix(t, err, "str() second argument must be a number")
+	})
+
+	t.Run("str(skb->cb, 0xFFULL)", func(t *testing.T) {
+		_, err := CompileEvalExpr(CompileExprOptions{
+			Expr:          "str(skb->cb, 0xFFULL)",
+			LabelExit:     "__label_exit",
+			Spec:          testBtf,
+			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
+			UsedRegisters: []asm.Register{asm.R8, asm.R9},
+		})
+		test.AssertHaveErr(t, err)
+		test.AssertErrorPrefix(t, err, "str() second argument must be a number: strconv.ParseUint")
+	})
+
+	t.Run("str(skb->cb, 0)", func(t *testing.T) {
+		_, err := CompileEvalExpr(CompileExprOptions{
+			Expr:          "str(skb->cb, 0)",
+			LabelExit:     "__label_exit",
+			Spec:          testBtf,
+			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
+			UsedRegisters: []asm.Register{asm.R8, asm.R9},
+		})
+		test.AssertHaveErr(t, err)
+		test.AssertErrorPrefix(t, err, "str() size must be greater than 0")
+	})
+
 	t.Run("eval failed", func(t *testing.T) {
 		_, err := CompileEvalExpr(CompileExprOptions{
 			Expr:      "not_found->xxx == 0",
@@ -585,6 +633,75 @@ func TestCompileEvalExpr(t *testing.T) {
 			asm.Add.Imm(asm.R1, -8),
 			asm.FnProbeReadKernel.Call(),
 			asm.LoadMem(asm.R7, asm.RFP, -8, asm.DWord),
+		})
+	})
+
+	t.Run("str(skb->len, 4)", func(t *testing.T) {
+		_, err := CompileEvalExpr(CompileExprOptions{
+			Expr:          "str(skb->len, 4)",
+			LabelExit:     "__label_exit",
+			Spec:          testBtf,
+			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
+			UsedRegisters: []asm.Register{asm.R8, asm.R9},
+		})
+		test.AssertHaveErr(t, err)
+		test.AssertErrorPrefix(t, err, `disallow non-{pointer,array} type Int:"unsigned int"[unsigned size=4] for str()`)
+	})
+
+	t.Run("str(skb->data)", func(t *testing.T) {
+		res, err := CompileEvalExpr(CompileExprOptions{
+			Expr:          "str(skb->data)",
+			LabelExit:     "__label_exit",
+			Spec:          testBtf,
+			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
+			UsedRegisters: []asm.Register{asm.R8, asm.R9},
+		})
+		test.AssertNoErr(t, err)
+		test.AssertEqual(t, res.Type, EvalResultTypeString)
+		test.AssertEqual(t, res.Size, 64)
+		test.AssertEqualSlice(t, res.Insns, []asm.Instruction{
+			asm.LoadMem(asm.R7, asm.R9, 0, asm.DWord),
+			asm.Mov.Reg(asm.R3, asm.R7),
+			asm.Add.Imm(asm.R3, 208),
+			asm.Mov.Imm(asm.R2, 8),
+			asm.Mov.Reg(asm.R1, asm.RFP),
+			asm.Add.Imm(asm.R1, -8),
+			asm.FnProbeReadKernel.Call(),
+			asm.LoadMem(asm.R7, asm.RFP, -8, asm.DWord),
+		})
+	})
+
+	t.Run("str(skb->cb)", func(t *testing.T) {
+		res, err := CompileEvalExpr(CompileExprOptions{
+			Expr:          "str(skb->cb)",
+			LabelExit:     "__label_exit",
+			Spec:          testBtf,
+			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
+			UsedRegisters: []asm.Register{asm.R8, asm.R9},
+		})
+		test.AssertNoErr(t, err)
+		test.AssertEqual(t, res.Type, EvalResultTypeString)
+		test.AssertEqual(t, res.Size, 48)
+		test.AssertEqualSlice(t, res.Insns, []asm.Instruction{
+			asm.LoadMem(asm.R7, asm.R9, 0, asm.DWord),
+			asm.Add.Imm(asm.R7, 40),
+		})
+	})
+
+	t.Run("str(skb->cb, 4)", func(t *testing.T) {
+		res, err := CompileEvalExpr(CompileExprOptions{
+			Expr:          "str(skb->cb, 4)",
+			LabelExit:     "__label_exit",
+			Spec:          testBtf,
+			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
+			UsedRegisters: []asm.Register{asm.R8, asm.R9},
+		})
+		test.AssertNoErr(t, err)
+		test.AssertEqual(t, res.Type, EvalResultTypeString)
+		test.AssertEqual(t, res.Size, 4)
+		test.AssertEqualSlice(t, res.Insns, []asm.Instruction{
+			asm.LoadMem(asm.R7, asm.R9, 0, asm.DWord),
+			asm.Add.Imm(asm.R7, 40),
 		})
 	})
 

@@ -139,6 +139,7 @@ const (
 	EvalResultTypeDefault EvalResultType = iota
 	EvalResultTypeDeref
 	EvalResultTypeBuf
+	EvalResultTypeString
 )
 
 type EvalResult struct {
@@ -243,6 +244,28 @@ func CompileEvalExpr(opts CompileExprOptions) (EvalResult, error) {
 
 			evaluatingExpr = e.List[0]
 			res.Type = EvalResultTypeBuf
+
+		case "str":
+			if len(e.List) != 1 && len(e.List) != 2 {
+				return res, fmt.Errorf("str() must have 1 or 2 arguments")
+			}
+
+			dataSize = -1
+			if len(e.List) == 2 {
+				if e.List[1].Op != cc.Number {
+					return res, fmt.Errorf("str() second argument must be a number")
+				}
+				dataSize, err = parseNumber(e.List[1].Text)
+				if err != nil {
+					return res, fmt.Errorf("str() second argument must be a number: %w", err)
+				}
+				if dataSize <= 0 {
+					return res, fmt.Errorf("str() size must be greater than 0")
+				}
+			}
+
+			evalulatingExpr = e.List[0]
+			res.Type = EvalResultTypeString
 		}
 	}
 
@@ -279,6 +302,25 @@ func CompileEvalExpr(opts CompileExprOptions) (EvalResult, error) {
 		}
 
 		res.Off = int(dataOffset)
+		res.Size = int(dataSize)
+		res.Btf = t
+
+	case EvalResultTypeString:
+		t := mybtf.UnderlyingType(val.btf)
+		_, isPtr := t.(*btf.Pointer)
+		arr, isArray := t.(*btf.Array)
+		if !isPtr && !isArray {
+			return res, fmt.Errorf("disallow non-{pointer,array} type %v for str()", t)
+		}
+
+		if dataSize == -1 {
+			if isPtr {
+				dataSize = 64
+			} else {
+				dataSize = int64(arr.Nelems)
+			}
+		}
+
 		res.Size = int(dataSize)
 		res.Btf = t
 
