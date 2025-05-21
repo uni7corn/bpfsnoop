@@ -363,6 +363,94 @@ func TestCompileEvalExpr(t *testing.T) {
 		test.AssertStrPrefix(t, err.Error(), "failed to parse expr")
 	})
 
+	t.Run("invalid call name", func(t *testing.T) {
+		_, err := CompileEvalExpr(CompileExprOptions{
+			Expr:      "(skb->dev->netdev_ops->ndo_bpf)(dev, bpf)",
+			LabelExit: "__label_exit",
+			Spec:      testBtf,
+			Params: []btf.FuncParam{
+				{
+					Name: "skb",
+					Type: getSkbBtf(t),
+				},
+			},
+		})
+		test.AssertHaveErr(t, err)
+		test.AssertErrorPrefix(t, err, "function call must have a constant name")
+	})
+
+	t.Run("buf(skb->cb, x)", func(t *testing.T) {
+		_, err := CompileEvalExpr(CompileExprOptions{
+			Expr:          "buf(skb, x)",
+			LabelExit:     "__label_exit",
+			Spec:          testBtf,
+			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
+			UsedRegisters: []asm.Register{asm.R8, asm.R9},
+		})
+		test.AssertHaveErr(t, err)
+		test.AssertErrorPrefix(t, err, "buf() second argument must be a number")
+	})
+
+	t.Run("buf(skb->cb, 0xFFULL)", func(t *testing.T) {
+		_, err := CompileEvalExpr(CompileExprOptions{
+			Expr:          "buf(skb, 0xFFULL)",
+			LabelExit:     "__label_exit",
+			Spec:          testBtf,
+			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
+			UsedRegisters: []asm.Register{asm.R8, asm.R9},
+		})
+		test.AssertHaveErr(t, err)
+		test.AssertErrorPrefix(t, err, "buf() second argument must be a number: strconv.ParseUint")
+	})
+
+	t.Run("buf(skb->cb, 0xFF, a)", func(t *testing.T) {
+		_, err := CompileEvalExpr(CompileExprOptions{
+			Expr:          "buf(skb, 0xFF, a)",
+			LabelExit:     "__label_exit",
+			Spec:          testBtf,
+			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
+			UsedRegisters: []asm.Register{asm.R8, asm.R9},
+		})
+		test.AssertHaveErr(t, err)
+		test.AssertErrorPrefix(t, err, "buf() third argument must be a number")
+	})
+
+	t.Run("buf(skb->cb, 0xFF, 0xFFULL)", func(t *testing.T) {
+		_, err := CompileEvalExpr(CompileExprOptions{
+			Expr:          "buf(skb, 0xFF, 0xFFULL)",
+			LabelExit:     "__label_exit",
+			Spec:          testBtf,
+			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
+			UsedRegisters: []asm.Register{asm.R8, asm.R9},
+		})
+		test.AssertHaveErr(t, err)
+		test.AssertErrorPrefix(t, err, "buf() third argument must be a number: strconv.ParseUint")
+	})
+
+	t.Run("buf(skb->cb)", func(t *testing.T) {
+		_, err := CompileEvalExpr(CompileExprOptions{
+			Expr:          "buf(skb)",
+			LabelExit:     "__label_exit",
+			Spec:          testBtf,
+			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
+			UsedRegisters: []asm.Register{asm.R8, asm.R9},
+		})
+		test.AssertHaveErr(t, err)
+		test.AssertErrorPrefix(t, err, "buf() must have 2 or 3 arguments")
+	})
+
+	t.Run("buf(skb->cb, 0)", func(t *testing.T) {
+		_, err := CompileEvalExpr(CompileExprOptions{
+			Expr:          "buf(skb, 0)",
+			LabelExit:     "__label_exit",
+			Spec:          testBtf,
+			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
+			UsedRegisters: []asm.Register{asm.R8, asm.R9},
+		})
+		test.AssertHaveErr(t, err)
+		test.AssertErrorPrefix(t, err, "buf() size must be greater than 0")
+	})
+
 	t.Run("eval failed", func(t *testing.T) {
 		_, err := CompileEvalExpr(CompileExprOptions{
 			Expr:      "not_found->xxx == 0",
@@ -446,6 +534,58 @@ func TestCompileEvalExpr(t *testing.T) {
 			asm.LoadMem(asm.R7, asm.RFP, -8, asm.DWord),
 		})
 		test.AssertEqualBtf(t, res.Btf, sk)
+	})
+
+	t.Run("buf(skb->len, 0xFF)", func(t *testing.T) {
+		_, err := CompileEvalExpr(CompileExprOptions{
+			Expr:          "buf(skb->len, 0xFF)",
+			LabelExit:     "__label_exit",
+			Spec:          testBtf,
+			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
+			UsedRegisters: []asm.Register{asm.R8, asm.R9},
+		})
+		test.AssertHaveErr(t, err)
+		test.AssertErrorPrefix(t, err, `disallow non-{pointer,array} type Int:"unsigned int"[unsigned size=4] for buf()`)
+	})
+
+	t.Run("buf(skb->cb, 4, 2)", func(t *testing.T) {
+		res, err := CompileEvalExpr(CompileExprOptions{
+			Expr:          "buf(skb->cb, 4, 2)",
+			LabelExit:     "__label_exit",
+			Spec:          testBtf,
+			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
+			UsedRegisters: []asm.Register{asm.R8, asm.R9},
+		})
+		test.AssertNoErr(t, err)
+		test.AssertEqual(t, res.Type, EvalResultTypeBuf)
+		test.AssertEqual(t, res.Size, 2)
+		test.AssertEqualSlice(t, res.Insns, []asm.Instruction{
+			asm.LoadMem(asm.R7, asm.R9, 0, asm.DWord),
+			asm.Add.Imm(asm.R7, 40),
+		})
+	})
+
+	t.Run("buf(skb->data, 12, 20)", func(t *testing.T) {
+		res, err := CompileEvalExpr(CompileExprOptions{
+			Expr:          "buf(skb->data, 12, 20)",
+			LabelExit:     "__label_exit",
+			Spec:          testBtf,
+			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
+			UsedRegisters: []asm.Register{asm.R8, asm.R9},
+		})
+		test.AssertNoErr(t, err)
+		test.AssertEqual(t, res.Type, EvalResultTypeBuf)
+		test.AssertEqual(t, res.Size, 20)
+		test.AssertEqualSlice(t, res.Insns, []asm.Instruction{
+			asm.LoadMem(asm.R7, asm.R9, 0, asm.DWord),
+			asm.Mov.Reg(asm.R3, asm.R7),
+			asm.Add.Imm(asm.R3, 208),
+			asm.Mov.Imm(asm.R2, 8),
+			asm.Mov.Reg(asm.R1, asm.RFP),
+			asm.Add.Imm(asm.R1, -8),
+			asm.FnProbeReadKernel.Call(),
+			asm.LoadMem(asm.R7, asm.RFP, -8, asm.DWord),
+		})
 	})
 
 	t.Run("skb->len", func(t *testing.T) {

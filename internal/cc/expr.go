@@ -138,6 +138,7 @@ type EvalResultType int
 const (
 	EvalResultTypeDefault EvalResultType = iota
 	EvalResultTypeDeref
+	EvalResultTypeBuf
 )
 
 type EvalResult struct {
@@ -147,6 +148,7 @@ type EvalResult struct {
 	Mem   *btf.Member
 	Type  EvalResultType
 	Size  int
+	Off   int
 
 	LabelUsed bool
 }
@@ -192,11 +194,56 @@ func CompileEvalExpr(opts CompileExprOptions) (EvalResult, error) {
 		c.regalloc.MarkUsed(reg)
 	}
 
+	dataOffset := int64(0)
+	dataSize := int64(0)
+
 	evaluatingExpr := e
 	switch e.Op {
 	case cc.Indir:
 		res.Type = EvalResultTypeDeref
 		evaluatingExpr = e.Left
+
+	case cc.Call:
+		if e.Left.Op != cc.Name {
+			return res, fmt.Errorf("function call must have a constant name")
+		}
+
+		switch e.Left.Text {
+		case "buf":
+			switch len(e.List) {
+			case 2, 3:
+				if e.List[1].Op != cc.Number {
+					return res, fmt.Errorf("buf() second argument must be a number")
+				}
+
+				dataSize, err = parseNumber(e.List[1].Text)
+				if err != nil {
+					return res, fmt.Errorf("buf() second argument must be a number: %w", err)
+				}
+
+				if len(e.List) == 3 {
+					dataOffset = dataSize
+
+					if e.List[2].Op != cc.Number {
+						return res, fmt.Errorf("buf() third argument must be a number")
+					}
+					dataSize, err = parseNumber(e.List[2].Text)
+					if err != nil {
+						return res, fmt.Errorf("buf() third argument must be a number: %w", err)
+					}
+				}
+
+			default:
+				return res, fmt.Errorf("buf() must have 2 or 3 arguments")
+			}
+
+			if dataSize <= 0 {
+				return res, fmt.Errorf("buf() size must be greater than 0")
+			}
+
+			evaluatingExpr = e.List[0]
+			res.Type = EvalResultTypeBuf
+		}
 	}
 
 	val, err := c.eval(evaluatingExpr)
@@ -222,6 +269,18 @@ func CompileEvalExpr(opts CompileExprOptions) (EvalResult, error) {
 
 		res.Btf = ptr.Target
 		res.Size = size
+
+	case EvalResultTypeBuf:
+		t := mybtf.UnderlyingType(val.btf)
+		_, isPtr := t.(*btf.Pointer)
+		_, isArray := t.(*btf.Array)
+		if !isPtr && !isArray {
+			return res, fmt.Errorf("disallow non-{pointer,array} type %v for buf()", t)
+		}
+
+		res.Off = int(dataOffset)
+		res.Size = int(dataSize)
+		res.Btf = t
 
 	default:
 		res.Btf = val.btf

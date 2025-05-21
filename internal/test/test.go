@@ -92,6 +92,17 @@ func AssertHaveErr(t *testing.T, err error) {
 	}
 }
 
+func AssertErrorPrefix(t *testing.T, err error, prefix string) {
+	t.Helper()
+	if err == nil {
+		t.Errorf("expected error, but got nil")
+		return
+	}
+	if !strings.HasPrefix(err.Error(), prefix) {
+		t.Errorf("got %v, want prefix %v", err.Error(), prefix)
+	}
+}
+
 func AssertPanic(t *testing.T, f func()) {
 	t.Helper()
 	defer func() {
