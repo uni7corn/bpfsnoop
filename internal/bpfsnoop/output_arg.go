@@ -44,6 +44,7 @@ type funcArgumentOutput struct {
 	isNumPtr bool
 	isStr    bool
 	isDeref  bool
+	isBuf    bool
 }
 
 type argDataOutput struct {
@@ -117,6 +118,43 @@ func (arg *funcArgumentOutput) genDerefInsns(res *cc.EvalResult, offset, size in
 	}
 
 	return offset + size, nil
+}
+
+func (arg *funcArgumentOutput) genBufInsns(res *cc.EvalResult, offset, size int, labelExit string) (int, error) {
+	res.LabelUsed = true
+
+	arg.emit(
+		asm.JEq.Imm(res.Reg, 0, labelExit),
+	)
+
+	if res.Off != 0 {
+		arg.emit(
+			asm.Add.Imm(res.Reg, int32(res.Off)),
+		)
+	}
+
+	if res.Reg != asm.R3 {
+		arg.emit(
+			asm.Mov.Reg(asm.R3, res.Reg),
+		)
+	}
+
+	if offset != 0 {
+		arg.emit(
+			asm.Mov.Imm(asm.R2, int32(res.Size)),
+			asm.Mov.Reg(asm.R1, outputArgRegBuff),
+			asm.Add.Imm(asm.R1, int32(offset)),
+			asm.FnProbeReadKernel.Call(),
+		)
+	} else {
+		arg.emit(
+			asm.Mov.Imm(asm.R2, int32(res.Size)),
+			asm.Mov.Reg(asm.R1, outputArgRegBuff),
+			asm.FnProbeReadKernel.Call(),
+		)
+	}
+
+	return offset + res.Size, nil
 }
 
 func (arg *funcArgumentOutput) genDefaultInsns(res *cc.EvalResult, offset, size int, labelExit string) (int, error) {
@@ -222,6 +260,10 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, o
 	case cc.EvalResultTypeDeref:
 		arg.isDeref = true
 		offset, err = arg.genDerefInsns(&res, offset, size, labelExit)
+
+	case cc.EvalResultTypeBuf:
+		arg.isBuf = true
+		offset, err = arg.genBufInsns(&res, offset, size, labelExit)
 
 	default:
 		offset, err = arg.genDefaultInsns(&res, offset, size, labelExit)

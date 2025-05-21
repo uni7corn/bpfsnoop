@@ -99,7 +99,7 @@ func NewBPFTracing(spec, insnSpec *ebpf.CollectionSpec, reusedMaps map[string]*e
 
 	if err := errg.Wait(); err != nil {
 		t.Close()
-		return nil, fmt.Errorf("failed to trace targets %w", err)
+		return nil, fmt.Errorf("failed to trace targets: %w", err)
 	}
 
 	return &t, nil

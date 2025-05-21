@@ -13,9 +13,26 @@ import (
 	"github.com/bpfsnoop/bpfsnoop/internal/btfx"
 )
 
+func dumpOutputArgBuf(data []byte) string {
+	sb := &strings.Builder{}
+
+	fmt.Fprint(sb, "[")
+	for i, b := range data {
+		if i != 0 {
+			fmt.Fprint(sb, ",")
+		}
+
+		fmt.Fprintf(sb, "%#02x", b)
+	}
+	fmt.Fprint(sb, "]")
+
+	return sb.String()
+}
+
 func outputFuncArgAttrs(sb *strings.Builder, info *funcInfo, data []byte, f btfx.FindSymbol) error {
 	fmt.Fprint(sb, "Arg attrs: ")
 
+	gray := color.RGB(0x88, 0x88, 0x88 /* gray */)
 	for i, arg := range info.args {
 		if i != 0 {
 			fmt.Fprint(sb, ", ")
@@ -41,7 +58,20 @@ func outputFuncArgAttrs(sb *strings.Builder, info *funcInfo, data []byte, f btfx
 
 			s = fmt.Sprintf("(%s)'%s'=%s", btfx.Repr(arg.t), arg.expr, s)
 			if colorfulOutput {
-				color.New(color.FgGreen).Fprint(sb, s)
+				gray.Fprint(sb, s)
+			} else {
+				fmt.Fprint(sb, s)
+			}
+
+			data = data[arg.size:]
+			continue
+		}
+
+		if arg.isBuf {
+			s := fmt.Sprintf("(%s)'%s'=%s", btfx.Repr(arg.t), arg.expr,
+				dumpOutputArgBuf(data[:arg.trueDataSize]))
+			if colorfulOutput {
+				gray.Fprint(sb, s)
 			} else {
 				fmt.Fprint(sb, s)
 			}
@@ -63,7 +93,7 @@ func outputFuncArgAttrs(sb *strings.Builder, info *funcInfo, data []byte, f btfx
 
 		s := btfx.ReprExprType(arg.expr, arg.t, arg.mem, arg.isStr, arg.isNumPtr, argVal, argVal2, 0, argStr, f)
 		if colorfulOutput {
-			color.RGB(0x88, 0x88, 0x88 /* gray */).Fprint(sb, s)
+			gray.Fprint(sb, s)
 		} else {
 			fmt.Fprint(sb, s)
 		}
