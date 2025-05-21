@@ -19,9 +19,7 @@ import (
 	"github.com/bpfsnoop/bpfsnoop/internal/btfx"
 )
 
-func showFuncProto(w io.Writer, fn *btf.Func) {
-	clr := color.New(color.FgYellow)
-
+func showFuncProto(w io.Writer, fn *btf.Func, clr *color.Color) {
 	// func return
 	retDesc := btfx.Repr(fn.Type.(*btf.FuncProto).Return)
 	if retDesc[len(retDesc)-1] == '*' {
@@ -37,6 +35,9 @@ func showFuncProto(w io.Writer, fn *btf.Func) {
 	clr.Fprint(w, "(")
 	params := fn.Type.(*btf.FuncProto).Params
 	for i, p := range params {
+		if i != 0 {
+			clr.Fprint(w, ", ")
+		}
 		typDesc := btfx.Repr(p.Type)
 		if p.Name != "" {
 			if typDesc[len(typDesc)-1] == '*' {
@@ -47,14 +48,17 @@ func showFuncProto(w io.Writer, fn *btf.Func) {
 		} else {
 			clr.Fprintf(w, "%s", btfx.Repr(p.Type))
 		}
-		if i != len(params)-1 {
-			clr.Fprint(w, ", ")
-		}
 	}
-	clr.Fprint(w, ");\n")
+	clr.Fprint(w, ")")
+}
+
+func printFuncProto(w io.Writer, fn *btf.Func, color *color.Color) {
+	showFuncProto(w, fn, color)
+	color.Fprint(w, ";\n")
 }
 
 func ShowFuncProto(f *Flags, tpSpec, tpModSpec *ebpf.CollectionSpec) {
+	yellow := color.New(color.FgYellow)
 	var sb strings.Builder
 
 	printNewline := false
@@ -71,7 +75,7 @@ func ShowFuncProto(f *Flags, tpSpec, tpModSpec *ebpf.CollectionSpec) {
 			sort.Strings(keys)
 
 			for _, k := range keys {
-				showFuncProto(&sb, progs.tracings[k].fn)
+				printFuncProto(&sb, progs.tracings[k].fn, yellow)
 			}
 
 			printNewline = true
@@ -96,7 +100,7 @@ func ShowFuncProto(f *Flags, tpSpec, tpModSpec *ebpf.CollectionSpec) {
 		slices.Sort(keys)
 
 		for _, k := range keys {
-			showFuncProto(&sb, kfuncs[k].Func)
+			printFuncProto(&sb, kfuncs[k].Func, yellow)
 		}
 
 		printNewline = true
@@ -120,7 +124,7 @@ func ShowFuncProto(f *Flags, tpSpec, tpModSpec *ebpf.CollectionSpec) {
 		slices.Sort(keys)
 
 		for _, k := range keys {
-			showFuncProto(&sb, ktps[k].Func)
+			printFuncProto(&sb, ktps[k].Func, yellow)
 		}
 	}
 

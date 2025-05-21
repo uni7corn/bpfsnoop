@@ -90,6 +90,7 @@ func DumpProg(pf []ProgFlag) {
 	jitedInsns, _ := info.JitedInsns()
 	jitedKsyms, _ := info.JitedKsymAddrs()
 	jitedFuncLens, _ := info.JitedFuncLens()
+	jitedFuncInfos, _ := info.FuncInfos()
 	jitedLineInfos, _ := info.JitedLineInfos()
 	assert.SliceNotEmpty(jitedInsns, "No jited insns")
 	assert.Equal(len(jitedFuncLens), len(jitedKsyms), "Func len number %d != ksym number %d", len(jitedFuncLens), len(jitedKsyms))
@@ -116,8 +117,8 @@ func DumpProg(pf []ProgFlag) {
 
 	var sb strings.Builder
 
+	gray := color.RGB(0x88, 0x88, 0x88)
 	printLineInfo := func(li *branchEndpoint) {
-		gray := color.RGB(0x88, 0x88, 0x88)
 		gray.Fprintf(&sb, "; %s+%#x", li.funcName, li.offset)
 		if li.fileName != "" {
 			gray.Fprintf(&sb, " %s:%d", li.fileName, li.fileLine)
@@ -137,6 +138,10 @@ func DumpProg(pf []ProgFlag) {
 		fnInsns := insns[:funcLen]
 		pc := uint64(0)
 
+		gray.Fprint(&sb, "; ")
+		showFuncProto(&sb, jitedFuncInfos[i].Func, gray)
+		gray.Fprint(&sb, ":\n")
+
 		for len(fnInsns) > 0 {
 			kaddr := ksym + pc
 			if li, ok := jited2LineInfos[kaddr]; ok {
@@ -144,7 +149,7 @@ func DumpProg(pf []ProgFlag) {
 				if fileName != "" && fileName[0] == '.' {
 					fileName = strings.TrimLeft(fileName, "./")
 				}
-				color.RGB(0x88, 0x88, 0x88).Fprintf(&sb, "; %s:%d:%d %s\n",
+				gray.Fprintf(&sb, "; %s:%d:%d %s\n",
 					fileName, li.Line.LineNumber(), li.Line.LineColumn(),
 					strings.TrimSpace(li.Line.Line()))
 			}
