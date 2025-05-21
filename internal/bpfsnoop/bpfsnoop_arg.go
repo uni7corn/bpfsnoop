@@ -11,6 +11,7 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/bpfsnoop/bpfsnoop/internal/btfx"
+	"github.com/bpfsnoop/bpfsnoop/internal/strx"
 )
 
 func dumpOutputArgBuf(data []byte) string {
@@ -67,9 +68,15 @@ func outputFuncArgAttrs(sb *strings.Builder, info *funcInfo, data []byte, f btfx
 			continue
 		}
 
-		if arg.isBuf {
-			s := fmt.Sprintf("(%s)'%s'=%s", btfx.Repr(arg.t), arg.expr,
-				dumpOutputArgBuf(data[:arg.trueDataSize]))
+		if arg.isBuf || arg.isString {
+			var s string
+			if arg.isBuf {
+				s = fmt.Sprintf("(%s)'%s'=%s", btfx.Repr(arg.t), arg.expr,
+					dumpOutputArgBuf(data[:arg.trueDataSize]))
+			} else /* isString */ {
+				s = fmt.Sprintf(`(%s)'%s'="%s"`, btfx.Repr(arg.t), arg.expr,
+					strx.NullTerminated(data[:arg.trueDataSize]))
+			}
 			if colorfulOutput {
 				gray.Fprint(sb, s)
 			} else {

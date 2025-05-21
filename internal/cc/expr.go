@@ -264,7 +264,7 @@ func CompileEvalExpr(opts CompileExprOptions) (EvalResult, error) {
 				}
 			}
 
-			evalulatingExpr = e.List[0]
+			evaluatingExpr = e.List[0]
 			res.Type = EvalResultTypeString
 		}
 	}

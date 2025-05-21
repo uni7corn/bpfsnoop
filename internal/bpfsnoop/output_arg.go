@@ -45,6 +45,7 @@ type funcArgumentOutput struct {
 	isStr    bool
 	isDeref  bool
 	isBuf    bool
+	isString bool
 }
 
 type argDataOutput struct {
@@ -139,18 +140,22 @@ func (arg *funcArgumentOutput) genBufInsns(res *cc.EvalResult, offset, size int,
 		)
 	}
 
+	probeReadFn := asm.FnProbeReadKernel
+	if arg.isString {
+		probeReadFn = asm.FnProbeReadKernelStr
+	}
 	if offset != 0 {
 		arg.emit(
 			asm.Mov.Imm(asm.R2, int32(res.Size)),
 			asm.Mov.Reg(asm.R1, outputArgRegBuff),
 			asm.Add.Imm(asm.R1, int32(offset)),
-			asm.FnProbeReadKernel.Call(),
+			probeReadFn.Call(),
 		)
 	} else {
 		arg.emit(
 			asm.Mov.Imm(asm.R2, int32(res.Size)),
 			asm.Mov.Reg(asm.R1, outputArgRegBuff),
-			asm.FnProbeReadKernel.Call(),
+			probeReadFn.Call(),
 		)
 	}
 
@@ -261,8 +266,9 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, o
 		arg.isDeref = true
 		offset, err = arg.genDerefInsns(&res, offset, size, labelExit)
 
-	case cc.EvalResultTypeBuf:
-		arg.isBuf = true
+	case cc.EvalResultTypeBuf, cc.EvalResultTypeString:
+		arg.isBuf = res.Type == cc.EvalResultTypeBuf
+		arg.isString = res.Type == cc.EvalResultTypeString
 		offset, err = arg.genBufInsns(&res, offset, size, labelExit)
 
 	default:
