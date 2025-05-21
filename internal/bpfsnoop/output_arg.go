@@ -19,6 +19,9 @@ import (
 )
 
 const (
+	outputArgRegArgs = asm.R9
+	outputArgRegBuff = asm.R8
+
 	outputArgStub      = "output_arg"
 	outputArgLabelExit = "__output_arg_fail"
 
@@ -40,6 +43,7 @@ type funcArgumentOutput struct {
 
 	isNumPtr bool
 	isStr    bool
+	isDeref  bool
 }
 
 type argDataOutput struct {
@@ -80,16 +84,113 @@ func prepareFuncArgOutput(exprs []string) argDataOutput {
 	return arg
 }
 
+func (arg *funcArgumentOutput) emit(insns ...asm.Instruction) {
+	arg.insn = append(arg.insn, insns...)
+}
+
+func (arg *funcArgumentOutput) genDerefInsns(res *cc.EvalResult, offset, size int, labelExit string) (int, error) {
+	res.LabelUsed = true
+
+	arg.emit(
+		asm.JEq.Imm(res.Reg, 0, labelExit),
+	)
+
+	if res.Reg != asm.R3 {
+		arg.emit(
+			asm.Mov.Reg(asm.R3, res.Reg),
+		)
+	}
+
+	if offset != 0 {
+		arg.emit(
+			asm.Mov.Imm(asm.R2, int32(size)),
+			asm.Mov.Reg(asm.R1, outputArgRegBuff),
+			asm.Add.Imm(asm.R1, int32(offset)),
+			asm.FnProbeReadKernel.Call(),
+		)
+	} else {
+		arg.emit(
+			asm.Mov.Imm(asm.R2, int32(size)),
+			asm.Mov.Reg(asm.R1, outputArgRegBuff),
+			asm.FnProbeReadKernel.Call(),
+		)
+	}
+
+	return offset + size, nil
+}
+
+func (arg *funcArgumentOutput) genDefaultInsns(res *cc.EvalResult, offset, size int, labelExit string) (int, error) {
+	if !arg.isStr && (size == 0 || size > 8 || (res.Mem != nil && res.Mem.BitfieldSize > 64)) {
+		return 0, fmt.Errorf("invalid size of btf type %v: %d", res.Btf, size)
+	}
+
+	if !arg.isStr {
+		arg.emit(
+			asm.StoreMem(outputArgRegBuff, int16(offset), res.Reg, asm.DWord),
+		)
+		offset += 8
+
+		if arg.isNumPtr {
+			if res.Reg != asm.R3 {
+				arg.emit(
+					asm.Mov.Reg(asm.R3, res.Reg),
+				)
+			}
+
+			arg.emit(
+				cc.JmpOff(asm.JEq, asm.R3, 0, 5),
+				asm.Mov.Imm(asm.R2, 8),
+				asm.Mov.Reg(asm.R1, outputArgRegBuff),
+				asm.Add.Imm(asm.R1, int32(offset)),
+				asm.FnProbeReadKernel.Call(),
+				cc.Ja(1),
+				asm.StoreMem(outputArgRegBuff, int16(offset), asm.R3, asm.DWord),
+			)
+
+			offset += 8
+		}
+	} else /* isStr */ {
+		strSize := maxOutputStrLen
+		if mybtf.IsCharArray(res.Btf) {
+			arr, _ := mybtf.UnderlyingType(res.Btf).(*btf.Array)
+			strSize = int(arr.Nelems)
+		} else {
+			res.LabelUsed = true
+			arg.emit(
+				asm.JEq.Imm(res.Reg, 0, labelExit),
+			)
+		}
+
+		if res.Reg != asm.R3 {
+			arg.emit(
+				asm.Mov.Reg(asm.R3, res.Reg),
+			)
+		}
+		if offset != 0 {
+			arg.emit(
+				asm.Mov.Imm(asm.R2, int32(strSize)),
+				asm.Mov.Reg(asm.R1, outputArgRegBuff),
+				asm.Add.Imm(asm.R1, int32(offset)),
+				asm.FnProbeReadKernelStr.Call(),
+			)
+		} else {
+			arg.emit(
+				asm.Mov.Imm(asm.R2, int32(strSize)),
+				asm.Mov.Reg(asm.R1, outputArgRegBuff),
+				asm.FnProbeReadKernelStr.Call(),
+			)
+		}
+		offset += strSize
+	}
+
+	return offset, nil
+}
+
 func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, offset int, labelExit string) (int, error) {
 	mode := cc.MemoryReadModeProbeRead
 	if _, err := spec.AnyTypeByName("bpf_rdonly_cast"); err == nil {
 		mode = cc.MemoryReadModeCoreRead
 	}
-
-	const (
-		regArgs = asm.R9
-		regBuff = asm.R8
-	)
 
 	res, err := cc.CompileEvalExpr(cc.CompileExprOptions{
 		Expr:          arg.expr,
@@ -97,7 +198,7 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, o
 		Spec:          spec,
 		LabelExit:     labelExit,
 		ReservedStack: argOutputStackOff,
-		UsedRegisters: []asm.Register{regBuff, regArgs},
+		UsedRegisters: []asm.Register{outputArgRegBuff, outputArgRegArgs},
 
 		MemoryReadMode: mode,
 	})
@@ -114,90 +215,39 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, o
 	arg.isNumPtr = btfx.IsNumberPointer(res.Btf)
 	arg.isStr = mybtf.IsConstCharPtr(res.Btf) || mybtf.IsCharArray(res.Btf)
 
-	if !arg.isStr && (size == 0 || size > 8 || (res.Mem != nil && res.Mem.BitfieldSize > 64)) {
-		return 0, fmt.Errorf("invalid size of btf type %v: %d", res.Btf, size)
-	}
-
 	orgOffset := offset
-	insns := res.Insns
-	if !arg.isStr {
-		insns = append(insns,
-			asm.StoreMem(regBuff, int16(offset), res.Reg, asm.DWord),
-		)
-		offset += 8
 
-		if arg.isNumPtr {
-			if res.Reg != asm.R3 {
-				insns = append(insns,
-					asm.Mov.Reg(asm.R3, res.Reg),
-				)
-			}
+	arg.insn = res.Insns
+	switch res.Type {
+	case cc.EvalResultTypeDeref:
+		arg.isDeref = true
+		offset, err = arg.genDerefInsns(&res, offset, size, labelExit)
 
-			insns = append(insns,
-				cc.JmpOff(asm.JEq, asm.R3, 0, 5),
-				asm.Mov.Imm(asm.R2, 8),
-				asm.Mov.Reg(asm.R1, regBuff),
-				asm.Add.Imm(asm.R1, int32(offset)),
-				asm.FnProbeReadKernel.Call(),
-				cc.Ja(1),
-				asm.StoreMem(regBuff, int16(offset), asm.R3, asm.DWord),
-			)
-
-			offset += 8
-		}
-	} else /* isStr */ {
-		strSize := maxOutputStrLen
-		if mybtf.IsCharArray(res.Btf) {
-			arr, _ := mybtf.UnderlyingType(res.Btf).(*btf.Array)
-			strSize = int(arr.Nelems)
-		} else {
-			res.LabelUsed = true
-			insns = append(insns,
-				asm.JEq.Imm(res.Reg, 0, labelExit),
-			)
-		}
-
-		if res.Reg != asm.R3 {
-			insns = append(insns,
-				asm.Mov.Reg(asm.R3, res.Reg),
-			)
-		}
-		if offset != 0 {
-			insns = append(insns,
-				asm.Mov.Imm(asm.R2, int32(strSize)),
-				asm.Mov.Reg(asm.R1, regBuff),
-				asm.Add.Imm(asm.R1, int32(offset)),
-				asm.FnProbeReadKernelStr.Call(),
-			)
-		} else {
-			insns = append(insns,
-				asm.Mov.Imm(asm.R2, int32(strSize)),
-				asm.Mov.Reg(asm.R1, regBuff),
-				asm.FnProbeReadKernelStr.Call(),
-			)
-		}
-		offset += strSize
+	default:
+		offset, err = arg.genDefaultInsns(&res, offset, size, labelExit)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("failed to generate insns: %w", err)
 	}
 
 	arg.trueDataSize = offset - orgOffset
 
 	if res.LabelUsed {
-		insns = append(insns,
+		arg.emit(
 			asm.Mov.Imm(asm.R0, 0),
 			cc.Ja(1),
 			asm.Mov.Imm(asm.R0, 1).WithSymbol(labelExit), // null-pointer dereferencing exception
-			asm.StoreMem(regBuff, int16(offset), asm.R0, asm.Byte),
+			asm.StoreMem(outputArgRegBuff, int16(offset), asm.R0, asm.Byte),
 		)
 	} else {
-		insns = append(insns,
+		arg.emit(
 			asm.Mov.Imm(asm.R0, 0),
-			asm.StoreMem(regBuff, int16(offset), asm.R0, asm.Byte),
+			asm.StoreMem(outputArgRegBuff, int16(offset), asm.R0, asm.Byte),
 		)
 	}
 	offset += 1
 
 	arg.size = offset - orgOffset
-	arg.insn = insns
 	return offset, nil
 }
 

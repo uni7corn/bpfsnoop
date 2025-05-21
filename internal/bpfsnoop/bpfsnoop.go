@@ -162,7 +162,10 @@ func Run(reader *ringbuf.Reader, helpers *Helpers, maps map[string]*ebpf.Map, w 
 		if fnInfo.argData != 0 {
 			off := sizeOfEvent + int(fnInfo.argsBuf)
 			b := record.RawSample[off : off+fnInfo.argData]
-			outputFuncArgAttrs(&sb, fnInfo, b, findSymbol)
+			err := outputFuncArgAttrs(&sb, fnInfo, b, findSymbol)
+			if err != nil {
+				return fmt.Errorf("failed to output function arg attrs: %w", err)
+			}
 		}
 
 		err = lbrStack.outputStack(&sb, helpers, &lbrData, lbrs, event)

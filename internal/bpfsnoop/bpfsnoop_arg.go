@@ -7,12 +7,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Asphaltt/mybtf"
 	"github.com/fatih/color"
 
 	"github.com/bpfsnoop/bpfsnoop/internal/btfx"
 )
 
-func outputFuncArgAttrs(sb *strings.Builder, info *funcInfo, data []byte, f btfx.FindSymbol) {
+func outputFuncArgAttrs(sb *strings.Builder, info *funcInfo, data []byte, f btfx.FindSymbol) error {
 	fmt.Fprint(sb, "Arg attrs: ")
 
 	for i, arg := range info.args {
@@ -29,6 +30,23 @@ func outputFuncArgAttrs(sb *strings.Builder, info *funcInfo, data []byte, f btfx
 			} else {
 				fmt.Fprint(sb, s)
 			}
+			continue
+		}
+
+		if arg.isDeref {
+			s, err := mybtf.DumpData(arg.t, data[:arg.trueDataSize])
+			if err != nil {
+				return fmt.Errorf("failed to dump deref data: %w", err)
+			}
+
+			s = fmt.Sprintf("(%s)'%s'=%s", btfx.Repr(arg.t), arg.expr, s)
+			if colorfulOutput {
+				color.New(color.FgGreen).Fprint(sb, s)
+			} else {
+				fmt.Fprint(sb, s)
+			}
+
+			data = data[arg.size:]
 			continue
 		}
 
@@ -54,4 +72,6 @@ func outputFuncArgAttrs(sb *strings.Builder, info *funcInfo, data []byte, f btfx
 	}
 
 	fmt.Fprintln(sb)
+
+	return nil
 }
