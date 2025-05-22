@@ -32,6 +32,7 @@ type bpfProgFuncInfo struct {
 	argDataSz  int
 	isRetStr   bool
 	pktOutput  bool
+	progType   ebpf.ProgramType
 
 	jitedLineInfo []uintptr        // ordered
 	lineInfos     []btf.LineOffset // mapping 1:1 with jitedLineInfo
@@ -126,6 +127,7 @@ func (b *bpfProgs) newBPFProgInfo(prog *ebpf.Program, id ebpf.ProgramID, pinfo *
 		info.funcProto = funcInfos[i].Func
 		info.funcParams, info.retParam, _ /* won't fail for bpf progs */ = getFuncParams(funcInfos[i].Func)
 		info.isRetStr = mybtf.IsConstCharPtr(funcInfos[i].Func.Type.(*btf.FuncProto).Return)
+		info.progType = pinfo.Type
 
 		for i, kaddr := range jitedLineInfos {
 			if info.kaddrRange.start <= uintptr(kaddr) && uintptr(kaddr) < info.kaddrRange.end {

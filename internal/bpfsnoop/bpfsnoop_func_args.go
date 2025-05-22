@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/btf"
 	"github.com/fatih/color"
 
@@ -19,8 +20,92 @@ const (
 	maxOutputStrLen = 64
 )
 
+type (
+	xdpAction int
+	tcAction  int
+)
+
+const (
+	xdpAborted xdpAction = iota
+	xdpDrop
+	xdpPass
+	xdpTx
+	xdpRedirect
+)
+
+var xdpActions = []string{
+	"XDP_ABORTED",
+	"XDP_DROP",
+	"XDP_PASS",
+	"XDP_TX",
+	"XDP_REDIRECT",
+}
+
+func (a xdpAction) Action() string {
+	var action string
+	if xdpAborted <= a && a <= xdpRedirect {
+		action = xdpActions[a]
+	} else {
+		action = fmt.Sprintf("%d", a)
+	}
+
+	return action
+}
+
+const (
+	tcUnspec tcAction = -1 + iota
+	tcOK
+	tcReclass
+	tcShot
+	tcPipe
+	tcStolen
+	tcQueue
+	tcRepeat
+	tcRedir
+	tcTrap
+)
+
+var tcActions = []string{
+	"TC_ACT_UNSPEC",
+	"TC_ACT_OK",
+	"TC_ACT_RECLASSIFY",
+	"TC_ACT_SHOT",
+	"TC_ACT_PIPE",
+	"TC_ACT_STOLEN",
+	"TC_ACT_QUEUED",
+	"TC_ACT_REPEAT",
+	"TC_ACT_REDIRECT",
+	"TC_ACT_TRAP",
+}
+
+func (a tcAction) Action() string {
+	var action string
+	if tcUnspec <= a && a <= tcTrap {
+		action = tcActions[a+1]
+	} else {
+		action = fmt.Sprintf("%d", a)
+	}
+
+	return action
+}
+
 func outputFnRetval(sb *strings.Builder, info *funcInfo, s string, data []byte, f btfx.FindSymbol) {
 	var retval string
+
+	if info.isProg {
+		if info.progType == ebpf.XDP {
+			u32 := *(*uint32)(unsafe.Pointer(&data[0]))
+			retval = xdpAction(u32).Action()
+			goto L_output
+		}
+
+		if info.progType == ebpf.SchedCLS {
+			u32 := *(*uint32)(unsafe.Pointer(&data[0]))
+			retval = tcAction(u32).Action()
+			goto L_output
+		}
+	}
+
 	if info.proto != nil {
 		var b [24]byte
 		copy(b[:], data)
@@ -34,6 +119,7 @@ func outputFnRetval(sb *strings.Builder, info *funcInfo, s string, data []byte, 
 		retval = fmt.Sprintf("%#x/%s", num, num)
 	}
 
+L_output:
 	if colorfulOutput {
 		color.New(color.FgGreen).Fprintf(sb, " retval")
 		fmt.Fprint(sb, "=")

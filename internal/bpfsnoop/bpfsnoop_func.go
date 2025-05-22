@@ -6,6 +6,7 @@ package bpfsnoop
 import (
 	"fmt"
 
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/btf"
 )
 
@@ -21,6 +22,7 @@ type funcInfo struct {
 	pktTuple bool
 	isTp     bool
 	isProg   bool
+	progType ebpf.ProgramType
 }
 
 func getFuncInfo(event *Event, helpers *Helpers) *funcInfo {
@@ -36,6 +38,7 @@ func getFuncInfo(event *Event, helpers *Helpers) *funcInfo {
 		info.isProg = true
 		info.argsBuf = progInfo.argsBufSz
 		info.argData = progInfo.argDataSz
+		info.progType = progInfo.progType
 		return &info
 	}
 
