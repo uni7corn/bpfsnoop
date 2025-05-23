@@ -103,13 +103,17 @@ func findKernelModuleFileUnderDir(mod, dir string) (string, error) {
 }
 
 func findKernelModuleFile(mod string) (string, error) {
-	release, err := getRelease()
-	if err != nil {
-		return "", fmt.Errorf("failed to get release: %w", err)
+	rootDir := kernelVmlinuxDir
+	if rootDir == "" {
+		release, err := getRelease()
+		if err != nil {
+			return "", fmt.Errorf("failed to get release: %w", err)
+		}
+
+		rootDir = filepath.Join(debugModulesPath, release)
 	}
 
-	roodDir := filepath.Join(debugModulesPath, release)
-	modKoFile, err := findKernelModuleFileUnderDir(mod, roodDir)
+	modKoFile, err := findKernelModuleFileUnderDir(mod, rootDir)
 	if err != nil {
 		return "", fmt.Errorf("failed to find %s: %w", mod, err)
 	}
@@ -212,14 +216,10 @@ func (a2l *Addr2Line) addKmod(modName string) error {
 		}
 
 		li, err = addr2line.NewAt(r, modKo)
-		if err != nil {
-			VerboseLog("Failed to create addr2line for %s: %v", modName, err)
-		}
+		verboseLogIf(err != nil, "Failed to create addr2line for %s: %v", modName, err)
 	} else {
 		li, err = addr2line.New(modKo)
-		if err != nil {
-			VerboseLog("Failed to create addr2line for %s: %v", modName, err)
-		}
+		verboseLogIf(err != nil, "Failed to create addr2line for %s: %v", modName, err)
 	}
 
 	sym, err := findSymbolInKmod(modKo, ".text")

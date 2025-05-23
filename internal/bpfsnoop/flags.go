@@ -5,6 +5,7 @@ package bpfsnoop
 
 import (
 	"os"
+	"path/filepath"
 
 	flag "github.com/spf13/pflag"
 )
@@ -36,6 +37,8 @@ var (
 	limitEvents     uint
 
 	debugTraceInsnCnt uint
+
+	kernelVmlinuxDir string
 )
 
 type Flags struct {
@@ -80,6 +83,7 @@ func ParseFlags() (*Flags, error) {
 	f.UintVar(&limitEvents, "limit-events", 0, "limited number events to output, 0 to output all events")
 	f.BoolVar(&flags.showFuncProto, "show-func-proto", false, "show function prototype of -p,-k")
 	f.UintVar(&debugTraceInsnCnt, "trace-insn-debug-cnt", 0, "trace insn count for debug")
+	f.StringVar(&kernelVmlinuxDir, "kernel-vmlinux", "", "specific kernel vmlinux directory to search vmlinux and modules dbgsym files")
 
 	f.BoolVarP(&flags.showFuncProto, "show-func-proto-internal", "S", false, "show function prototype of -p,-k")
 	f.UintVarP(&limitEvents, "limit-events-internal", "E", 0, "limited number events to output, 0 to output all events")
@@ -100,6 +104,14 @@ func ParseFlags() (*Flags, error) {
 	argFilter = prepareFuncArguments(filterArg)
 	argOutput = prepareFuncArgOutput(outputArg)
 	pktFilter = preparePacketFilter(filterPkt)
+
+	if kernelVmlinuxDir != "" {
+		if fileExists(kernelVmlinuxDir) {
+			kernelVmlinuxDir = filepath.Dir(kernelVmlinuxDir)
+		} else {
+			kernelVmlinuxDir = filepath.Clean(kernelVmlinuxDir)
+		}
+	}
 
 	return &flags, err
 }

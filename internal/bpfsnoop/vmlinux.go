@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/bpfsnoop/bpfsnoop/internal/strx"
@@ -32,6 +33,15 @@ func getRelease() (string, error) {
 
 // FindVmlinux tries to find vmlinux file from common locations.
 func FindVmlinux() (string, error) {
+	if kernelVmlinuxDir != "" {
+		vmlinux := filepath.Join(kernelVmlinuxDir, "vmlinux")
+		if fileExists(vmlinux) {
+			return vmlinux, nil
+		}
+
+		return "", fmt.Errorf("vmlinux file not found in %s", kernelVmlinuxDir)
+	}
+
 	release, err := getRelease()
 	if err != nil {
 		return "", fmt.Errorf("failed to get release: %w", err)
