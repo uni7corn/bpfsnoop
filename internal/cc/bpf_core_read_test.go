@@ -4,55 +4,13 @@
 package cc
 
 import (
-	"encoding/binary"
-	"errors"
-	"sync"
 	"testing"
-	"unsafe"
 
 	"github.com/bpfsnoop/bpfsnoop/internal/test"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/btf"
 	"rsc.io/c2go/cc"
 )
-
-// immutableTypes is a set of types which musn't be changed.
-type immutableTypes struct {
-	// All types contained by the spec, not including types from the base in
-	// case the spec was parsed from split BTF.
-	types []btf.Type
-
-	// Type IDs indexed by type.
-	typeIDs map[btf.Type]btf.TypeID
-
-	// The ID of the first type in types.
-	firstTypeID btf.TypeID
-
-	// Types indexed by essential name.
-	// Includes all struct flavors and types with the same name.
-	namedTypes map[string][]btf.TypeID
-
-	// Byte order of the types. This affects things like struct member order
-	// when using bitfields.
-	byteOrder binary.ByteOrder
-}
-
-// mutableTypes is a set of types which may be changed.
-type mutableTypes struct {
-	imm           immutableTypes
-	mu            sync.RWMutex            // protects copies below
-	copies        map[btf.Type]btf.Type   // map[orig]copy
-	copiedTypeIDs map[btf.Type]btf.TypeID // map[copy]origID
-}
-
-// Spec allows querying a set of Types and loading the set into the
-// kernel.
-type Spec struct {
-	*mutableTypes
-
-	// String table from ELF.
-	strings uintptr
-}
 
 func TestCanRdonlyCast(t *testing.T) {
 	t.Run("int", func(t *testing.T) {
@@ -130,83 +88,6 @@ func TestCoreReadOffsets(t *testing.T) {
 	c := prepareCompiler(t)
 
 	const reg = asm.R8
-
-	t.Run("bpf_rdonly_cast not found", func(t *testing.T) {
-		defer c.reset()
-
-		_, err := testBtf.AnyTypeByName(kfuncBpfRdonlyCast)
-		test.AssertNoErr(t, err)
-
-		spec := (*Spec)(unsafe.Pointer(c.kernelBtf))
-		ids := spec.mutableTypes.imm.namedTypes[kfuncBpfRdonlyCast]
-		delete(spec.mutableTypes.imm.namedTypes, kfuncBpfRdonlyCast)
-		defer func() { spec.mutableTypes.imm.namedTypes[kfuncBpfRdonlyCast] = ids }()
-
-		offsets := []accessOffset{
-			{address: false, offset: 4},
-			{address: false, offset: 8},
-		}
-
-		err = c.coreReadOffsets(offsets, reg)
-		test.AssertHaveErr(t, err)
-		test.AssertStrPrefix(t, err.Error(), "failed to find kfunc bpf_rdonly_cast")
-		test.AssertTrue(t, errors.Is(err, btf.ErrNotFound))
-	})
-
-	t.Run("bpf_rdonly_cast not a function", func(t *testing.T) {
-		defer c.reset()
-
-		_, err := testBtf.AnyTypeByName(kfuncBpfRdonlyCast)
-		test.AssertNoErr(t, err)
-
-		u64 := getU64Btf(t)
-		test.AssertNoErr(t, err)
-		u64ID, err := testBtf.TypeID(u64)
-		test.AssertNoErr(t, err)
-		u64Ptr := &btf.Struct{
-			Name: "bpf_rdonly_cast",
-		}
-
-		spec := (*Spec)(unsafe.Pointer(c.kernelBtf))
-		ids := spec.mutableTypes.imm.namedTypes[kfuncBpfRdonlyCast]
-		spec.mutableTypes.imm.namedTypes[kfuncBpfRdonlyCast] = []btf.TypeID{u64ID}
-		spec.mutableTypes.imm.types[u64ID] = u64Ptr
-		defer func() {
-			spec.mutableTypes.imm.namedTypes[kfuncBpfRdonlyCast] = ids
-			spec.mutableTypes.imm.types[u64ID] = u64
-		}()
-
-		offsets := []accessOffset{
-			{address: false, offset: 4},
-			{address: false, offset: 8},
-		}
-
-		err = c.coreReadOffsets(offsets, reg)
-		test.AssertHaveErr(t, err)
-		test.AssertStrPrefix(t, err.Error(), "bpf_rdonly_cast should be a function")
-	})
-
-	t.Run("bpf_rdonly_cast type ID not found", func(t *testing.T) {
-		defer c.reset()
-
-		rdonlyCast, err := testBtf.AnyTypeByName(kfuncBpfRdonlyCast)
-		test.AssertNoErr(t, err)
-
-		spec := (*Spec)(unsafe.Pointer(c.kernelBtf))
-		id := spec.mutableTypes.copiedTypeIDs[rdonlyCast]
-		delete(spec.mutableTypes.copiedTypeIDs, rdonlyCast)
-		defer func() { spec.mutableTypes.copiedTypeIDs[rdonlyCast] = id }()
-
-		offsets := []accessOffset{
-			{address: false, offset: 4},
-			{address: false, offset: 8},
-		}
-
-		err = c.coreReadOffsets(offsets, reg)
-		test.AssertHaveErr(t, err)
-		test.AssertStrPrefix(t, err.Error(), "failed to get type ID for kfunc bpf_rdonly_cast")
-		test.AssertTrue(t, errors.Is(err, btf.ErrNotFound))
-	})
 
 	t.Run("not_found btf", func(t *testing.T) {
 		defer c.reset()
@@ -311,6 +192,10 @@ func TestCoreReadOffsets(t *testing.T) {
 	t.Run("last is u64", func(t *testing.T) {
 		defer c.reset()
 
+		c.rdonlyCastFastcall = true
+		defer func() { c.rdonlyCastFastcall = false }()
+
+		c.regalloc.registers[asm.R0] = true
 		c.regalloc.registers[asm.R1] = true
 
 		skb := getSkbBtf(t)
@@ -325,6 +210,7 @@ func TestCoreReadOffsets(t *testing.T) {
 		err := c.coreReadOffsets(offsets, reg)
 		test.AssertNoErr(t, err)
 		test.AssertEqualSlice(t, c.insns, asm.Instructions{
+			asm.StoreMem(asm.RFP, -24, asm.R0, asm.DWord),
 			asm.StoreMem(asm.RFP, -16, asm.R1, asm.DWord),
 			asm.Mov.Reg(asm.R1, reg),
 			asm.Mov.Imm(asm.R2, 1875),
@@ -335,6 +221,7 @@ func TestCoreReadOffsets(t *testing.T) {
 			bpfKfuncCall(41126),
 			asm.LoadMem(reg, asm.R0, 8, asm.DWord),
 			asm.LoadMem(asm.R1, asm.RFP, -16, asm.DWord),
+			asm.LoadMem(asm.R0, asm.RFP, -24, asm.DWord),
 		})
 	})
 }

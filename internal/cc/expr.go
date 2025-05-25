@@ -25,23 +25,6 @@ const (
 	MemoryReadModeDirectRead
 )
 
-type compiler struct {
-	regalloc RegisterAllocator
-	insns    asm.Instructions
-
-	vars []string
-	btfs []btf.Type
-
-	kernelBtf *btf.Spec
-
-	labelExit     string
-	labelExitUsed bool
-
-	reservedStack int
-
-	memMode MemoryReadMode
-}
-
 type CompileExprOptions struct {
 	Expr          string
 	Params        []btf.FuncParam
@@ -54,31 +37,9 @@ type CompileExprOptions struct {
 }
 
 func CompileFilterExpr(opts CompileExprOptions) (asm.Instructions, error) {
-	if opts.Expr == "" || opts.LabelExit == "" {
-		return nil, fmt.Errorf("expression and label exit cannot be empty")
-	}
-	if opts.Spec == nil {
-		return nil, fmt.Errorf("btf spec cannot be empty")
-	}
-
-	c := &compiler{
-		kernelBtf:     opts.Spec,
-		labelExit:     opts.LabelExit,
-		reservedStack: opts.ReservedStack,
-		memMode:       opts.MemoryReadMode,
-	}
-
-	c.vars = make([]string, len(opts.Params))
-	c.btfs = make([]btf.Type, len(opts.Params))
-	for i := range opts.Params {
-		c.vars[i] = opts.Params[i].Name
-		c.btfs[i] = opts.Params[i].Type
-	}
-
-	if c.reservedStack <= 0 {
-		c.reservedStack = 8
-	} else {
-		c.reservedStack = (c.reservedStack + 7) & -8 // align to 8 bytes
+	c, err := newCompiler(opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create compiler: %w", err)
 	}
 
 	c.emit(asm.Mov.Reg(argsReg, asm.R1)) // cache args to r9
@@ -157,36 +118,14 @@ type EvalResult struct {
 func CompileEvalExpr(opts CompileExprOptions) (EvalResult, error) {
 	var res EvalResult
 
-	if opts.Expr == "" || opts.LabelExit == "" {
-		return res, fmt.Errorf("expression and label exit cannot be empty")
-	}
-	if opts.Spec == nil {
-		return res, fmt.Errorf("btf spec cannot be empty")
+	c, err := newCompiler(opts)
+	if err != nil {
+		return res, fmt.Errorf("failed to create compiler: %w", err)
 	}
 
 	e, err := cc.ParseExpr(opts.Expr)
 	if err != nil {
 		return res, fmt.Errorf("failed to parse expression: %w", err)
-	}
-
-	c := &compiler{
-		kernelBtf:     opts.Spec,
-		labelExit:     opts.LabelExit,
-		reservedStack: opts.ReservedStack,
-		memMode:       opts.MemoryReadMode,
-	}
-
-	c.vars = make([]string, len(opts.Params))
-	c.btfs = make([]btf.Type, len(opts.Params))
-	for i := range opts.Params {
-		c.vars[i] = opts.Params[i].Name
-		c.btfs[i] = opts.Params[i].Type
-	}
-
-	if c.reservedStack <= 0 {
-		c.reservedStack = 8
-	} else {
-		c.reservedStack = (c.reservedStack + 7) & -8 // align to 8 bytes
 	}
 
 	// r9 must be used as args
@@ -344,18 +283,51 @@ func (c *compiler) emitLoadArg(index int, dst asm.Register) {
 	c.emit(asm.LoadMem(dst, argsReg, int16(index*8), asm.DWord))
 }
 
-func (c *compiler) pushUsedCallerSavedRegs() {
-	for reg, i := asm.R0, 1; reg <= asm.R5; reg++ {
+func (c *compiler) pushUsedCallerSavedRegsN(n int) {
+	usedRegNr := 0
+	for i := range n {
+		reg := asm.R1 + asm.Register(i)
 		if c.regalloc.IsUsed(reg) {
-			c.emit(asm.StoreMem(asm.RFP, int16(-c.reservedStack-i*8), reg, asm.DWord))
+			usedRegNr++
 		}
+	}
+
+	offset := c.reservedStack + usedRegNr*8
+	if c.regalloc.IsUsed(asm.R0) {
+		c.emit(asm.StoreMem(asm.RFP, int16(-offset-8), asm.R0, asm.DWord))
+	}
+
+	for i := range usedRegNr {
+		reg := asm.R1 + asm.Register(i)
+		c.emit(asm.StoreMem(asm.RFP, int16(-offset+i*8), reg, asm.DWord))
+	}
+}
+
+func (c *compiler) pushUsedCallerSavedRegs() {
+	c.pushUsedCallerSavedRegsN(5)
+}
+
+func (c *compiler) popUsedCallerSavedRegsN(n int) {
+	usedRegNr := 0
+	for i := range n {
+		reg := asm.R1 + asm.Register(i)
+		if c.regalloc.IsUsed(reg) {
+			usedRegNr++
+		}
+	}
+
+	offset := c.reservedStack + usedRegNr*8
+
+	for i := range usedRegNr {
+		reg := asm.R1 + asm.Register(i)
+		c.emit(asm.LoadMem(reg, asm.RFP, int16(-offset+i*8), asm.DWord))
+	}
+
+	if c.regalloc.IsUsed(asm.R0) {
+		c.emit(asm.LoadMem(asm.R0, asm.RFP, int16(-offset-8), asm.DWord))
 	}
 }
 
 func (c *compiler) popUsedCallerSavedRegs() {
-	for reg, i := asm.R0, 1; reg <= asm.R5; reg++ {
-		if c.regalloc.IsUsed(reg) {
-			c.emit(asm.LoadMem(reg, asm.RFP, int16(-c.reservedStack-i*8), asm.DWord))
-		}
-	}
+	c.popUsedCallerSavedRegsN(5)
 }

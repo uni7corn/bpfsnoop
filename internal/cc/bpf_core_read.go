@@ -11,8 +11,6 @@ import (
 	"github.com/cilium/ebpf/btf"
 )
 
-const kfuncBpfRdonlyCast = "bpf_rdonly_cast"
-
 func canRdonlyCast(spec *btf.Spec, t btf.Type) (bool, btf.TypeID, error) {
 	t = mybtf.UnderlyingType(t)
 	ptr, ok := t.(*btf.Pointer)
@@ -49,22 +47,12 @@ func bpfKfuncCall(id btf.TypeID) asm.Instruction {
 }
 
 func (c *compiler) coreReadOffsets(offsets []accessOffset, reg asm.Register) error {
-	typ, err := c.kernelBtf.AnyTypeByName(kfuncBpfRdonlyCast)
-	if err != nil {
-		return fmt.Errorf("failed to find kfunc %s: %w", kfuncBpfRdonlyCast, err)
+	regsNr := 5
+	if c.rdonlyCastFastcall {
+		regsNr = 2
 	}
-	fn, ok := typ.(*btf.Func)
-	if !ok {
-		return fmt.Errorf("%s should be a function", kfuncBpfRdonlyCast)
-	}
-
-	rdonlyCastID, err := c.kernelBtf.TypeID(fn)
-	if err != nil {
-		return fmt.Errorf("failed to get type ID for kfunc %s: %w", kfuncBpfRdonlyCast, err)
-	}
-
-	c.pushUsedCallerSavedRegs()
-	defer c.popUsedCallerSavedRegs()
+	c.pushUsedCallerSavedRegsN(regsNr)
+	defer c.popUsedCallerSavedRegsN(regsNr)
 
 	immReg := asm.R1
 	if reg != immReg {
@@ -115,7 +103,7 @@ func (c *compiler) coreReadOffsets(offsets []accessOffset, reg asm.Register) err
 		if i != lastIdx {
 			c.emit(
 				asm.Mov.Imm(asm.R2, int32(typID)), // r2 = type ID
-				bpfKfuncCall(rdonlyCastID),        // bpf_rdonly_cast(r1, r2)
+				bpfKfuncCall(c.rdonlyCastTypeID),  // bpf_rdonly_cast(r1, r2)
 				asm.LoadMem(immReg, asm.R0, int16(offset.offset), size),
 				asm.JEq.Imm(immReg, 0, c.labelExit),
 			)
@@ -123,7 +111,7 @@ func (c *compiler) coreReadOffsets(offsets []accessOffset, reg asm.Register) err
 		} else {
 			c.emit(
 				asm.Mov.Imm(asm.R2, int32(typID)), // r2 = type ID
-				bpfKfuncCall(rdonlyCastID),        // bpf_rdonly_cast(r1, r2)
+				bpfKfuncCall(c.rdonlyCastTypeID),  // bpf_rdonly_cast(r1, r2)
 				asm.LoadMem(reg, asm.R0, int16(offset.offset), size),
 			)
 		}

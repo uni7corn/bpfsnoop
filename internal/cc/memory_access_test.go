@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-	"unsafe"
 
 	"github.com/bpfsnoop/bpfsnoop/internal/test"
 	"github.com/cilium/ebpf/asm"
@@ -850,30 +849,6 @@ func TestAccess(t *testing.T) {
 		test.AssertHaveErr(t, err)
 		test.AssertTrue(t, errors.Is(err, ErrRegisterNotEnough))
 		test.AssertStrPrefix(t, err.Error(), "failed to alloc register")
-	})
-
-	t.Run("offset2insns failed", func(t *testing.T) {
-		defer c.reset()
-		defer func() { c.memMode = MemoryReadModeProbeRead }()
-		c.memMode = MemoryReadModeCoreRead
-
-		rdonlyCast, err := testBtf.AnyTypeByName(kfuncBpfRdonlyCast)
-		test.AssertNoErr(t, err)
-
-		spec := (*Spec)(unsafe.Pointer(c.kernelBtf))
-		id := spec.mutableTypes.copiedTypeIDs[rdonlyCast]
-		delete(spec.mutableTypes.copiedTypeIDs, rdonlyCast)
-		defer func() {
-			spec.mutableTypes.copiedTypeIDs[rdonlyCast] = id
-		}()
-
-		expr, err := cc.ParseExpr("skb->dev->ifindex")
-		test.AssertNoErr(t, err)
-
-		_, err = c.access(expr)
-		test.AssertHaveErr(t, err)
-		test.AssertStrPrefix(t, err.Error(), "failed to convert offsets to instructions")
-		test.AssertTrue(t, errors.Is(err, btf.ErrNotFound))
 	})
 
 	t.Run("skb->head", func(t *testing.T) {

@@ -167,11 +167,12 @@ func getBpfAttrBtf(t *testing.T) *btf.Pointer {
 
 func prepareCompiler(t *testing.T) *compiler {
 	c := &compiler{
-		labelExit:     "__label_exit",
-		reservedStack: 8,
-		vars:          []string{"skb", "prog", "ops", "attr"},
-		btfs:          []btf.Type{getSkbBtf(t), getBpfProgBtf(t), getFakeOpsBtf(), getBpfAttrBtf(t)},
-		kernelBtf:     testBtf,
+		labelExit:        "__label_exit",
+		reservedStack:    8,
+		vars:             []string{"skb", "prog", "ops", "attr"},
+		btfs:             []btf.Type{getSkbBtf(t), getBpfProgBtf(t), getFakeOpsBtf(), getBpfAttrBtf(t)},
+		kernelBtf:        testBtf,
+		rdonlyCastTypeID: 41126,
 	}
 	c.regalloc.registers[asm.R9] = true
 	return c
@@ -187,24 +188,10 @@ func (c *compiler) reset() {
 }
 
 func TestCompileFilterExpr(t *testing.T) {
-	t.Run("empty expr", func(t *testing.T) {
-		_, err := CompileFilterExpr(CompileExprOptions{
-			Expr:      "",
-			LabelExit: "__label_exit",
-			Spec:      testBtf,
-		})
+	t.Run("new compiler", func(t *testing.T) {
+		_, err := CompileFilterExpr(CompileExprOptions{})
 		test.AssertHaveErr(t, err)
-		test.AssertStrPrefix(t, err.Error(), "expression and label exit cannot be empty")
-	})
-
-	t.Run("empty btf spec", func(t *testing.T) {
-		_, err := CompileFilterExpr(CompileExprOptions{
-			Expr:      "skb->len == 0",
-			LabelExit: "__label_exit",
-			Spec:      nil,
-		})
-		test.AssertHaveErr(t, err)
-		test.AssertStrPrefix(t, err.Error(), "btf spec cannot be empty")
+		test.AssertErrorPrefix(t, err, "failed to create compiler")
 	})
 
 	t.Run("compile expr failed", func(t *testing.T) {
@@ -327,20 +314,10 @@ func TestCompile(t *testing.T) {
 }
 
 func TestCompileEvalExpr(t *testing.T) {
-	t.Run("empty expr", func(t *testing.T) {
+	t.Run("new compiler", func(t *testing.T) {
 		_, err := CompileEvalExpr(CompileExprOptions{})
 		test.AssertHaveErr(t, err)
-		test.AssertStrPrefix(t, err.Error(), "expression and label exit cannot be empty")
-	})
-
-	t.Run("empty btf spec", func(t *testing.T) {
-		_, err := CompileEvalExpr(CompileExprOptions{
-			Expr:      "skb->len == 0",
-			LabelExit: "__label_exit",
-			Spec:      nil,
-		})
-		test.AssertHaveErr(t, err)
-		test.AssertStrPrefix(t, err.Error(), "btf spec cannot be empty")
+		test.AssertErrorPrefix(t, err, "failed to create compiler")
 	})
 
 	t.Run("compile expr failed", func(t *testing.T) {
