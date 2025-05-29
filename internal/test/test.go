@@ -4,6 +4,7 @@
 package test
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -89,6 +90,21 @@ func AssertHaveErr(t *testing.T, err error) {
 	if err == nil {
 		t.Errorf("expected error, but got nil")
 		t.FailNow()
+	}
+}
+
+func AssertIsErr(t *testing.T, err, want error) {
+	t.Helper()
+	if err == nil {
+		t.Errorf("expected error, but got nil")
+		return
+	}
+	if want == nil {
+		t.Errorf("expected non-nil error, but got %v", err)
+		return
+	}
+	if !errors.Is(err, want) {
+		t.Errorf("got %v, want %v", err, want)
 	}
 }
 

@@ -851,6 +851,35 @@ func TestAccess(t *testing.T) {
 		test.AssertStrPrefix(t, err.Error(), "failed to alloc register")
 	})
 
+	t.Run("skbx->len", func(t *testing.T) {
+		defer c.reset()
+
+		c.memMode = MemoryReadModeCoreRead
+		defer func() { c.memMode = MemoryReadModeProbeRead }()
+
+		expr, err := cc.ParseExpr("skbx->len")
+		test.AssertNoErr(t, err)
+
+		skb, err := testBtf.AnyTypeByName("sk_buff")
+		test.AssertNoErr(t, err)
+
+		nskb := *(skb.(*btf.Struct))
+		nskb.Name = "sk_buff_x"
+		ptr := &btf.Pointer{Target: &nskb}
+		old := c.btfs[0]
+		c.vars[0] = "skbx"
+		c.btfs[0] = ptr
+		defer func() {
+			c.vars[0] = "skb"
+			c.btfs[0] = old
+		}()
+
+		_, err = c.access(expr)
+		test.AssertHaveErr(t, err)
+		test.AssertIsErr(t, err, ErrBtfNotFound)
+		test.AssertErrorPrefix(t, err, "failed to convert offsets to instructions")
+	})
+
 	t.Run("skb->head", func(t *testing.T) {
 		expr, err := cc.ParseExpr("skb->head")
 		test.AssertNoErr(t, err)
