@@ -15,7 +15,6 @@ import (
 	"strings"
 
 	"github.com/Asphaltt/addr2line"
-	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/klauspost/compress/zstd"
 )
 
@@ -37,7 +36,7 @@ type Addr2Line struct {
 	vmlinux string
 	a2l     *addr2line.Addr2Line
 	kmods   map[string]kmodAddr2line
-	cache   *lru.Cache[uintptr, *addr2line.Addr2LineEntry]
+	cache   *dbgsymCache
 
 	sysBPF   uint64
 	stext    uint64
@@ -81,11 +80,16 @@ func (a2l *Addr2Line) wait() error {
 
 // NewAddr2Line creates a new Addr2Line instance from the given vmlinux file.
 func NewAddr2Line(vmlinux string, kaslr Kaslr, sysBPF, stext uint64) (*Addr2Line, error) {
+	d, err := newDbgsymCache()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dbgsym cache: %w", err)
+	}
+
 	var a2l Addr2Line
 	a2l.done = make(chan struct{})
 	a2l.vmlinux = vmlinux
 	a2l.kmods = make(map[string]kmodAddr2line)
-	a2l.cache, _ = lru.New[uintptr, *addr2line.Addr2LineEntry](10000)
+	a2l.cache = d
 	a2l.sysBPF = sysBPF
 	a2l.stext = stext
 	a2l.kaslr = kaslr
@@ -285,13 +289,12 @@ func (a2l *Addr2Line) getMod(ksym *KsymEntry) (*addr2line.Addr2Line, Kaslr, erro
 
 // get returns the addr2line entry from the vmlinux file for the given address.
 func (a2l *Addr2Line) get(addr uintptr, ksym *KsymEntry) (*addr2line.Addr2LineEntry, error) {
-	if err := a2l.wait(); err != nil {
-		return nil, err
+	if e, ok := a2l.cache.get(addr); ok {
+		return e, nil
 	}
 
-	entry, ok := a2l.cache.Get(addr)
-	if ok {
-		return entry, nil
+	if err := a2l.wait(); err != nil {
+		return nil, err
 	}
 
 	a2lMod, kaslr, err := a2l.getMod(ksym)
@@ -304,11 +307,14 @@ func (a2l *Addr2Line) get(addr uintptr, ksym *KsymEntry) (*addr2line.Addr2LineEn
 	}
 
 	eaddr := kaslr.effectiveAddr(uint64(addr))
-	entry, err = a2lMod.Get(eaddr, true)
+	entry, err := a2lMod.Get(eaddr, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get addr2line entry with KASLR offset %#x: %w", kaslr.offset(), err)
 	}
 
-	_ = a2l.cache.Add(addr, entry)
-	return entry, nil
+	if ksym.mod != kmodBpf {
+		return entry, a2l.cache.add(addr, entry)
+	} else {
+		return entry, nil
+	}
 }
