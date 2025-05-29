@@ -25,7 +25,7 @@ BPFSNOOP_BPF_OBJ := bpfsnoop_bpfel.o bpfsnoop_bpfeb.o
 BPFSNOOP_BPF_SRC := bpf/bpfsnoop.c $(wildcard bpf/*.h) $(wildcard bpf/headers/*.h)
 
 INSN_BPF_OBJ := insn_bpfel.o insn_bpfeb.o
-INSN_BPF_SRC := bpf/bpfsnoop_insn.c
+INSN_BPF_SRC := bpf/bpfsnoop_insn.c bpf/bpfsnoop_event.h bpf/bpfsnoop_sess.h
 
 FEAT_BPF_OBJ := feat_bpfel.o feat_bpfeb.o
 FEAT_BPF_SRC := bpf/feature.c
