@@ -30,47 +30,67 @@ type kmodAddr2line struct {
 
 // Addr2Line is a wrapper around addr2line.Addr2Line with a cache.
 type Addr2Line struct {
+	ready bool
+	err   error
+	done  chan struct{}
+
 	vmlinux string
 	a2l     *addr2line.Addr2Line
 	kmods   map[string]kmodAddr2line
 	cache   *lru.Cache[uintptr, *addr2line.Addr2LineEntry]
 
+	sysBPF   uint64
 	stext    uint64
 	kaslr    Kaslr
 	buildDir string
 }
 
-// NewAddr2Line creates a new Addr2Line instance from the given vmlinux file.
-func NewAddr2Line(vmlinux string, kaslr Kaslr, sysBPF, stext uint64) (*Addr2Line, error) {
-	a2l, err := addr2line.New(vmlinux)
+func (a2l *Addr2Line) create() {
+	__a2l, err := addr2line.New(a2l.vmlinux)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create addr2line from %s: %w", vmlinux, err)
+		a2l.err = fmt.Errorf("failed to create addr2line from %s: %w", a2l.vmlinux, err)
+		return
 	}
 
-	eaddr := kaslr.effectiveAddr(sysBPF)
-	sysBpfLineInfo, err := a2l.Get(eaddr, true)
+	eaddr := a2l.kaslr.effectiveAddr(a2l.sysBPF)
+	sysBpfLineInfo, err := __a2l.Get(eaddr, true)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get addr2line entry for __x64_sys_bpf: %w", err)
+		a2l.err = fmt.Errorf("failed to get addr2line entry for __x64_sys_bpf: %w", err)
+		return
 	}
 
 	const bpfSyscallFile = "kernel/bpf/syscall.c"
 	if len(sysBpfLineInfo.File) < len(bpfSyscallFile) {
-		return nil, fmt.Errorf("unexpected file name for __x64_sys_bpf: %s", sysBpfLineInfo.File)
+		a2l.err = fmt.Errorf("unexpected file name for __x64_sys_bpf: %s", sysBpfLineInfo.File)
+		return
 	}
 
-	buildDir := sysBpfLineInfo.File[:len(sysBpfLineInfo.File)-len(bpfSyscallFile)]
+	a2l.buildDir = sysBpfLineInfo.File[:len(sysBpfLineInfo.File)-len(bpfSyscallFile)]
+	close(a2l.done)
+	a2l.ready = true
+	a2l.a2l = __a2l
+}
 
-	cache, _ := lru.New[uintptr, *addr2line.Addr2LineEntry](10000)
-	return &Addr2Line{
-		vmlinux: vmlinux,
-		a2l:     a2l,
-		kmods:   make(map[string]kmodAddr2line),
-		cache:   cache,
+func (a2l *Addr2Line) wait() error {
+	if !a2l.ready {
+		<-a2l.done
+	}
 
-		stext:    stext,
-		kaslr:    kaslr,
-		buildDir: buildDir,
-	}, nil
+	return a2l.err
+}
+
+// NewAddr2Line creates a new Addr2Line instance from the given vmlinux file.
+func NewAddr2Line(vmlinux string, kaslr Kaslr, sysBPF, stext uint64) (*Addr2Line, error) {
+	var a2l Addr2Line
+	a2l.done = make(chan struct{})
+	a2l.vmlinux = vmlinux
+	a2l.kmods = make(map[string]kmodAddr2line)
+	a2l.cache, _ = lru.New[uintptr, *addr2line.Addr2LineEntry](10000)
+	a2l.sysBPF = sysBPF
+	a2l.stext = stext
+	a2l.kaslr = kaslr
+	go a2l.create()
+	return &a2l, nil
 }
 
 func findKernelModuleFileUnderDir(mod, dir string) (string, error) {
@@ -265,6 +285,10 @@ func (a2l *Addr2Line) getMod(ksym *KsymEntry) (*addr2line.Addr2Line, Kaslr, erro
 
 // get returns the addr2line entry from the vmlinux file for the given address.
 func (a2l *Addr2Line) get(addr uintptr, ksym *KsymEntry) (*addr2line.Addr2LineEntry, error) {
+	if err := a2l.wait(); err != nil {
+		return nil, err
+	}
+
 	entry, ok := a2l.cache.Get(addr)
 	if ok {
 		return entry, nil
