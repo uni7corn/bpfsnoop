@@ -5,9 +5,11 @@ package bpfsnoop
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/cilium/ebpf"
 	"golang.org/x/exp/maps"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/bpfsnoop/bpfsnoop/internal/assert"
 )
@@ -19,7 +21,9 @@ type bpfProgs struct {
 
 	progs map[ebpf.ProgramID]*ebpf.Program     // ID -> prog
 	infos map[ebpf.ProgramID]*ebpf.ProgramInfo // ID -> prog info
-	funcs map[uintptr]*bpfProgFuncInfo         // func IP -> prog func info
+
+	flock sync.Mutex
+	funcs map[uintptr]*bpfProgFuncInfo // func IP -> prog func info
 
 	tracings map[string]bpfTracingInfo // id:func -> prog, func
 
@@ -62,12 +66,14 @@ func NewBPFProgs(pflags []ProgFlag, noParseProgs, disasm bool) (*bpfProgs, error
 }
 
 func (b *bpfProgs) parseProgs() {
+	var wg errgroup.Group
 	for id, prog := range b.progs {
-		if err := b.addProg(prog, id, nil, false); err != nil {
-			b.err = err
-			break
-		}
+		id, prog := id, prog // capture range variables
+		wg.Go(func() error {
+			return b.addProg(prog, id, nil, false)
+		})
 	}
+	b.err = wg.Wait()
 
 	close(b.done)
 	b.ready = true
@@ -78,6 +84,9 @@ func (b *bpfProgs) addProg(prog *ebpf.Program, id ebpf.ProgramID, info *ebpf.Pro
 	if err != nil {
 		return fmt.Errorf("failed to create BPF program info for ID(%d): %w", id, err)
 	}
+
+	b.flock.Lock()
+	defer b.flock.Unlock()
 
 	progInfo.isBpfsnoopProg = isBpfsnoop
 	for _, p := range progInfo.progs {
