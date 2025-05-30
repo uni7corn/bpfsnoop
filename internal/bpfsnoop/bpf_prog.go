@@ -8,9 +8,15 @@ import (
 
 	"github.com/cilium/ebpf"
 	"golang.org/x/exp/maps"
+
+	"github.com/bpfsnoop/bpfsnoop/internal/assert"
 )
 
 type bpfProgs struct {
+	ready bool
+	err   error
+	done  chan struct{}
+
 	progs map[ebpf.ProgramID]*ebpf.Program     // ID -> prog
 	infos map[ebpf.ProgramID]*ebpf.ProgramInfo // ID -> prog info
 	funcs map[uintptr]*bpfProgFuncInfo         // func IP -> prog func info
@@ -22,8 +28,9 @@ type bpfProgs struct {
 	disasm bool // disassemble BPF programs instead of tracing them
 }
 
-func NewBPFProgs(pflags []ProgFlag, onlyPrepare, disasm bool) (*bpfProgs, error) {
+func NewBPFProgs(pflags []ProgFlag, noParseProgs, disasm bool) (*bpfProgs, error) {
 	var progs bpfProgs
+	progs.done = make(chan struct{})
 	progs.progs = make(map[ebpf.ProgramID]*ebpf.Program, len(pflags))
 	progs.infos = make(map[ebpf.ProgramID]*ebpf.ProgramInfo, len(pflags))
 	progs.funcs = make(map[uintptr]*bpfProgFuncInfo, len(pflags))
@@ -47,17 +54,23 @@ func NewBPFProgs(pflags []ProgFlag, onlyPrepare, disasm bool) (*bpfProgs, error)
 		return nil, fmt.Errorf("failed to prepare BPF program infos: %w", err)
 	}
 
-	if onlyPrepare {
-		return &progs, nil
-	}
-
-	for id, prog := range progs.progs {
-		if err := progs.addProg(prog, id, nil, false); err != nil {
-			return nil, err
-		}
+	if !noParseProgs {
+		go progs.parseProgs()
 	}
 
 	return &progs, nil
+}
+
+func (b *bpfProgs) parseProgs() {
+	for id, prog := range b.progs {
+		if err := b.addProg(prog, id, nil, false); err != nil {
+			b.err = err
+			break
+		}
+	}
+
+	close(b.done)
+	b.ready = true
 }
 
 func (b *bpfProgs) addProg(prog *ebpf.Program, id ebpf.ProgramID, info *ebpf.ProgramInfo, isBpfsnoop bool) error {
@@ -104,7 +117,20 @@ func (b *bpfProgs) Tracings() []bpfTracingInfo {
 	return maps.Values(b.tracings)
 }
 
+func (b *bpfProgs) wait() error {
+	if !b.ready {
+		<-b.done
+	}
+
+	return b.err
+}
+
 func (b *bpfProgs) get(addr uintptr) (*bpfProgLineInfo, bool) {
+	if err := b.wait(); err != nil {
+		assert.NoErr(err, "Failed to parse bpf progs info: %w")
+		return nil, false
+	}
+
 	for _, info := range b.funcs {
 		if li, ok := info.get(addr); ok {
 			return li, true
@@ -115,6 +141,11 @@ func (b *bpfProgs) get(addr uintptr) (*bpfProgLineInfo, bool) {
 }
 
 func (b *bpfProgs) contains(addr uintptr) bool {
+	if err := b.wait(); err != nil {
+		assert.NoErr(err, "Failed to parse bpf progs info: %w")
+		return false
+	}
+
 	for _, info := range b.funcs {
 		if info.contains(addr) {
 			return true
