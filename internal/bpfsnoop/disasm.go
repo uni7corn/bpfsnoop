@@ -110,10 +110,7 @@ func dumpKfunc(kfunc string, kmods []string, bytes uint, readSpec *ebpf.Collecti
 		entry, ok := kallsyms.findBySymbol(kfunc)
 		if !ok {
 			VerboseLog("Symbol %s not found in /proc/kallsyms", kfunc)
-
-			if addr2line == nil {
-				log.Fatal("Dbgsym is required to disasm %s", kfunc)
-			}
+			assert.NotNil(addr2line, "Dbgsym is required to disasm %s", kfunc)
 
 			for _, kmodName := range kmods {
 				err := addr2line.addKmod(kmodName)
@@ -127,7 +124,7 @@ func dumpKfunc(kfunc string, kmods []string, bytes uint, readSpec *ebpf.Collecti
 				}
 			}
 
-			assert.False(kaddr == 0, "Symbol %s not found", kfunc)
+			assert.NotZero(kaddr, "Symbol %s not found", kfunc)
 		} else {
 			kaddr = entry.addr
 			kfunc = entry.name
@@ -136,10 +133,7 @@ func dumpKfunc(kfunc string, kmods []string, bytes uint, readSpec *ebpf.Collecti
 		entry, ok := kallsyms.find(uintptr(kaddr))
 		if !ok {
 			VerboseLog("Address %#x not found in /proc/kallsyms", kaddr)
-
-			if addr2line == nil {
-				log.Fatal("Dbgsym is required to disasm %s", kfunc)
-			}
+			assert.NotNil(addr2line, "Dbgsym is required to disasm %s", kfunc)
 
 			for _, kmodName := range kmods {
 				err := addr2line.addKmod(kmodName)
@@ -153,7 +147,7 @@ func dumpKfunc(kfunc string, kmods []string, bytes uint, readSpec *ebpf.Collecti
 				}
 			}
 
-			assert.False(kaddr == 0, "Symbol %s not found", kfunc)
+			assert.NotZero(kaddr, "Symbol %s not found", kfunc)
 		} else {
 			kfunc = entry.name
 		}

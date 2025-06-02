@@ -57,3 +57,14 @@ func SliceLen[T any](s []T, l int, msg string, args ...any) {
 		log.Fatalf(msg, args...)
 	}
 }
+
+func NotZero[T comparable](v T, msg string, args ...any) {
+	var zero T
+	if v == zero {
+		log.Fatalf(msg, args...)
+	}
+}
+
+func NotNil[T comparable](v T, msg string, args ...any) {
+	NotZero(v, msg, args...)
+}
