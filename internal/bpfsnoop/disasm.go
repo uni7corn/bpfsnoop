@@ -8,12 +8,15 @@ import (
 	"fmt"
 	"log"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/Asphaltt/addr2line"
 	"github.com/bpfsnoop/gapstone"
 	"github.com/cilium/ebpf"
 	"github.com/fatih/color"
+	"golang.org/x/exp/maps"
 
 	"github.com/bpfsnoop/bpfsnoop/internal/assert"
 )
@@ -70,6 +73,70 @@ func trimTailingInsns(b []byte) []byte {
 	return b[:i+1]
 }
 
+func findDisasmKfuncInKmods(kfunc string, kaddr uint64, kmods []string, a2l *Addr2Line) (uint64, bool) {
+	VerboseLog("Symbol %s not found in /proc/kallsyms", kfunc)
+	assert.NotNil(a2l, "Dbgsym is required to disasm %s", kfunc)
+
+	for _, kmodName := range kmods {
+		err := a2l.addKmod(kmodName)
+		assert.NoErr(err, "Failed to parse addr2line of kmod %s: %v", kmodName, err)
+
+		kmod := a2l.kmods[kmodName]
+		var entry *addr2line.Addr2LineEntry
+		if kaddr != 0 {
+			entry, err = kmod.Addr2Line.Get(kaddr, true)
+		} else {
+			entry, err = kmod.Addr2Line.FindBySymbol(kfunc)
+		}
+		if err == nil {
+			return kmod.kaslr.revertAddr(entry.Address), true
+		}
+	}
+
+	return 0, false
+}
+
+func parseDisasmKfunc(kfunc string, kmods []string, ksyms *Kallsyms, a2l *Addr2Line) (uint64, string) {
+	var err error
+	var kaddr uint64
+	if !strings.HasPrefix(kfunc, "0x") {
+		kaddr, err = strconv.ParseUint("0x"+kfunc, 0, 64)
+	} else {
+		kaddr, err = strconv.ParseUint(kfunc, 0, 64)
+	}
+	if err == nil {
+		entry, ok := ksyms.find(uintptr(kaddr))
+		if ok {
+			return kaddr, entry.name
+		}
+
+		kaddr, ok = findDisasmKfuncInKmods(kfunc, kaddr, kmods, a2l)
+		assert.True(ok, "Symbol %s not found", kfunc)
+		return kaddr, kfunc
+	}
+
+	// kfunc may be a symbol name
+	entry, ok := ksyms.findBySymbol(kfunc)
+	if ok {
+		return entry.addr, entry.name
+	}
+
+	// kfunc may be a glob filter
+	kfuncs, _ := FindKernelFuncs([]string{kfunc}, ksyms, 0xFF)
+	if len(kfuncs) != 0 {
+		// grab the very first one sorted by name
+		values := maps.Values(kfuncs)
+		sort.Slice(values, func(i, j int) bool {
+			return values[i].Ksym.name < values[j].Ksym.name
+		})
+		return values[0].Ksym.addr, values[0].Ksym.name
+	}
+
+	kaddr, ok = findDisasmKfuncInKmods(kfunc, 0, kmods, a2l)
+	assert.True(ok, "Symbol %s not found", kfunc)
+	return kaddr, kfunc
+}
+
 func dumpKfunc(kfunc string, kmods []string, bytes uint, readSpec *ebpf.CollectionSpec) {
 	assert.True(runtime.GOARCH == "amd64", "Only support amd64 arch")
 
@@ -99,59 +166,7 @@ func dumpKfunc(kfunc string, kmods []string, bytes uint, readSpec *ebpf.Collecti
 		assert.NoErr(err, "Failed to create addr2line: %v")
 	}
 
-	var kaddr uint64
-	if !strings.HasPrefix(kfunc, "0x") {
-		kaddr, err = strconv.ParseUint("0x"+kfunc, 0, 64)
-	} else {
-		kaddr, err = strconv.ParseUint(kfunc, 0, 64)
-	}
-	if err != nil {
-		// kfunc may be a symbol name
-		entry, ok := kallsyms.findBySymbol(kfunc)
-		if !ok {
-			VerboseLog("Symbol %s not found in /proc/kallsyms", kfunc)
-			assert.NotNil(addr2line, "Dbgsym is required to disasm %s", kfunc)
-
-			for _, kmodName := range kmods {
-				err := addr2line.addKmod(kmodName)
-				assert.NoErr(err, "Failed to parse addr2line of kmod %s: %w", kmodName, err)
-
-				kmod := addr2line.kmods[kmodName]
-				entry, err := kmod.Addr2Line.FindBySymbol(kfunc)
-				if err == nil {
-					kaddr = kmod.kaslr.revertAddr(entry.Address)
-					break
-				}
-			}
-
-			assert.NotZero(kaddr, "Symbol %s not found", kfunc)
-		} else {
-			kaddr = entry.addr
-			kfunc = entry.name
-		}
-	} else {
-		entry, ok := kallsyms.find(uintptr(kaddr))
-		if !ok {
-			VerboseLog("Address %#x not found in /proc/kallsyms", kaddr)
-			assert.NotNil(addr2line, "Dbgsym is required to disasm %s", kfunc)
-
-			for _, kmodName := range kmods {
-				err := addr2line.addKmod(kmodName)
-				assert.NoErr(err, "Failed to parse addr2line of kmod %s: %w", kmodName, err)
-
-				kmod := addr2line.kmods[kmodName]
-				entry, err := kmod.Addr2Line.Get(kaddr, true)
-				if err == nil {
-					kaddr = kmod.kaslr.revertAddr(entry.Address)
-					break
-				}
-			}
-
-			assert.NotZero(kaddr, "Symbol %s not found", kfunc)
-		} else {
-			kfunc = entry.name
-		}
-	}
+	kaddr, kfunc := parseDisasmKfunc(kfunc, kmods, kallsyms, addr2line)
 
 	bytes = guessBytes(uintptr(kaddr), kallsyms, bytes)
 	assert.False(bytes > readLimit, "Disasm bytes %d is larger than limit %d", bytes, readLimit)
