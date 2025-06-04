@@ -6,11 +6,9 @@ package bpfsnoop
 import (
 	"errors"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 
-	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/btf"
 	"github.com/fatih/color"
 
@@ -35,18 +33,18 @@ func printInsnInfo(pc, offset uint64, bytes []byte, mnemonic, opstr string) stri
 }
 
 func DumpProg(pf []ProgFlag) {
+	assert.False(pf[0].all, "Cannot disasm all progs")
+
 	progs, err := NewBPFProgs(pf, true, true)
 	assert.NoErr(err, "Failed to get bpf progs: %v")
 	defer progs.Close()
 
-	var prog *ebpf.Program
-	for _, p := range progs.progs {
-		prog = p
-		break
-	}
+	assert.NotZero(len(progs.tracings), "No prog to disasm")
 
-	if prog == nil {
-		log.Fatalf("No prog found")
+	var progInfo bpfTracingInfo
+	for _, t := range progs.tracings {
+		progInfo = t
+		break
 	}
 
 	VerboseLog("Reading /proc/kallsyms ..")
@@ -84,6 +82,7 @@ func DumpProg(pf []ProgFlag) {
 	assert.NoErr(err, "Failed to get bpf progs: %v")
 	defer bpfProgs.Close()
 
+	prog := progInfo.prog
 	info, err := prog.Info()
 	assert.NoErr(err, "Failed to get prog info: %v")
 
@@ -137,6 +136,13 @@ func DumpProg(pf []ProgFlag) {
 		ksym := uint64(jitedKsyms[i])
 		fnInsns := insns[:funcLen]
 		pc := uint64(0)
+
+		funcName := jitedFuncInfos[i].Func.Name
+		doDisasm := progInfo.disAll || funcName == progInfo.funcName
+		if !doDisasm {
+			insns = insns[funcLen:]
+			continue
+		}
 
 		gray.Fprint(&sb, "; ")
 		showFuncProto(&sb, jitedFuncInfos[i].Func, gray, false)

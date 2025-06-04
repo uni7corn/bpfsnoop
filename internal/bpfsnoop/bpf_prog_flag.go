@@ -76,6 +76,7 @@ func (p *bpfProgs) prepareProgInfoByID(id ebpf.ProgramID, funcName string) error
 	}
 	defer prog.Close()
 
+	flagFuncName := funcName
 	if funcName == "" {
 		info, err := prog.Info()
 		if err != nil {
@@ -88,7 +89,7 @@ func (p *bpfProgs) prepareProgInfoByID(id ebpf.ProgramID, funcName string) error
 		}
 	}
 
-	return p.addTracing(id, funcName, prog)
+	return p.addTracing(id, funcName, flagFuncName, prog)
 }
 
 func (p *bpfProgs) prepareProgInfosByIDs(pflags []ProgFlag) error {
@@ -125,7 +126,7 @@ func (p *bpfProgs) prepareProgInfoByPinnedPath(pflag ProgFlag) error {
 		return fmt.Errorf("failed to get prog ID")
 	}
 
-	return p.addTracing(id, funcName, prog)
+	return p.addTracing(id, funcName, pflag.funcName, prog)
 }
 
 func (p *bpfProgs) addProgByID(id ebpf.ProgramID, funcName string) error {
@@ -140,12 +141,13 @@ func (p *bpfProgs) addProgByID(id ebpf.ProgramID, funcName string) error {
 		return fmt.Errorf("failed to get prog info: %w", err)
 	}
 
+	flagFuncName := funcName
 	funcName, err = getProgFuncName(funcName, info)
 	if err != nil {
 		return fmt.Errorf("failed to get prog func name: %w", err)
 	}
 
-	return p.addTracing(id, funcName, prog)
+	return p.addTracing(id, funcName, flagFuncName, prog)
 }
 
 func (p *bpfProgs) prepareProgInfoByPid(pflag ProgFlag) error {
@@ -224,34 +226,37 @@ func (p *bpfProgs) prepareProgInfo(progID ebpf.ProgramID, pflags progFlags) erro
 	}
 
 	if pflags.all {
-		return p.addTracing(progID, entryFuncName, prog)
+		return p.addTracing(progID, entryFuncName, "", prog)
 	}
 
 	tag := info.Tag
 
-	if funcName, ok := pflags.ids[uint32(progID)]; ok {
+	if flagFuncName, ok := pflags.ids[uint32(progID)]; ok {
+		funcName := flagFuncName
 		if funcName == "" {
 			funcName = entryFuncName
 		}
-		if err := p.addTracing(progID, funcName, prog); err != nil {
+		if err := p.addTracing(progID, funcName, flagFuncName, prog); err != nil {
 			return err
 		}
 	}
 
-	if funcName, ok := pflags.tags[tag]; ok {
+	if flagFuncName, ok := pflags.tags[tag]; ok {
+		funcName := flagFuncName
 		if funcName == "" {
 			funcName = entryFuncName
 		}
-		if err := p.addTracing(progID, funcName, prog); err != nil {
+		if err := p.addTracing(progID, funcName, flagFuncName, prog); err != nil {
 			return err
 		}
 	}
 
-	if funcName, ok := pflags.names[entryFuncName]; ok {
+	if flagFuncName, ok := pflags.names[entryFuncName]; ok {
+		funcName := flagFuncName
 		if funcName == "" {
 			funcName = entryFuncName
 		}
-		if err := p.addTracing(progID, funcName, prog); err != nil {
+		if err := p.addTracing(progID, funcName, flagFuncName, prog); err != nil {
 			return err
 		}
 	}

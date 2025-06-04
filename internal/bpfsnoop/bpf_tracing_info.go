@@ -19,6 +19,7 @@ type bpfTracingInfo struct {
 	fn       *btf.Func
 	funcIP   uintptr
 	funcName string
+	disAll   bool
 	params   []FuncParamFlags
 	ret      FuncParamFlags
 }
@@ -95,7 +96,7 @@ func (p *bpfProgs) canTrace(prog *ebpf.Program, id ebpf.ProgramID) bool {
 	return true
 }
 
-func (p *bpfProgs) addTracing(id ebpf.ProgramID, funcName string, prog *ebpf.Program) error {
+func (p *bpfProgs) addTracing(id ebpf.ProgramID, funcName, flagFuncName string, prog *ebpf.Program) error {
 	if !p.canTrace(prog, id) && !p.disasm {
 		return nil
 	}
@@ -172,6 +173,7 @@ func (p *bpfProgs) addTracing(id ebpf.ProgramID, funcName string, prog *ebpf.Pro
 		fn:       fns[idx].Func,
 		funcIP:   jitedKsymAddrs[idx],
 		funcName: funcName,
+		disAll:   flagFuncName == "",
 		params:   params,
 		ret:      ret,
 	}
