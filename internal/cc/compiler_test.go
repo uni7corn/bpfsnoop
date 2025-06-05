@@ -91,10 +91,24 @@ func TestNewCompiler(t *testing.T) {
 		delete(spec.mutableTypes.imm.namedTypes, kfuncBpfRdonlyCast)
 		defer func() { spec.mutableTypes.imm.namedTypes[kfuncBpfRdonlyCast] = ids }()
 
+		c, err := newCompiler(opts)
+		test.AssertNoErr(t, err)
+		test.AssertFalse(t, c.rdonlyCastFastcall)
+	})
+
+	t.Run("bpf_rdonly_cast invalid type ID", func(t *testing.T) {
+		_, err := testBtf.AnyTypeByName(kfuncBpfRdonlyCast)
+		test.AssertNoErr(t, err)
+
+		spec := (*Spec)(unsafe.Pointer(testBtf))
+		ids := spec.mutableTypes.imm.namedTypes[kfuncBpfRdonlyCast]
+		ids = append(ids, 0xFFFFFFFF)
+		spec.mutableTypes.imm.namedTypes[kfuncBpfRdonlyCast] = ids
+		defer func() { spec.mutableTypes.imm.namedTypes[kfuncBpfRdonlyCast] = ids[:len(ids)-1] }()
+
 		_, err = newCompiler(opts)
 		test.AssertHaveErr(t, err)
-		test.AssertErrorPrefix(t, err, "failed to find kfunc bpf_rdonly_cast")
-		test.AssertTrue(t, errors.Is(err, btf.ErrNotFound))
+		test.AssertErrContains(t, err, "no type with ID")
 	})
 
 	t.Run("bpf_rdonly_cast not a function", func(t *testing.T) {

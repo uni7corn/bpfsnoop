@@ -63,6 +63,18 @@ func AssertStrPrefix(t *testing.T, got, prefix string) {
 	}
 }
 
+func AssertStrContains(t *testing.T, got, substr string) {
+	t.Helper()
+	if !strings.Contains(got, substr) {
+		t.Errorf("got %v, want substring %v", got, substr)
+	}
+}
+
+func AssertErrContains(t *testing.T, err error, substr string) {
+	t.Helper()
+	AssertStrContains(t, err.Error(), substr)
+}
+
 func AssertTrue(t *testing.T, got bool) {
 	t.Helper()
 	if !got {

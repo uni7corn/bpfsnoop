@@ -4,6 +4,7 @@
 package cc
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 
@@ -66,6 +67,10 @@ func newCompiler(opts CompileExprOptions) (*compiler, error) {
 
 	typ, err := opts.Spec.AnyTypeByName(kfuncBpfRdonlyCast)
 	if err != nil {
+		if errors.Is(err, btf.ErrNotFound) {
+			return c, nil
+		}
+
 		return nil, fmt.Errorf("failed to find kfunc %s: %w", kfuncBpfRdonlyCast, err)
 	}
 	fn, ok := typ.(*btf.Func)
