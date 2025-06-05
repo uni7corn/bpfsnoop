@@ -139,7 +139,7 @@ func DumpProg(pf []ProgFlag) {
 		pc := uint64(0)
 
 		gray.Fprint(&sb, "; ")
-		showFuncProto(&sb, jitedFuncInfos[i].Func, gray)
+		showFuncProto(&sb, jitedFuncInfos[i].Func, gray, false)
 		gray.Fprint(&sb, ":\n")
 
 		for len(fnInsns) > 0 {

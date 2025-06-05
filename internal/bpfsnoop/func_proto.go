@@ -19,7 +19,7 @@ import (
 	"github.com/bpfsnoop/bpfsnoop/internal/btfx"
 )
 
-func showFuncProto(w io.Writer, fn *btf.Func, clr *color.Color) {
+func showFuncProto(w io.Writer, fn *btf.Func, clr *color.Color, listParams bool) {
 	// func return
 	retDesc := btfx.Repr(fn.Type.(*btf.FuncProto).Return)
 	if retDesc[len(retDesc)-1] == '*' {
@@ -38,6 +38,9 @@ func showFuncProto(w io.Writer, fn *btf.Func, clr *color.Color) {
 		if i != 0 {
 			clr.Fprint(w, ", ")
 		}
+		if listParams {
+			clr.Fprintf(w, "\n%d:\t", i)
+		}
 		typDesc := btfx.Repr(p.Type)
 		if p.Name != "" {
 			if typDesc[len(typDesc)-1] == '*' {
@@ -49,11 +52,14 @@ func showFuncProto(w io.Writer, fn *btf.Func, clr *color.Color) {
 			clr.Fprintf(w, "%s", btfx.Repr(p.Type))
 		}
 	}
+	if listParams {
+		clr.Fprint(w, "\n")
+	}
 	clr.Fprint(w, ")")
 }
 
-func printFuncProto(w io.Writer, fn *btf.Func, color *color.Color) {
-	showFuncProto(w, fn, color)
+func printFuncProto(w io.Writer, fn *btf.Func, color *color.Color, listParams bool) {
+	showFuncProto(w, fn, color, listParams)
 	color.Fprint(w, ";\n")
 }
 
@@ -74,8 +80,9 @@ func ShowFuncProto(f *Flags, tpSpec, tpModSpec *ebpf.CollectionSpec) {
 			keys := maps.Keys(progs.tracings)
 			sort.Strings(keys)
 
+			listParams := f.listFuncParams && len(f.progs) == 1
 			for _, k := range keys {
-				printFuncProto(&sb, progs.tracings[k].fn, yellow)
+				printFuncProto(&sb, progs.tracings[k].fn, yellow, listParams)
 			}
 
 			printNewline = true
@@ -99,8 +106,9 @@ func ShowFuncProto(f *Flags, tpSpec, tpModSpec *ebpf.CollectionSpec) {
 		keys := maps.Keys(kfuncs)
 		slices.Sort(keys)
 
+		listParams := f.listFuncParams && len(f.kfuncs) == 1
 		for _, k := range keys {
-			printFuncProto(&sb, kfuncs[k].Func, yellow)
+			printFuncProto(&sb, kfuncs[k].Func, yellow, listParams)
 		}
 
 		printNewline = true
@@ -123,8 +131,9 @@ func ShowFuncProto(f *Flags, tpSpec, tpModSpec *ebpf.CollectionSpec) {
 		keys := maps.Keys(ktps)
 		slices.Sort(keys)
 
+		listParams := f.listFuncParams && len(f.ktps) == 1
 		for _, k := range keys {
-			printFuncProto(&sb, ktps[k].Func, yellow)
+			printFuncProto(&sb, ktps[k].Func, yellow, listParams)
 		}
 	}
 

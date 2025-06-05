@@ -51,7 +51,8 @@ type Flags struct {
 	disasm      bool
 	disasmBytes uint
 
-	showFuncProto bool
+	showFuncProto  bool
+	listFuncParams bool
 
 	noVmlinux bool
 }
@@ -81,11 +82,11 @@ func ParseFlags() (*Flags, error) {
 	f.StringArrayVar /* use StringArray to accept comma in value */ (&outputArg, "output-arg", nil, "output function's argument with C expression, e.g. 'prog->type'")
 	f.StringVar(&filterPkt, "filter-pkt", "", "filter packet with pcap-filter(7) expr if function argument is skb or xdp, e.g. 'icmp and host 1.1.1.1'")
 	f.UintVar(&limitEvents, "limit-events", 0, "limited number events to output, 0 to output all events")
-	f.BoolVar(&flags.showFuncProto, "show-func-proto", false, "show function prototype of -p,-k")
+	f.BoolVar(&flags.showFuncProto, "show-func-proto", false, "show function prototype of -p,-k,-t")
 	f.UintVar(&debugTraceInsnCnt, "trace-insn-debug-cnt", 0, "trace insn count for debug")
 	f.StringVar(&kernelVmlinuxDir, "kernel-vmlinux", "", "specific kernel vmlinux directory to search vmlinux and modules dbgsym files")
 
-	f.BoolVarP(&flags.showFuncProto, "show-func-proto-internal", "S", false, "show function prototype of -p,-k")
+	f.BoolVarP(&flags.listFuncParams, "show-func-proto-internal", "S", false, "show function prototype of -p,-k,-t")
 	f.UintVarP(&limitEvents, "limit-events-internal", "E", 0, "limited number events to output, 0 to output all events")
 	f.BoolVarP(&flags.noVmlinux, "no-vmlinux", "N", false, "do not load vmlinux")
 
@@ -104,6 +105,7 @@ func ParseFlags() (*Flags, error) {
 	argFilter = prepareFuncArguments(filterArg)
 	argOutput = prepareFuncArgOutput(outputArg)
 	pktFilter = preparePacketFilter(filterPkt)
+	flags.showFuncProto = flags.showFuncProto || flags.listFuncParams
 
 	if kernelVmlinuxDir != "" {
 		if fileExists(kernelVmlinuxDir) {
