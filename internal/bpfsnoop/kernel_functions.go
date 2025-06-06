@@ -165,7 +165,7 @@ func searchKernelFuncs(funcs, kmods []string, ksyms *Kallsyms, maxArgs int) (KFu
 		return nil, err
 	}
 
-	if mode != TracingModeExit {
+	if !hasModeExit() {
 		return kfuncs, nil
 	}
 

@@ -122,11 +122,18 @@ func Run(reader *ringbuf.Reader, helpers *Helpers, maps map[string]*ebpf.Map, w 
 			}
 		}
 
+		fnName := fnInfo.name
+		if event.Type == eventTypeFuncExit {
+			fnName += "[ex]"
+		} else if event.Type == eventTypeFuncEntry && !fnInfo.isTp {
+			fnName += "[en]"
+		}
+
 		if colorfulOutput {
-			color.New(color.FgYellow, color.Bold).Fprint(&sb, fnInfo.name, " ")
+			color.New(color.FgYellow, color.Bold).Fprint(&sb, fnName, " ")
 			color.New(color.FgBlue).Fprintf(&sb, "args")
 		} else {
-			fmt.Fprint(&sb, fnInfo.name, " args")
+			fmt.Fprint(&sb, fnName, " args")
 		}
 
 		withRetval := event.Type == eventTypeFuncExit
