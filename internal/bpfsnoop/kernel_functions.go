@@ -4,7 +4,9 @@
 package bpfsnoop
 
 import (
+	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/Asphaltt/mybtf"
 	"github.com/cilium/ebpf/btf"
@@ -132,14 +134,14 @@ func matchKernelFunc(matches []*kfuncMatch, fn *btf.Func, maxArgs int, ksyms *Ka
 
 type KFuncs map[uintptr]*KFunc
 
-func findKernelFuncs(funcs []string, ksyms *Kallsyms, maxArgs int, findManyArgs, silent bool) (KFuncs, error) {
+func findKernelFuncs(funcs, kmods []string, ksyms *Kallsyms, maxArgs int, findManyArgs, silent bool) (KFuncs, error) {
 	matchFuncs, err := kfuncFlags2matches(funcs)
 	if err != nil {
 		return KFuncs{}, err
 	}
 
 	kfuncs := make(KFuncs, len(funcs))
-	err = iterateKernelBtfs(func(spec *btf.Spec) {
+	err = iterateKernelBtfs(kmods, func(spec *btf.Spec) {
 		iter := spec.Iterate()
 		for iter.Next() {
 			if fn, ok := iter.Type.(*btf.Func); ok {
@@ -157,12 +159,8 @@ func findKernelFuncs(funcs []string, ksyms *Kallsyms, maxArgs int, findManyArgs,
 	return kfuncs, nil
 }
 
-func FindKernelFuncs(funcs []string, ksyms *Kallsyms, maxArgs int) (KFuncs, error) {
-	if len(funcs) == 0 {
-		return KFuncs{}, nil
-	}
-
-	kfuncs, err := findKernelFuncs(funcs, ksyms, maxArgs, false, false)
+func searchKernelFuncs(funcs, kmods []string, ksyms *Kallsyms, maxArgs int) (KFuncs, error) {
+	kfuncs, err := findKernelFuncs(funcs, kmods, ksyms, maxArgs, false, false)
 	if err != nil {
 		return nil, err
 	}
@@ -178,4 +176,47 @@ func FindKernelFuncs(funcs []string, ksyms *Kallsyms, maxArgs int) (KFuncs, erro
 	}
 
 	return kfuncs, nil
+}
+
+func inferenceKfuncKmods(kfuncs, kmods []string, ksyms *Kallsyms) ([]string, error) {
+	kmods = slices.Clone(kmods)
+	for _, fn := range kfuncs {
+		var matchedKmod string
+		for _, mod := range ksyms.mods {
+			if strings.HasPrefix(fn, mod) {
+				matchedKmod = mod
+				break
+			}
+		}
+		if matchedKmod != "" && !slices.Contains(kmods, matchedKmod) {
+			kmods = append(kmods, matchedKmod)
+		}
+	}
+
+	slices.Sort(kmods)
+	return slices.Compact(kmods), nil
+}
+
+func FindKernelFuncs(funcs []string, ksyms *Kallsyms, maxArgs int) (KFuncs, error) {
+	if len(funcs) == 0 {
+		return KFuncs{}, nil
+	}
+
+	kmods, err := inferenceKfuncKmods(funcs, kfuncKmods, ksyms)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inference kernel modules: %w", err)
+	}
+
+	for _, fn := range funcs {
+		if ksym, ok := ksyms.findBySymbol(fn); ok && ksym.mod != "" &&
+			!slices.Contains(kmods, ksym.mod) {
+			// If the function is already a symbol, use its module directly.
+			kmods = append(kmods, ksym.mod)
+		}
+	}
+
+	slices.Sort(kmods)
+	kmods = slices.Compact(kmods)
+
+	return searchKernelFuncs(funcs, kmods, ksyms, maxArgs)
 }
