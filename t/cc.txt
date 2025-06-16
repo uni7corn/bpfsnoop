@@ -23,7 +23,7 @@ trigger: ping -c 1 -s 64 127.0.0.1
 
 # buf()
 name: cc::buf
-tag: cc,ptr-deref,pkt,tp
+tag: cc,pkt,tp
 test: -t netif_receive_skb --filter-pkt 'host 127.0.0.1 and icmp' --output-arg 'buf(skb->head + skb->mac_header, 34)' --output-arg 'buf(skb->cb, 4, 4)' --output-arg 'skb->mac_header' --output-arg 'skb->network_header'
 match: 0x7f,0x00,0x00,0x01,0x7f,0x00,0x00,0x01
 trigger: ping -c 1 -s 64 127.0.0.1
@@ -32,7 +32,16 @@ trigger: ping -c 1 -s 64 127.0.0.1
 
 # pkt()
 name: cc::pkt
-tag: cc,ptr-deref,pkt,tp
+tag: cc,pkt,tp
 test: -t netif_receive_skb --filter-pkt 'host 127.0.0.1 and icmp' --output-arg 'pkt(skb->head + skb->mac_header, 34)'
 match: SrcIP=127.0.0.1 DstIP=127.0.0.1
+trigger: ping -c 1 -s 64 127.0.0.1
+
+---
+
+# addr
+name: cc::addr
+tag: cc,addr,tp
+test: -t netif_receive_skb --filter-pkt 'host 127.0.0.1 and icmp' --output-arg 'ip42(skb->head + skb->network_header, 12)'
+match: (unsigned char *)'ip42(skb->head + skb->network_header, 12)'=[127.0.0.1,127.0.0.1]
 trigger: ping -c 1 -s 64 127.0.0.1
