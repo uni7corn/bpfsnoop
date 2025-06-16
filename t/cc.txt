@@ -28,3 +28,11 @@ test: -t netif_receive_skb --filter-pkt 'host 127.0.0.1 and icmp' --output-arg '
 match: 0x7f,0x00,0x00,0x01,0x7f,0x00,0x00,0x01
 trigger: ping -c 1 -s 64 127.0.0.1
 
+---
+
+# pkt()
+name: cc::pkt
+tag: cc,ptr-deref,pkt,tp
+test: -t netif_receive_skb --filter-pkt 'host 127.0.0.1 and icmp' --output-arg 'pkt(skb->head + skb->mac_header, 34)'
+match: SrcIP=127.0.0.1 DstIP=127.0.0.1
+trigger: ping -c 1 -s 64 127.0.0.1
