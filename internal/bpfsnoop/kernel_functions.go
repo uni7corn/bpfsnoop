@@ -51,6 +51,7 @@ type FuncParamFlags struct {
 type KFunc struct {
 	Ksym *KsymEntry
 	Func *btf.Func
+	Btf  *btf.Spec
 	Args []funcArgumentOutput
 	Prms []FuncParamFlags
 	Ret  FuncParamFlags
@@ -148,6 +149,7 @@ func findKernelFuncs(funcs, kmods []string, ksyms *Kallsyms, maxArgs int, findMa
 			if fn, ok := iter.Type.(*btf.Func); ok {
 				kf, ok := matchKernelFunc(matchFuncs, fn, maxArgs, ksyms, findManyArgs, silent)
 				if ok {
+					kf.Btf = spec
 					kfuncs[uintptr(kf.Ksym.addr)] = kf
 				}
 			}
