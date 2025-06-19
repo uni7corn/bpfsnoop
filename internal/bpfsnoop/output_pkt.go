@@ -9,17 +9,20 @@ import (
 )
 
 const (
-	outputPktTupleFunc = "output_pkt_data"
-	outputSkbTupleFunc = "output_skb_tuple"
-	outputXdpTupleFunc = "output_xdp_tuple"
+	outputPktFunc      = "output_pkt"
+	outputSkbFunc      = "output_skb"
+	outputXdpBuffFunc  = "output_xdp_buff"
+	outputXdpFrameFunc = "output_xdp_frame"
 )
 
 var pktOutput packetOutput
 
 type packetOutput struct{}
 
-func (p *packetOutput) injectStub(prog *ebpf.ProgramSpec, index int, stub, other string) {
-	clearOutputSubprog(prog, other)
+func (p *packetOutput) injectStub(prog *ebpf.ProgramSpec, index int, stub string, clears ...string) {
+	for _, clear := range clears {
+		clearOutputSubprog(prog, clear)
+	}
 
 	// R1: args
 	// R2: pkt data
@@ -32,19 +35,24 @@ func (p *packetOutput) injectStub(prog *ebpf.ProgramSpec, index int, stub, other
 		asm.Return(),
 	}...)
 
-	injectInsns(prog, outputPktTupleFunc, insns)
+	injectInsns(prog, outputPktFunc, insns)
 }
 
 func (p *packetOutput) outputSkb(prog *ebpf.ProgramSpec, index int) {
-	p.injectStub(prog, index, outputSkbTupleFunc, outputXdpTupleFunc)
+	p.injectStub(prog, index, outputSkbFunc, outputXdpBuffFunc, outputXdpFrameFunc)
 }
 
-func (p *packetOutput) outputXdp(prog *ebpf.ProgramSpec, index int) {
-	p.injectStub(prog, index, outputXdpTupleFunc, outputSkbTupleFunc)
+func (p *packetOutput) outputXdpBuff(prog *ebpf.ProgramSpec, index int) {
+	p.injectStub(prog, index, outputXdpBuffFunc, outputSkbFunc, outputXdpFrameFunc)
+}
+
+func (p *packetOutput) outputXdpFrame(prog *ebpf.ProgramSpec, index int) {
+	p.injectStub(prog, index, outputXdpFrameFunc, outputSkbFunc, outputXdpBuffFunc)
 }
 
 func (p *packetOutput) clear(prog *ebpf.ProgramSpec) {
-	clearOutputSubprog(prog, outputPktTupleFunc)
-	clearOutputSubprog(prog, outputSkbTupleFunc)
-	clearOutputSubprog(prog, outputXdpTupleFunc)
+	clearOutputSubprog(prog, outputPktFunc)
+	clearOutputSubprog(prog, outputSkbFunc)
+	clearOutputSubprog(prog, outputXdpBuffFunc)
+	clearOutputSubprog(prog, outputXdpFrameFunc)
 }

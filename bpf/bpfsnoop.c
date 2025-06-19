@@ -144,7 +144,7 @@ emit_bpfsnoop_event(void *ctx)
         output_lbr_data(lbr, session_id);
     output_fn_args(args, buffer + sizeof(*evt), retval);
     if (cfg->output_pkt)
-        output_pkt_data(args, pkt, session_id);
+        output_pkt(args, pkt, session_id);
     if (cfg->output_arg)
         output_arg(args, buffer + sizeof(*evt) + cfg->fn_args.buf_size);
 

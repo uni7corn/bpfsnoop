@@ -302,12 +302,17 @@ func (t *bpfTracing) injectPktOutput(prog *ebpf.ProgramSpec, params []btf.FuncPa
 		switch stt.Name {
 		case "sk_buff", "__sk_buff":
 			pktOutput.outputSkb(prog, i)
-			DebugLog("Injected --output-pkt to %dth param %s of %s", i, p.Name, fnName)
+			DebugLog("Injected --output-pkt to %dth param (%s)%s of %s", i, p.Name, btfx.Repr(p.Type), fnName)
 			return true
 
 		case "xdp_buff", "xdp_md":
-			pktOutput.outputXdp(prog, i)
-			DebugLog("Injected --output-pkt to %dth param %s of %s", i, p.Name, fnName)
+			pktOutput.outputXdpBuff(prog, i)
+			DebugLog("Injected --output-pkt to %dth param (%s)%s of %s", i, p.Name, btfx.Repr(p.Type), fnName)
+			return true
+
+		case "xdp_frame":
+			pktOutput.outputXdpFrame(prog, i)
+			DebugLog("Injected --output-pkt to %dth param (%s)%s of %s", i, p.Name, btfx.Repr(p.Type), fnName)
 			return true
 		}
 	}

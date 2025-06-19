@@ -12,6 +12,12 @@
 #include "bpfsnoop.h"
 #include "if_ether.h"
 
+enum {
+    OUTPUT_PKT_SKB = 0,
+    OUTPUT_PKT_XDP_BUFF,
+    OUTPUT_PKT_XDP_FRAME,
+};
+
 struct bpfsnoop_pkt_data {
     __u64 addrs;
     __u32 ports;
@@ -69,7 +75,7 @@ output_tuple(struct bpfsnoop_pkt_data *pkt, __u64 session_id, struct iphdr *iph)
 }
 
 static __noinline void
-output_skb_tuple(void *ptr, struct bpfsnoop_pkt_data *pkt, __u64 session_id)
+output_skb(void *ptr, struct bpfsnoop_pkt_data *pkt, __u64 session_id)
 {
     struct sk_buff *skb;
     struct iphdr *iph;
@@ -82,17 +88,13 @@ output_skb_tuple(void *ptr, struct bpfsnoop_pkt_data *pkt, __u64 session_id)
     output_tuple(pkt, session_id, iph);
 }
 
-static __noinline void
-output_xdp_tuple(void *ptr, struct bpfsnoop_pkt_data *pkt, __u64 session_id)
+static __always_inline void
+output_xdp_data(void *data, struct bpfsnoop_pkt_data *pkt, __u64 session_id)
 {
-    struct xdp_buff *xdp;
     struct vlan_hdr *vh;
     struct ethhdr *eth;
     struct iphdr *iph;
-    void *data;
 
-    xdp = (typeof(xdp)) ptr;
-    data = BPF_CORE_READ(xdp, data);
     eth = (typeof(eth)) data;
 
     switch (BPF_CORE_READ(eth, h_proto)) {
@@ -115,12 +117,47 @@ output_xdp_tuple(void *ptr, struct bpfsnoop_pkt_data *pkt, __u64 session_id)
 }
 
 static __noinline void
-output_pkt_data(__u64 *args, struct bpfsnoop_pkt_data *pkt, __u64 session_id)
+output_xdp_buff(void *ptr, struct bpfsnoop_pkt_data *pkt, __u64 session_id)
+{
+    struct xdp_buff *xdp;
+    void *data;
+
+    xdp = (typeof(xdp)) ptr;
+    data = BPF_CORE_READ(xdp, data);
+
+    output_xdp_data(data, pkt, session_id);
+}
+
+static __noinline void
+output_xdp_frame(void *ptr, struct bpfsnoop_pkt_data *pkt, __u64 session_id)
+{
+    struct xdp_frame *xdp;
+    void *data;
+
+    xdp = (typeof(xdp)) ptr;
+    data = BPF_CORE_READ(xdp, data);
+
+    output_xdp_data(data, pkt, session_id);
+}
+
+static __noinline void
+output_pkt(__u64 *args, struct bpfsnoop_pkt_data *pkt, __u64 session_id)
 {
     /* This function will be rewrote by Go totally. */
-    void *ptr = (void *) session_id;
-    /* Show in `bpfsnoop -p -d`. */
-    if (args) output_skb_tuple(ptr, pkt, session_id); else output_xdp_tuple(ptr, pkt, session_id);
+    void *ptr = (void *) args[0];
+
+    switch (session_id) {
+    case OUTPUT_PKT_XDP_BUFF:
+        output_xdp_buff(ptr, pkt, session_id);
+        break;
+
+    case OUTPUT_PKT_XDP_FRAME:
+        output_xdp_frame(ptr, pkt, session_id);
+        break;
+
+    default:
+        output_skb(ptr, pkt, session_id);
+    }
 }
 
 #endif // __BPFSNOOP_PKT_OUTPUT_H_
