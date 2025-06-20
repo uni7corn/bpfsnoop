@@ -5,16 +5,16 @@ package bpfsnoop
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"net/netip"
 	"strings"
 	"unsafe"
 
-	"github.com/cilium/ebpf"
 	"github.com/fatih/color"
 	"golang.org/x/sys/unix"
 )
+
+const sizeOfPktData = int(unsafe.Sizeof(PktData{}))
 
 var be = binary.BigEndian
 
@@ -88,22 +88,10 @@ func (p *PktData) repr() string {
 	return sb.String()
 }
 
-func outputPktTuple(sb *strings.Builder, info *funcInfo, pktData *PktData, pkts *ebpf.Map, event *Event) error {
-	if !info.pktTuple {
-		return nil
-	}
-
-	b := ptr2bytes(unsafe.Pointer(pktData), int(unsafe.Sizeof(*pktData)))
-	err := pkts.LookupAndDelete(event.SessID, b)
-	if err != nil {
-		if errors.Is(err, ebpf.ErrKeyNotExist) {
-			return nil
-		}
-		return fmt.Errorf("failed to lookup pkt data: %w", err)
-	}
-
+func outputPktTuple(sb *strings.Builder, info *funcInfo, data []byte, event *Event) {
+	pktData := (*PktData)(unsafe.Pointer(&data[0]))
 	if pktData.zero() {
-		return nil
+		return
 	}
 
 	fmt.Fprint(sb, "Pkt tuple: ")
@@ -112,6 +100,4 @@ func outputPktTuple(sb *strings.Builder, info *funcInfo, pktData *PktData, pkts 
 	} else {
 		fmt.Fprintln(sb, pktData.repr())
 	}
-
-	return nil
 }

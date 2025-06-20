@@ -26,16 +26,6 @@ func PrepareBPFMaps(spec *ebpf.CollectionSpec) map[string]*ebpf.Map {
 	lbrs, err := ebpf.NewMap(spec.Maps["bpfsnoop_lbrs"])
 	assert.NoErr(err, "Failed to create bpfsnoop_lbrs map: %v")
 
-	pktsMapSpec := spec.Maps[".data.pkts"]
-	pktsMapSpec.Flags |= unix.BPF_F_MMAPABLE
-	pktsMapSpec.ValueSize = uint32(unsafe.Sizeof(PktData{})) * uint32(numCPU)
-	pktsMapSpec.Contents[0].Value = make([]byte, pktsMapSpec.ValueSize)
-	pktsData, err := ebpf.NewMap(pktsMapSpec)
-	assert.NoErr(err, "Failed to create pkts map: %v")
-
-	pkts, err := ebpf.NewMap(spec.Maps["bpfsnoop_pkts"])
-	assert.NoErr(err, "Failed to create bpfsnoop_pkts map: %v")
-
 	stacks, err := ebpf.NewMap(spec.Maps["bpfsnoop_stacks"])
 	assert.NoErr(err, "Failed to create bpfsnoop_stacks map: %v")
 
@@ -55,9 +45,7 @@ func PrepareBPFMaps(spec *ebpf.CollectionSpec) map[string]*ebpf.Map {
 
 		"bpfsnoop_events": events,
 		"bpfsnoop_lbrs":   lbrs,
-		"bpfsnoop_pkts":   pkts,
 		".data.lbrs":      lbrsData,
-		".data.pkts":      pktsData,
 		".data.ready":     readyData,
 		"bpfsnoop_stacks": stacks,
 	}

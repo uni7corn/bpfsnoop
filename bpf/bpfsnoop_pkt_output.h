@@ -26,17 +26,8 @@ struct bpfsnoop_pkt_data {
     __u8 pad[2];
 };
 
-struct bpfsnoop_pkt_data bpfsnoop_pkt_buff[1] SEC(".data.pkts");
-
-struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, BPFSNOOP_MAX_ENTRIES);
-    __type(key, __u64);
-    __type(value, struct bpfsnoop_pkt_data);
-} bpfsnoop_pkts SEC(".maps");
-
 static __always_inline void
-output_tuple(struct bpfsnoop_pkt_data *pkt, __u64 session_id, struct iphdr *iph)
+output_tuple(struct bpfsnoop_pkt_data *pkt, struct iphdr *iph)
 {
     struct udphdr *udp;
     struct tcphdr *tcp;
@@ -70,12 +61,10 @@ output_tuple(struct bpfsnoop_pkt_data *pkt, __u64 session_id, struct iphdr *iph)
     default:
         return;
     }
-
-    (void) bpf_map_update_elem(&bpfsnoop_pkts, &session_id, pkt, BPF_ANY);
 }
 
 static __noinline void
-output_skb(void *ptr, struct bpfsnoop_pkt_data *pkt, __u64 session_id)
+output_skb(void *ptr, struct bpfsnoop_pkt_data *pkt)
 {
     struct sk_buff *skb;
     struct iphdr *iph;
@@ -85,11 +74,11 @@ output_skb(void *ptr, struct bpfsnoop_pkt_data *pkt, __u64 session_id)
     head = BPF_CORE_READ(skb, head);
     iph = (typeof(iph)) (head + BPF_CORE_READ(skb, network_header));
 
-    output_tuple(pkt, session_id, iph);
+    output_tuple(pkt, iph);
 }
 
 static __always_inline void
-output_xdp_data(void *data, struct bpfsnoop_pkt_data *pkt, __u64 session_id)
+output_xdp_data(void *data, struct bpfsnoop_pkt_data *pkt)
 {
     struct vlan_hdr *vh;
     struct ethhdr *eth;
@@ -113,11 +102,11 @@ output_xdp_data(void *data, struct bpfsnoop_pkt_data *pkt, __u64 session_id)
         return;
     }
 
-    output_tuple(pkt, session_id, iph);
+    output_tuple(pkt, iph);
 }
 
 static __noinline void
-output_xdp_buff(void *ptr, struct bpfsnoop_pkt_data *pkt, __u64 session_id)
+output_xdp_buff(void *ptr, struct bpfsnoop_pkt_data *pkt)
 {
     struct xdp_buff *xdp;
     void *data;
@@ -125,11 +114,11 @@ output_xdp_buff(void *ptr, struct bpfsnoop_pkt_data *pkt, __u64 session_id)
     xdp = (typeof(xdp)) ptr;
     data = BPF_CORE_READ(xdp, data);
 
-    output_xdp_data(data, pkt, session_id);
+    output_xdp_data(data, pkt);
 }
 
 static __noinline void
-output_xdp_frame(void *ptr, struct bpfsnoop_pkt_data *pkt, __u64 session_id)
+output_xdp_frame(void *ptr, struct bpfsnoop_pkt_data *pkt)
 {
     struct xdp_frame *xdp;
     void *data;
@@ -137,26 +126,26 @@ output_xdp_frame(void *ptr, struct bpfsnoop_pkt_data *pkt, __u64 session_id)
     xdp = (typeof(xdp)) ptr;
     data = BPF_CORE_READ(xdp, data);
 
-    output_xdp_data(data, pkt, session_id);
+    output_xdp_data(data, pkt);
 }
 
 static __noinline void
-output_pkt(__u64 *args, struct bpfsnoop_pkt_data *pkt, __u64 session_id)
+output_pkt(__u64 *args, struct bpfsnoop_pkt_data *pkt)
 {
     /* This function will be rewrote by Go totally. */
     void *ptr = (void *) args[0];
 
-    switch (session_id) {
+    switch (args[0]) {
     case OUTPUT_PKT_XDP_BUFF:
-        output_xdp_buff(ptr, pkt, session_id);
+        output_xdp_buff(ptr, pkt);
         break;
 
     case OUTPUT_PKT_XDP_FRAME:
-        output_xdp_frame(ptr, pkt, session_id);
+        output_xdp_frame(ptr, pkt);
         break;
 
     default:
-        output_skb(ptr, pkt, session_id);
+        output_skb(ptr, pkt);
     }
 }
 

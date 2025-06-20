@@ -60,10 +60,8 @@ func Run(reader *ringbuf.Reader, helpers *Helpers, maps map[string]*ebpf.Map, w 
 
 	stacks := maps["bpfsnoop_stacks"]
 	lbrs := maps["bpfsnoop_lbrs"]
-	pkts := maps["bpfsnoop_pkts"]
 
 	var lbrData LbrData
-	var pktData PktData
 
 	fg := NewFlameGraph()
 	defer fg.Save(outputFlameGraph)
@@ -106,6 +104,7 @@ func Run(reader *ringbuf.Reader, helpers *Helpers, maps map[string]*ebpf.Map, w 
 
 		event := (*Event)(unsafe.Pointer(&record.RawSample[0]))
 		fnInfo := getFuncInfo(event, helpers)
+		data := record.RawSample[sizeOfEvent:]
 
 		var sess *Session
 		var duration time.Duration
@@ -138,8 +137,8 @@ func Run(reader *ringbuf.Reader, helpers *Helpers, maps map[string]*ebpf.Map, w 
 
 		withRetval := event.Type == eventTypeFuncExit
 		if fnInfo.argsBuf != 0 {
-			b := record.RawSample[sizeOfEvent : sizeOfEvent+int(fnInfo.argsBuf)]
-			outputFnArgs(&sb, fnInfo, helpers, b, findSymbol, withRetval)
+			outputFnArgs(&sb, fnInfo, helpers, data[:fnInfo.argsBuf], findSymbol, withRetval)
+			data = data[fnInfo.argsBuf:]
 		} else {
 			fmt.Fprint(&sb, "=()")
 			if withRetval {
@@ -161,18 +160,18 @@ func Run(reader *ringbuf.Reader, helpers *Helpers, maps map[string]*ebpf.Map, w 
 		}
 		fmt.Fprintln(&sb)
 
-		err = outputPktTuple(&sb, fnInfo, &pktData, pkts, event)
-		if err != nil {
-			return fmt.Errorf("failed to output packet tuple: %w", err)
+		if fnInfo.pktTuple {
+			outputPktTuple(&sb, fnInfo, data[:sizeOfPktData], event)
+			data = data[sizeOfPktData:]
 		}
 
 		if fnInfo.argData != 0 {
-			off := sizeOfEvent + int(fnInfo.argsBuf)
-			b := record.RawSample[off : off+fnInfo.argData]
-			err := outputFuncArgAttrs(&sb, fnInfo, b, findSymbol)
+			err := outputFuncArgAttrs(&sb, fnInfo, data[:fnInfo.argData], findSymbol)
 			if err != nil {
 				return fmt.Errorf("failed to output function arg attrs: %w", err)
 			}
+
+			data = data[fnInfo.argData:]
 		}
 
 		err = lbrStack.outputStack(&sb, helpers, &lbrData, lbrs, event)
