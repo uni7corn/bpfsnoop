@@ -79,6 +79,8 @@ func Run(reader *ringbuf.Reader, helpers *Helpers, maps map[string]*ebpf.Map, w 
 	var record ringbuf.Record
 	record.RawSample = make([]byte, 4096)
 
+	bothModes := hasModeEntry() && hasModeExit()
+
 	unlimited := limitEvents == 0
 	for i := int64(limitEvents); unlimited || i > 0; i-- {
 		err := reader.ReadInto(&record)
@@ -108,7 +110,7 @@ func Run(reader *ringbuf.Reader, helpers *Helpers, maps map[string]*ebpf.Map, w 
 
 		var sess *Session
 		var duration time.Duration
-		withDuration := fnInfo.insnMode
+		withDuration := fnInfo.insnMode || (bothModes && !fnInfo.isTp)
 		if withDuration {
 			if event.Type == eventTypeFuncEntry {
 				sess = sessions.Add(event.SessID, event.KernNs)
@@ -188,7 +190,7 @@ func Run(reader *ringbuf.Reader, helpers *Helpers, maps map[string]*ebpf.Map, w 
 			return fmt.Errorf("failed to output function stack: %w", err)
 		}
 
-		if sess == nil || withRetval {
+		if sess == nil || withRetval || !fnInfo.insnMode {
 			fmt.Fprintln(&sb)
 		}
 		if sess != nil {
