@@ -66,12 +66,12 @@ func NewBPFTracing(spec, insnSpec *ebpf.CollectionSpec, reusedMaps map[string]*e
 		info := info
 
 		errg.Go(func() error {
-			return t.traceProg(spec, reusedMaps, info, bprogs, hasModeExit())
+			return t.traceProg(spec, reusedMaps, info, bprogs, bothEntryExit, hasModeExit())
 		})
 
 		if bothEntryExit {
 			errg.Go(func() error {
-				return t.traceProg(spec, reusedMaps, info, bprogs, !hasModeExit())
+				return t.traceProg(spec, reusedMaps, info, bprogs, bothEntryExit, !hasModeExit())
 			})
 		}
 	}
@@ -322,7 +322,7 @@ func (t *bpfTracing) injectPktOutput(prog *ebpf.ProgramSpec, params []btf.FuncPa
 	return false
 }
 
-func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]*ebpf.Map, info bpfTracingInfo, bprogs *bpfProgs, fexit bool) error {
+func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]*ebpf.Map, info bpfTracingInfo, bprogs *bpfProgs, bothEntryExit, fexit bool) error {
 	spec = spec.Copy()
 
 	traceeName := info.fn.Name
@@ -352,7 +352,7 @@ func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]
 		bprogs.funcs[info.funcIP].argEntrySz = fnArgsBufSize
 	}
 
-	if err := setBpfsnoopConfig(spec, uint64(info.funcIP), len(info.params), fnArgsBufSize, argDataSize, false, fexit); err != nil {
+	if err := setBpfsnoopConfig(spec, uint64(info.funcIP), len(info.params), fnArgsBufSize, argDataSize, bothEntryExit, fexit); err != nil {
 		return fmt.Errorf("failed to set bpfsnoop config: %w", err)
 	}
 
