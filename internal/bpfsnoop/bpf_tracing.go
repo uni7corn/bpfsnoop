@@ -346,7 +346,11 @@ func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]
 	if err != nil {
 		return fmt.Errorf("failed to inject output func args: %w", err)
 	}
-	bprogs.funcs[info.funcIP].argsBufSz = fnArgsBufSize
+	if fexit {
+		bprogs.funcs[info.funcIP].argExitSz = fnArgsBufSize
+	} else {
+		bprogs.funcs[info.funcIP].argEntrySz = fnArgsBufSize
+	}
 
 	if err := setBpfsnoopConfig(spec, uint64(info.funcIP), len(info.params), fnArgsBufSize, argDataSize, false, fexit); err != nil {
 		return fmt.Errorf("failed to set bpfsnoop config: %w", err)
@@ -424,7 +428,11 @@ func (t *bpfTracing) traceFunc(spec *ebpf.CollectionSpec, reusedMaps map[string]
 	if err != nil {
 		return fmt.Errorf("failed to inject output func args: %w", err)
 	}
-	fn.Farg = fnArgsBufSize
+	if isExit {
+		fn.Exit = fnArgsBufSize
+	} else {
+		fn.Ent = fnArgsBufSize
+	}
 
 	if err := setBpfsnoopConfig(spec, fn.Ksym.addr, len(fn.Prms), fnArgsBufSize, argDataSize, bothEntryExit, withRet); err != nil {
 		return fmt.Errorf("failed to set bpfsnoop config: %w", err)

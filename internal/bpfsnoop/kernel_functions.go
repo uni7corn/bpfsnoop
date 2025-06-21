@@ -54,7 +54,8 @@ type KFunc struct {
 	Args []funcArgumentOutput
 	Prms []FuncParamFlags
 	Ret  FuncParamFlags
-	Farg int // fn args buffer size
+	Ent  int // fn args buffer size for fentry
+	Exit int // fn args buffer size for fexit
 	Data int // arg output data size
 	Insn bool
 	IsTp bool

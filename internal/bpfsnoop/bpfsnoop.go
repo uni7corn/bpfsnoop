@@ -136,9 +136,13 @@ func Run(reader *ringbuf.Reader, helpers *Helpers, maps map[string]*ebpf.Map, w 
 		}
 
 		withRetval := event.Type == eventTypeFuncExit
-		if fnInfo.argsBuf != 0 {
-			outputFnArgs(&sb, fnInfo, helpers, data[:fnInfo.argsBuf], findSymbol, withRetval)
-			data = data[fnInfo.argsBuf:]
+		argSz := fnInfo.argEntry
+		if withRetval {
+			argSz = fnInfo.argExit
+		}
+		if argSz != 0 {
+			outputFnArgs(&sb, fnInfo, helpers, data[:argSz], findSymbol, withRetval)
+			data = data[argSz:]
 		} else {
 			fmt.Fprint(&sb, "=()")
 			if withRetval {
