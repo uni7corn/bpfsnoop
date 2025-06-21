@@ -1,0 +1,11 @@
+# Copyright 2025 Leon Hwang.
+# SPDX-License-Identifier: Apache-2.0
+
+# These tests are for tracing function insns in the kernel.
+
+# icmp_rcv
+name: fninsn::icmp_rcv
+tag: fninsn,pkt
+test: -k '(i)icmp_rcv' --filter-pkt 'host 127.0.0.1' --trace-insn-debug-cnt 10
+match: andq	$0xfffffffffffffffe, %r12
+trigger: ping -c 1 -s 64 127.0.0.1

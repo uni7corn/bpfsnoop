@@ -1,0 +1,30 @@
+# Copyright 2025 Leon Hwang.
+# SPDX-License-Identifier: Apache-2.0
+
+# These tests are for internal cc.
+
+# pointer deref
+name: cc::ptr-deref
+tag: cc,ptr-deref,xdp
+test: -k dev_xdp_install --output-arg '*prog' --output-arg '*prog->aux' --output-arg '*prog->aux->used_maps[0]' --output-arg '*dev' --output-arg '*dev->netdev_ops'
+match: "type": BPF_PROG_TYPE_XDP
+trigger: ./xdpcrc -d lo
+
+---
+
+# *skb
+name: cc::*skb
+tag: cc,ptr-deref,pkt,tp
+test: -t netif_receive_skb --filter-pkt 'host 127.0.0.1 and icmp' --output-arg '*skb'
+match: "cb":
+trigger: ping -c 1 -s 64 127.0.0.1
+
+---
+
+# buf()
+name: cc::buf
+tag: cc,ptr-deref,pkt,tp
+test: -t netif_receive_skb --filter-pkt 'host 127.0.0.1 and icmp' --output-arg 'buf(skb->head + skb->mac_header, 34)' --output-arg 'buf(skb->cb, 4, 4)' --output-arg 'skb->mac_header' --output-arg 'skb->network_header'
+match: 0x7f,0x00,0x00,0x01,0x7f,0x00,0x00,0x01
+trigger: ping -c 1 -s 64 127.0.0.1
+

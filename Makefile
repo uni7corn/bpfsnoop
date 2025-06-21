@@ -70,10 +70,22 @@ publish: local_release
 	@$(CMD_MV) $(RELEASE_NOTES) $(DIR_BIN)/$(RELEASE_NOTES)
 	$(CMD_GH) release create $(VERSION) $(DIR_BIN)/$(BPFSNOOP_OBJ)-$(VERSION)-linux-amd64.tar.gz --title "bpfsnoop $(VERSION)" --notes-file $(DIR_BIN)/$(RELEASE_NOTES)
 
-.PHONY: test
-test:
+.PHONY: testcc
+testcc:
 	@go clean -testcache
 	GOEXPERIMENT=nocoverageredesign go test -race -timeout 60s -coverpkg=./internal/cc -coverprofile=coverage.txt -covermode atomic ./internal/cc
 	go tool cover -func=coverage.txt
 	@rm -f coverage.txt
 	@go clean -testcache
+
+$(LOCALTEST_OBJ): $(LOCALTEST_SRC)
+	$(GOBUILD) -o $(LOCALTEST_OBJ) ./cmd/localtest
+
+$(XDPCRC_OBJ):
+	$(BPF2GO) xdpcrc $(XDPCRC_DIR)/xdp.c -- $(BPF2GO_EXTRA_FLAGS)
+	$(GOBUILD) -o $(XDPCRC_OBJ) $(XDPCRC_DIR)
+
+.PHONY: testlocal
+testlocal: $(LOCALTEST_OBJ) $(XDPCRC_OBJ)
+	@$(CMD_IP) link set dev lo up
+	./$(LOCALTEST_OBJ) --test-dir ./t

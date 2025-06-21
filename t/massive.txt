@@ -1,0 +1,12 @@
+# Copyright 2025 Leon Hwang.
+# SPDX-License-Identifier: Apache-2.0
+
+# These tests are for tracing massive tps/kfuncs in the kernel.
+
+# kallsyms
+name: massive::kallsyms
+tag: massive,kfuncs
+test: -k 'kallsyms_*'
+match: kallsyms_open[ex]
+timeout: 10s
+trigger: grep -q icmp_rcv /proc/kallsyms

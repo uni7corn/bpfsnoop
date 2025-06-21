@@ -1,0 +1,11 @@
+# Copyright 2025 Leon Hwang.
+# SPDX-License-Identifier: Apache-2.0
+
+# These tests are for tracing kfuncs in the kernel.
+
+# icmp_rcv
+name: kfuncs::icmp_rcv
+tag: kfuncs,pkt,fnarg
+test: -k 'icmp_rcv' --filter-pkt 'host 127.0.0.1' --output-pkt --output-arg 'skb->dev->name' -m 'entry,exit'
+match: icmp_rcv[ex]
+trigger: ping -c 1 -s 64 127.0.0.1

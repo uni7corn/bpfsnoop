@@ -31,6 +31,8 @@ go.work
 
 /bpfsnoop
 /bpf/headers/vmlinux.h
+/localtest
+/xdpcrc
 
 /bin/*
 coverage.txt

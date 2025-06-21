@@ -8,6 +8,7 @@ CMD_CD ?= cd
 CMD_CHECKSUM ?= sha256sum
 CMD_CP ?= cp
 CMD_CXX ?= clang++
+CMD_IP ?= ip
 CMD_GH ?= gh
 CMD_MV ?= mv
 CMD_TAR ?= tar
@@ -68,3 +69,10 @@ LIBPCAP_OBJ := lib/libpcap/libpcap.a
 VMLINUX_OBJ := $(CURDIR)/bpf/headers/vmlinux.h
 
 GIT_MODULES_DIR := .git/modules
+
+LOCALTEST_OBJ := localtest
+LOCALTEST_SRC := $(shell find ./cmd/localtest/ -type f -name '*.go')
+
+XDPCRC_DIR := ./cmd/xdpcrc
+XDPCRC_OBJ := xdpcrc
+XDPCRC_SRC := $(wildcard $(XDPCRC_DIR)/cmd/xdpcrc/*.go) $(wildcard $(XDPCRC_DIR)/cmd/xdpcrc/*.c)

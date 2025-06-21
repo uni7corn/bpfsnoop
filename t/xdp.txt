@@ -1,0 +1,31 @@
+# Copyright 2025 Leon Hwang.
+# SPDX-License-Identifier: Apache-2.0
+
+# These tests are for tracing XDP programs in the kernel.
+
+# install XDP program
+name: xdp::dev_xdp_install
+tag: xdp,fnarg
+test: -k dev_xdp_install --output-arg 'prog->aux->id' --output-arg 'prog->aux->name' --output-arg 'prog->aux->used_maps[0]->map_type' --output-arg 'prog->aux->used_maps[0]->name' --output-arg 'dev->ifindex' --output-arg 'dev->name'
+match: (array(char[16]))'prog->aux->name'="crc"
+trigger: ./xdpcrc -d lo
+
+---
+
+# capture packets
+name: xdp::capture_packets
+tag: xdp,pkt,fnarg
+test: -p 'n:crc' --filter-pkt 'host 127.0.0.1 and icmp' --output-arg '*ctx' --output-arg 'buf(ctx->data, 34)'
+match: (struct xdp_buff)'*ctx'={"data":
+prerequisite: ./xdpcrc -d lo
+trigger: ping -c 1 -s 64 127.0.0.1
+
+---
+
+# both entry and exit mode
+name: xdp::entry_exit
+tag: xdp,pkt,fnarg
+test: -p 'n:crc' --filter-pkt 'host 127.0.0.1 and icmp' --output-arg '*ctx' --output-arg 'buf(ctx->data, 34)' -m 'entry,exit'
+match: crc[bpf][en]
+prerequisite: ./xdpcrc -d lo
+trigger: ping -c 1 -s 64 127.0.0.1

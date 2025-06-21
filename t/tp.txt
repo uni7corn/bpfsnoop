@@ -1,0 +1,12 @@
+# Copyright 2025 Leon Hwang.
+# SPDX-License-Identifier: Apache-2.0
+
+# These tests are for tracing tracepoints in the kernel.
+
+# netif_receive_skb
+name: tp::netif_receive_skb
+tag: tp,pkt,fnarg
+test: -t netif_receive_skb --filter-arg '1 == skb->dev->ifindex' --filter-pkt 'icmp' --output-pkt --output-arg 'skb->dev->name' --output-arg 'skb->cb[2]'
+match: skb->dev->name
+trigger: ping -c 1 -s 64 127.0.0.1
+timeout: 5s
