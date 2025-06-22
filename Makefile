@@ -81,8 +81,8 @@ testcc:
 $(LOCALTEST_OBJ): $(LOCALTEST_SRC)
 	$(GOBUILD) -o $(LOCALTEST_OBJ) ./cmd/localtest
 
-$(XDPCRC_OBJ):
-	$(BPF2GO) xdpcrc $(XDPCRC_DIR)/xdp.c -- $(BPF2GO_EXTRA_FLAGS)
+$(XDPCRC_OBJ): $(XDPCRC_SRC)
+	$(BPF2GO) xdp $(XDPCRC_DIR)/xdp.c -- $(BPF2GO_EXTRA_FLAGS) && mv ./xdp_bpf* $(XDPCRC_DIR)
 	$(GOBUILD) -o $(XDPCRC_OBJ) $(XDPCRC_DIR)
 
 .PHONY: testlocal
