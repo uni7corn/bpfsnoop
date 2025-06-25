@@ -356,124 +356,20 @@ func TestCompileEvalExpr(t *testing.T) {
 		test.AssertErrorPrefix(t, err, "function call must have a constant name")
 	})
 
-	t.Run("buf(skb->cb, x)", func(t *testing.T) {
+	t.Run("func call failed", func(t *testing.T) {
 		_, err := CompileEvalExpr(CompileExprOptions{
-			Expr:          "buf(skb, x)",
-			LabelExit:     "__label_exit",
-			Spec:          testBtf,
-			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
-			UsedRegisters: []asm.Register{asm.R8, asm.R9},
+			Expr:      "xxx(skb->cb)",
+			LabelExit: "__label_exit",
+			Spec:      testBtf,
+			Params: []btf.FuncParam{
+				{
+					Name: "skb",
+					Type: getSkbBtf(t),
+				},
+			},
 		})
 		test.AssertHaveErr(t, err)
-		test.AssertErrorPrefix(t, err, "buf() second argument must be a number")
-	})
-
-	t.Run("buf(skb->cb, 0xFFULL)", func(t *testing.T) {
-		_, err := CompileEvalExpr(CompileExprOptions{
-			Expr:          "buf(skb, 0xFFULL)",
-			LabelExit:     "__label_exit",
-			Spec:          testBtf,
-			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
-			UsedRegisters: []asm.Register{asm.R8, asm.R9},
-		})
-		test.AssertHaveErr(t, err)
-		test.AssertErrorPrefix(t, err, "buf() second argument must be a number: strconv.ParseUint")
-	})
-
-	t.Run("buf(skb->cb, 0xFF, a)", func(t *testing.T) {
-		_, err := CompileEvalExpr(CompileExprOptions{
-			Expr:          "buf(skb, 0xFF, a)",
-			LabelExit:     "__label_exit",
-			Spec:          testBtf,
-			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
-			UsedRegisters: []asm.Register{asm.R8, asm.R9},
-		})
-		test.AssertHaveErr(t, err)
-		test.AssertErrorPrefix(t, err, "buf() third argument must be a number")
-	})
-
-	t.Run("buf(skb->cb, 0xFF, 0xFFULL)", func(t *testing.T) {
-		_, err := CompileEvalExpr(CompileExprOptions{
-			Expr:          "buf(skb, 0xFF, 0xFFULL)",
-			LabelExit:     "__label_exit",
-			Spec:          testBtf,
-			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
-			UsedRegisters: []asm.Register{asm.R8, asm.R9},
-		})
-		test.AssertHaveErr(t, err)
-		test.AssertErrorPrefix(t, err, "buf() third argument must be a number: strconv.ParseUint")
-	})
-
-	t.Run("buf(skb->cb)", func(t *testing.T) {
-		_, err := CompileEvalExpr(CompileExprOptions{
-			Expr:          "buf(skb)",
-			LabelExit:     "__label_exit",
-			Spec:          testBtf,
-			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
-			UsedRegisters: []asm.Register{asm.R8, asm.R9},
-		})
-		test.AssertHaveErr(t, err)
-		test.AssertErrorPrefix(t, err, "buf() must have 2 or 3 arguments")
-	})
-
-	t.Run("buf(skb->cb, 0)", func(t *testing.T) {
-		_, err := CompileEvalExpr(CompileExprOptions{
-			Expr:          "buf(skb, 0)",
-			LabelExit:     "__label_exit",
-			Spec:          testBtf,
-			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
-			UsedRegisters: []asm.Register{asm.R8, asm.R9},
-		})
-		test.AssertHaveErr(t, err)
-		test.AssertErrorPrefix(t, err, "buf() size must be greater than 0")
-	})
-
-	t.Run("str(skb->cb, a, b)", func(t *testing.T) {
-		_, err := CompileEvalExpr(CompileExprOptions{
-			Expr:          "str(skb->cb, a, b)",
-			LabelExit:     "__label_exit",
-			Spec:          testBtf,
-			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
-			UsedRegisters: []asm.Register{asm.R8, asm.R9},
-		})
-		test.AssertHaveErr(t, err)
-		test.AssertErrorPrefix(t, err, "str() must have 1 or 2 arguments")
-	})
-
-	t.Run("str(skb->cb, a)", func(t *testing.T) {
-		_, err := CompileEvalExpr(CompileExprOptions{
-			Expr:          "str(skb->cb, a)",
-			LabelExit:     "__label_exit",
-			Spec:          testBtf,
-			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
-			UsedRegisters: []asm.Register{asm.R8, asm.R9},
-		})
-		test.AssertHaveErr(t, err)
-		test.AssertErrorPrefix(t, err, "str() second argument must be a number")
-	})
-
-	t.Run("str(skb->cb, 0xFFULL)", func(t *testing.T) {
-		_, err := CompileEvalExpr(CompileExprOptions{
-			Expr:          "str(skb->cb, 0xFFULL)",
-			LabelExit:     "__label_exit",
-			Spec:          testBtf,
-			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
-			UsedRegisters: []asm.Register{asm.R8, asm.R9},
-		})
-		test.AssertHaveErr(t, err)
-		test.AssertErrorPrefix(t, err, "str() second argument must be a number: strconv.ParseUint")
-	})
-
-	t.Run("str(skb->cb, 0)", func(t *testing.T) {
-		_, err := CompileEvalExpr(CompileExprOptions{
-			Expr:          "str(skb->cb, 0)",
-			LabelExit:     "__label_exit",
-			Spec:          testBtf,
-			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
-			UsedRegisters: []asm.Register{asm.R8, asm.R9},
-		})
-		test.AssertHaveErr(t, err)
-		test.AssertErrorPrefix(t, err, "str() size must be greater than 0")
+		test.AssertErrorPrefix(t, err, "failed to compile function call: unknown function call: xxx")
 	})
 
 	t.Run("eval failed", func(t *testing.T) {

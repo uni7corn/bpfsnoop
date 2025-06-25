@@ -148,64 +148,15 @@ func CompileEvalExpr(opts CompileExprOptions) (EvalResult, error) {
 			return res, fmt.Errorf("function call must have a constant name")
 		}
 
-		switch e.Left.Text {
-		case "buf":
-			switch len(e.List) {
-			case 2, 3:
-				if e.List[1].Op != cc.Number {
-					return res, fmt.Errorf("buf() second argument must be a number")
-				}
-
-				dataSize, err = parseNumber(e.List[1].Text)
-				if err != nil {
-					return res, fmt.Errorf("buf() second argument must be a number: %w", err)
-				}
-
-				if len(e.List) == 3 {
-					dataOffset = dataSize
-
-					if e.List[2].Op != cc.Number {
-						return res, fmt.Errorf("buf() third argument must be a number")
-					}
-					dataSize, err = parseNumber(e.List[2].Text)
-					if err != nil {
-						return res, fmt.Errorf("buf() third argument must be a number: %w", err)
-					}
-				}
-
-			default:
-				return res, fmt.Errorf("buf() must have 2 or 3 arguments")
-			}
-
-			if dataSize <= 0 {
-				return res, fmt.Errorf("buf() size must be greater than 0")
-			}
-
-			evaluatingExpr = e.List[0]
-			res.Type = EvalResultTypeBuf
-
-		case "str":
-			if len(e.List) != 1 && len(e.List) != 2 {
-				return res, fmt.Errorf("str() must have 1 or 2 arguments")
-			}
-
-			dataSize = -1
-			if len(e.List) == 2 {
-				if e.List[1].Op != cc.Number {
-					return res, fmt.Errorf("str() second argument must be a number")
-				}
-				dataSize, err = parseNumber(e.List[1].Text)
-				if err != nil {
-					return res, fmt.Errorf("str() second argument must be a number: %w", err)
-				}
-				if dataSize <= 0 {
-					return res, fmt.Errorf("str() size must be greater than 0")
-				}
-			}
-
-			evaluatingExpr = e.List[0]
-			res.Type = EvalResultTypeString
+		val, err := compileFuncCall(e)
+		if err != nil {
+			return res, fmt.Errorf("failed to compile function call: %w", err)
 		}
+
+		res.Type = val.typ
+		dataSize = val.dataSize
+		dataOffset = val.dataOffset
+		evaluatingExpr = val.expr
 	}
 
 	val, err := c.eval(evaluatingExpr)
