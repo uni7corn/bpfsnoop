@@ -21,12 +21,28 @@ const (
 	PktTypeUDP   = "udp"
 )
 
+const (
+	AddrTypeEth  = "eth"
+	AddrTypeEth2 = "eth2"
+	AddrTypeIP4  = "ip4"
+	AddrTypeIP42 = "ip42"
+	AddrTypeIP6  = "ip6"
+	AddrTypeIP62 = "ip62"
+)
+
+const (
+	EthAddrSize = 6
+	IP4AddrSize = 4
+	IP6AddrSize = 16
+)
+
 type funcCallValue struct {
 	typ        EvalResultType
 	expr       *cc.Expr
 	dataOffset int64
 	dataSize   int64
 	pkt        string
+	addr       string
 }
 
 func parseExprNumber(expr *cc.Expr) (int64, error) {
@@ -172,6 +188,51 @@ func compileFuncCall(expr *cc.Expr) (funcCallValue, error) {
 		}
 
 		val.typ = EvalResultTypePkt
+
+	case AddrTypeEth, AddrTypeEth2,
+		AddrTypeIP4, AddrTypeIP42,
+		AddrTypeIP6, AddrTypeIP62:
+		switch len(expr.List) {
+		case 1:
+			break
+
+		case 2:
+			val.dataOffset, err = parseExprNumber(expr.List[1])
+			if err != nil {
+				return val, fmt.Errorf("%s() second argument must be a number: %w", fnName, err)
+			}
+
+		default:
+			return val, fmt.Errorf("%s() must have 1 or 2 arguments", fnName)
+		}
+
+		switch fnName {
+		case AddrTypeEth:
+			val.dataSize = EthAddrSize // Ethernet address size
+			val.addr = AddrTypeEth
+
+		case AddrTypeEth2:
+			val.dataSize = EthAddrSize * 2 // Ethernet address size * 2
+			val.addr = AddrTypeEth2
+
+		case AddrTypeIP4:
+			val.dataSize = IP4AddrSize // IPv4 address size
+			val.addr = AddrTypeIP4
+
+		case AddrTypeIP42:
+			val.dataSize = IP4AddrSize * 2 // IPv4 address size * 2
+			val.addr = AddrTypeIP42
+
+		case AddrTypeIP6:
+			val.dataSize = IP6AddrSize // IPv6 address size
+			val.addr = AddrTypeIP6
+
+		case AddrTypeIP62:
+			val.dataSize = IP6AddrSize * 2 // IPv6 address size * 2
+			val.addr = AddrTypeIP62
+		}
+
+		val.typ = EvalResultTypeAddr
 
 	default:
 		return val, fmt.Errorf("unknown function call: %s", fnName)

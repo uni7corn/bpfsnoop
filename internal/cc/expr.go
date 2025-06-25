@@ -102,6 +102,7 @@ const (
 	EvalResultTypeBuf
 	EvalResultTypeString
 	EvalResultTypePkt
+	EvalResultTypeAddr
 )
 
 type EvalResult struct {
@@ -113,6 +114,7 @@ type EvalResult struct {
 	Size  int
 	Off   int
 	Pkt   string // pkt type, e.g. "eth", "ip4", "ip6", "icmp", "icmp6", "tcp" and "udp"
+	Addr  string // addr type, e.g. "eth", "eth2", "ip4", "ip42", "ip6", "ip62"
 
 	LabelUsed bool
 }
@@ -158,6 +160,7 @@ func CompileEvalExpr(opts CompileExprOptions) (EvalResult, error) {
 
 		res.Type = val.typ
 		res.Pkt = val.pkt
+		res.Addr = val.addr
 		dataSize = val.dataSize
 		dataOffset = val.dataOffset
 		evaluatingExpr = val.expr
@@ -219,7 +222,7 @@ func CompileEvalExpr(opts CompileExprOptions) (EvalResult, error) {
 		res.Size = int(dataSize)
 		res.Btf = t
 
-	case EvalResultTypePkt:
+	case EvalResultTypePkt, EvalResultTypeAddr:
 		t := mybtf.UnderlyingType(val.btf)
 		_, isPtr := t.(*btf.Pointer)
 		if !isPtr {

@@ -284,6 +284,92 @@ func TestCompileFuncCall(t *testing.T) {
 		})
 	})
 
+	t.Run("addr", func(t *testing.T) {
+		t.Run("eth(skb->data, 0xFFULL)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("eth(skb->data, 0xFFULL)")
+			test.AssertNoErr(t, err)
+
+			_, err = compileFuncCall(expr)
+			test.AssertHaveErr(t, err)
+			test.AssertErrorPrefix(t, err, "eth() second argument must be a number")
+		})
+
+		t.Run("eth(skb->data, 14, 20)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("eth(skb->data, 14, 20)")
+			test.AssertNoErr(t, err)
+
+			_, err = compileFuncCall(expr)
+			test.AssertHaveErr(t, err)
+			test.AssertErrorPrefix(t, err, "eth() must have 1 or 2 arguments")
+		})
+
+		t.Run("eth(skb->data)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("eth(skb->data)")
+			test.AssertNoErr(t, err)
+
+			val, err := compileFuncCall(expr)
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, val.typ, EvalResultTypeAddr)
+			test.AssertEqual(t, val.addr, AddrTypeEth)
+			test.AssertEqual(t, val.dataSize, EthAddrSize)
+		})
+
+		t.Run("eth2(skb->data)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("eth2(skb->data)")
+			test.AssertNoErr(t, err)
+
+			val, err := compileFuncCall(expr)
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, val.typ, EvalResultTypeAddr)
+			test.AssertEqual(t, val.addr, AddrTypeEth2)
+			test.AssertEqual(t, val.dataSize, EthAddrSize*2)
+		})
+
+		t.Run("ip4(skb->data)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("ip4(skb->data)")
+			test.AssertNoErr(t, err)
+
+			val, err := compileFuncCall(expr)
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, val.typ, EvalResultTypeAddr)
+			test.AssertEqual(t, val.addr, AddrTypeIP4)
+			test.AssertEqual(t, val.dataSize, IP4AddrSize)
+		})
+
+		t.Run("ip42(skb->data)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("ip42(skb->data)")
+			test.AssertNoErr(t, err)
+
+			val, err := compileFuncCall(expr)
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, val.typ, EvalResultTypeAddr)
+			test.AssertEqual(t, val.addr, AddrTypeIP42)
+			test.AssertEqual(t, val.dataSize, IP4AddrSize*2)
+		})
+
+		t.Run("ip6(skb->data)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("ip6(skb->data)")
+			test.AssertNoErr(t, err)
+
+			val, err := compileFuncCall(expr)
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, val.typ, EvalResultTypeAddr)
+			test.AssertEqual(t, val.addr, AddrTypeIP6)
+			test.AssertEqual(t, val.dataSize, IP6AddrSize)
+		})
+
+		t.Run("ip62(skb->data)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("ip62(skb->data)")
+			test.AssertNoErr(t, err)
+
+			val, err := compileFuncCall(expr)
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, val.typ, EvalResultTypeAddr)
+			test.AssertEqual(t, val.addr, AddrTypeIP62)
+			test.AssertEqual(t, val.dataSize, IP6AddrSize*2)
+		})
+	})
+
 	t.Run("unsupported func call", func(t *testing.T) {
 		expr, err := cc.ParseExpr("unsupported(skb->cb)")
 		test.AssertNoErr(t, err)
