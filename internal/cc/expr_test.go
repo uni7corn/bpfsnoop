@@ -600,4 +600,39 @@ func TestCompileEvalExpr(t *testing.T) {
 			asm.RSh.Imm(asm.R7, 32),
 		})
 	})
+
+	t.Run("pkt(skb->len, 4)", func(t *testing.T) {
+		_, err := CompileEvalExpr(CompileExprOptions{
+			Expr:          "pkt(skb->len, 4)",
+			LabelExit:     "__label_exit",
+			Spec:          testBtf,
+			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
+			UsedRegisters: []asm.Register{asm.R8, asm.R9},
+		})
+		test.AssertHaveErr(t, err)
+		test.AssertErrorPrefix(t, err, `disallow non-pointer type Int:"unsigned int"[unsigned size=4] for pkt()`)
+	})
+
+	t.Run("pkt(skb->data, 34)", func(t *testing.T) {
+		res, err := CompileEvalExpr(CompileExprOptions{
+			Expr:          "pkt(skb->data, 34)",
+			LabelExit:     "__label_exit",
+			Spec:          testBtf,
+			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
+			UsedRegisters: []asm.Register{asm.R8, asm.R9},
+		})
+		test.AssertNoErr(t, err)
+		test.AssertEqual(t, res.Type, EvalResultTypePkt)
+		test.AssertEqual(t, res.Size, 34)
+		test.AssertEqualSlice(t, res.Insns, []asm.Instruction{
+			asm.LoadMem(asm.R7, asm.R9, 0, asm.DWord),
+			asm.Mov.Reg(asm.R3, asm.R7),
+			asm.Add.Imm(asm.R3, 208),
+			asm.Mov.Imm(asm.R2, 8),
+			asm.Mov.Reg(asm.R1, asm.RFP),
+			asm.Add.Imm(asm.R1, -8),
+			asm.FnProbeReadKernel.Call(),
+			asm.LoadMem(asm.R7, asm.RFP, -8, asm.DWord),
+		})
+	})
 }

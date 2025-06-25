@@ -37,9 +37,7 @@ func parseNumber(text string) (int64, error) {
 	if isMinus {
 		text = text[1:]
 	}
-	if strings.HasPrefix(text, "+") {
-		text = text[1:]
-	}
+	text = strings.TrimPrefix(text, "+")
 
 	n, err := parseUnsigned(text)
 	if err != nil {

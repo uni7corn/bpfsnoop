@@ -101,6 +101,7 @@ const (
 	EvalResultTypeDeref
 	EvalResultTypeBuf
 	EvalResultTypeString
+	EvalResultTypePkt
 )
 
 type EvalResult struct {
@@ -111,6 +112,7 @@ type EvalResult struct {
 	Type  EvalResultType
 	Size  int
 	Off   int
+	Pkt   string // pkt type, e.g. "eth", "ip4", "ip6", "icmp", "icmp6", "tcp" and "udp"
 
 	LabelUsed bool
 }
@@ -137,6 +139,7 @@ func CompileEvalExpr(opts CompileExprOptions) (EvalResult, error) {
 	dataOffset := int64(0)
 	dataSize := int64(0)
 
+	var fnName string
 	evaluatingExpr := e
 	switch e.Op {
 	case cc.Indir:
@@ -154,9 +157,11 @@ func CompileEvalExpr(opts CompileExprOptions) (EvalResult, error) {
 		}
 
 		res.Type = val.typ
+		res.Pkt = val.pkt
 		dataSize = val.dataSize
 		dataOffset = val.dataOffset
 		evaluatingExpr = val.expr
+		fnName = e.Left.Text
 	}
 
 	val, err := c.eval(evaluatingExpr)
@@ -188,7 +193,7 @@ func CompileEvalExpr(opts CompileExprOptions) (EvalResult, error) {
 		_, isPtr := t.(*btf.Pointer)
 		_, isArray := t.(*btf.Array)
 		if !isPtr && !isArray {
-			return res, fmt.Errorf("disallow non-{pointer,array} type %v for buf()", t)
+			return res, fmt.Errorf("disallow non-{pointer,array} type %v for %s()", t, fnName)
 		}
 
 		res.Off = int(dataOffset)
@@ -200,7 +205,7 @@ func CompileEvalExpr(opts CompileExprOptions) (EvalResult, error) {
 		_, isPtr := t.(*btf.Pointer)
 		arr, isArray := t.(*btf.Array)
 		if !isPtr && !isArray {
-			return res, fmt.Errorf("disallow non-{pointer,array} type %v for str()", t)
+			return res, fmt.Errorf("disallow non-{pointer,array} type %v for %s()", t, fnName)
 		}
 
 		if dataSize == -1 {
@@ -211,6 +216,17 @@ func CompileEvalExpr(opts CompileExprOptions) (EvalResult, error) {
 			}
 		}
 
+		res.Size = int(dataSize)
+		res.Btf = t
+
+	case EvalResultTypePkt:
+		t := mybtf.UnderlyingType(val.btf)
+		_, isPtr := t.(*btf.Pointer)
+		if !isPtr {
+			return res, fmt.Errorf("disallow non-pointer type %v for %s()", t, fnName)
+		}
+
+		res.Off = int(dataOffset)
 		res.Size = int(dataSize)
 		res.Btf = t
 
