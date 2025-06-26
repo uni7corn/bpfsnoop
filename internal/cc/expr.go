@@ -103,6 +103,7 @@ const (
 	EvalResultTypePkt
 	EvalResultTypeAddr
 	EvalResultTypePort
+	EvalResultTypeSlice
 )
 
 type EvalResult struct {

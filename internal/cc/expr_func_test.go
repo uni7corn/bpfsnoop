@@ -406,6 +406,19 @@ func TestCompileFuncCall(t *testing.T) {
 		})
 	})
 
+	t.Run("slice", func(t *testing.T) {
+		t.Run("slice(skb->cb, 4, 4)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("slice(skb->cb, 4, 4)")
+			test.AssertNoErr(t, err)
+
+			val, err := compileFuncCall(expr)
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, val.typ, EvalResultTypeSlice)
+			test.AssertEqual(t, val.dataSize, int64(4))
+			test.AssertEqual(t, val.dataOffset, int64(4))
+		})
+	})
+
 	t.Run("unsupported func call", func(t *testing.T) {
 		expr, err := cc.ParseExpr("unsupported(skb->cb)")
 		test.AssertNoErr(t, err)
@@ -599,6 +612,69 @@ func TestPostCheckFuncCall(t *testing.T) {
 			test.AssertNoErr(t, err)
 			test.AssertEqual(t, res.Btf, val.btf)
 			test.AssertEqual(t, res.Size, int(64))
+		})
+	})
+
+	t.Run("slice", func(t *testing.T) {
+		t.Run("invalid btf type", func(t *testing.T) {
+			res := &EvalResult{
+				Type: EvalResultTypeSlice,
+			}
+			val := evalValue{
+				btf: &btf.Void{},
+			}
+
+			err := postCheckFuncCall(res, val, 0, 0, "slice")
+			test.AssertHaveErr(t, err)
+			test.AssertErrorPrefix(t, err, "disallow non-{pointer,array} type Void for slice()")
+		})
+
+		t.Run("zero size", func(t *testing.T) {
+			res := &EvalResult{
+				Type: EvalResultTypeSlice,
+			}
+			val := evalValue{
+				btf: &btf.Pointer{
+					Target: &btf.Void{},
+				},
+			}
+
+			err := postCheckFuncCall(res, val, 0, 0, "slice")
+			test.AssertHaveErr(t, err)
+			test.AssertErrorPrefix(t, err, "disallow zero size type Void for slice()")
+		})
+
+		t.Run("ptr", func(t *testing.T) {
+			res := &EvalResult{
+				Type: EvalResultTypeSlice,
+			}
+			val := evalValue{
+				btf: &btf.Pointer{
+					Target: getU32Btf(t),
+				},
+			}
+
+			err := postCheckFuncCall(res, val, 0, 8, "slice")
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, res.Btf, val.btf.(*btf.Pointer).Target)
+			test.AssertEqual(t, res.Size, int(8*4))
+		})
+
+		t.Run("arr", func(t *testing.T) {
+			res := &EvalResult{
+				Type: EvalResultTypeSlice,
+			}
+			val := evalValue{
+				btf: &btf.Array{
+					Type:   getU32Btf(t),
+					Nelems: 8,
+				},
+			}
+
+			err := postCheckFuncCall(res, val, 0, 8, "slice")
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, res.Btf, val.btf.(*btf.Array).Type)
+			test.AssertEqual(t, res.Size, int(8*4))
 		})
 	})
 

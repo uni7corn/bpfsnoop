@@ -76,7 +76,7 @@ func compileFuncCall(expr *cc.Expr) (funcCallValue, error) {
 
 	fnName := expr.Left.Text
 	switch fnName {
-	case "buf":
+	case "buf", "slice":
 		switch len(expr.List) {
 		case 2, 3:
 			val.dataSize, err = parseExprNumber(expr.List[1])
@@ -102,6 +102,9 @@ func compileFuncCall(expr *cc.Expr) (funcCallValue, error) {
 		}
 
 		val.typ = EvalResultTypeBuf
+		if fnName == "slice" {
+			val.typ = EvalResultTypeSlice
+		}
 
 	case "str":
 		if len(expr.List) != 1 && len(expr.List) != 2 {
@@ -327,6 +330,27 @@ func postCheckFuncCall(res *EvalResult, val evalValue, dataOffset, dataSize int6
 		res.Off = int(dataOffset)
 		res.Size = int(dataSize)
 		res.Btf = t
+
+	case EvalResultTypeSlice:
+		t := mybtf.UnderlyingType(val.btf)
+		ptr, isPtr := t.(*btf.Pointer)
+		arr, isArray := t.(*btf.Array)
+		if !isPtr && !isArray {
+			return fmt.Errorf("disallow non-{pointer,array} type %v for %s()", t, fnName)
+		}
+
+		if isPtr {
+			res.Btf = ptr.Target
+		} else if isArray {
+			res.Btf = arr.Type
+		}
+		size, _ := btf.Sizeof(res.Btf)
+		if size == 0 {
+			return fmt.Errorf("disallow zero size type %v for %s()", res.Btf, fnName)
+		}
+
+		res.Off = int(dataOffset) * size
+		res.Size = int(dataSize) * size
 
 	default:
 		res.Btf = val.btf
