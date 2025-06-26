@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/Asphaltt/mybtf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/btf"
 	"rsc.io/c2go/cc"
@@ -178,67 +177,8 @@ func CompileEvalExpr(opts CompileExprOptions) (EvalResult, error) {
 		return res, fmt.Errorf("disallow constant value (%d) expression: '%s'", val.num, opts.Expr)
 	}
 
-	switch res.Type {
-	case EvalResultTypeDeref:
-		t := mybtf.UnderlyingType(val.btf)
-		ptr, ok := t.(*btf.Pointer)
-		if !ok {
-			return res, fmt.Errorf("disallow non-pointer type %v for struct/union pointer dereference", t)
-		}
-
-		size, _ := btf.Sizeof(ptr.Target)
-		if size == 0 {
-			return res, fmt.Errorf("disallow zero size type %v for struct/union pointer dereference", ptr.Target)
-		}
-
-		res.Btf = ptr.Target
-		res.Size = size
-
-	case EvalResultTypeBuf:
-		t := mybtf.UnderlyingType(val.btf)
-		_, isPtr := t.(*btf.Pointer)
-		_, isArray := t.(*btf.Array)
-		if !isPtr && !isArray {
-			return res, fmt.Errorf("disallow non-{pointer,array} type %v for %s()", t, fnName)
-		}
-
-		res.Off = int(dataOffset)
-		res.Size = int(dataSize)
-		res.Btf = t
-
-	case EvalResultTypeString:
-		t := mybtf.UnderlyingType(val.btf)
-		_, isPtr := t.(*btf.Pointer)
-		arr, isArray := t.(*btf.Array)
-		if !isPtr && !isArray {
-			return res, fmt.Errorf("disallow non-{pointer,array} type %v for %s()", t, fnName)
-		}
-
-		if dataSize == -1 {
-			if isPtr {
-				dataSize = 64
-			} else {
-				dataSize = int64(arr.Nelems)
-			}
-		}
-
-		res.Size = int(dataSize)
-		res.Btf = t
-
-	case EvalResultTypePkt, EvalResultTypeAddr, EvalResultTypePort:
-		t := mybtf.UnderlyingType(val.btf)
-		_, isPtr := t.(*btf.Pointer)
-		if !isPtr {
-			return res, fmt.Errorf("disallow non-pointer type %v for %s()", t, fnName)
-		}
-
-		res.Off = int(dataOffset)
-		res.Size = int(dataSize)
-		res.Btf = t
-
-	default:
-		res.Btf = val.btf
-		res.Mem = val.mem
+	if err := postCheckFuncCall(&res, val, dataOffset, dataSize, fnName); err != nil {
+		return res, err
 	}
 
 	res.Insns = c.insns

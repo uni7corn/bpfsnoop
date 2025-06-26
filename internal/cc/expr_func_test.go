@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/bpfsnoop/bpfsnoop/internal/test"
+	"github.com/cilium/ebpf/btf"
 	"rsc.io/c2go/cc"
 )
 
@@ -92,6 +93,17 @@ func TestCompileFuncCall(t *testing.T) {
 			_, err = compileFuncCall(expr)
 			test.AssertHaveErr(t, err)
 			test.AssertErrorPrefix(t, err, "buf() size must be greater than 0")
+		})
+
+		t.Run("buf(skb->cb, 14)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("buf(skb->cb, 14)")
+			test.AssertNoErr(t, err)
+
+			val, err := compileFuncCall(expr)
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, val.typ, EvalResultTypeBuf)
+			test.AssertEqual(t, val.dataSize, 14)
+			test.AssertEqual(t, val.dataOffset, 0)
 		})
 	})
 
@@ -401,5 +413,206 @@ func TestCompileFuncCall(t *testing.T) {
 		_, err = compileFuncCall(expr)
 		test.AssertHaveErr(t, err)
 		test.AssertErrorPrefix(t, err, "unknown function call: unsupported")
+	})
+}
+
+func TestPostCheckFuncCall(t *testing.T) {
+	t.Run("disallow member bitfield", func(t *testing.T) {
+		res := &EvalResult{
+			Type: EvalResultTypeDeref,
+		}
+		val := evalValue{
+			mem: &btf.Member{Offset: 0, BitfieldSize: 1},
+		}
+
+		err := postCheckFuncCall(res, val, 0, 0, "deref")
+		test.AssertHaveErr(t, err)
+		test.AssertErrorPrefix(t, err, "disallow member bitfield for deref()")
+	})
+
+	t.Run("deref", func(t *testing.T) {
+		t.Run("invalid btf type", func(t *testing.T) {
+			res := &EvalResult{
+				Type: EvalResultTypeDeref,
+			}
+			val := evalValue{
+				btf: &btf.Void{},
+			}
+
+			err := postCheckFuncCall(res, val, 0, 0, "deref")
+			test.AssertHaveErr(t, err)
+			test.AssertErrorPrefix(t, err, "disallow non-pointer type Void for pointer dereference")
+		})
+
+		t.Run("invalid ptr target btf type", func(t *testing.T) {
+			res := &EvalResult{
+				Type: EvalResultTypeDeref,
+			}
+			val := evalValue{
+				btf: &btf.Pointer{
+					Target: &btf.Void{},
+				},
+			}
+
+			err := postCheckFuncCall(res, val, 0, 0, "deref")
+			test.AssertHaveErr(t, err)
+			test.AssertErrorPrefix(t, err, "disallow zero size type Void for pointer dereference")
+		})
+
+		t.Run("valid btf type", func(t *testing.T) {
+			res := &EvalResult{
+				Type: EvalResultTypeDeref,
+			}
+			val := evalValue{
+				btf: &btf.Pointer{
+					Target: getU32Btf(t),
+				},
+			}
+
+			err := postCheckFuncCall(res, val, 0, 0, "deref")
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, res.Btf, val.btf.(*btf.Pointer).Target)
+			test.AssertEqual(t, res.Size, int(4)) // int size
+		})
+	})
+
+	t.Run("buf", func(t *testing.T) {
+		t.Run("invalid btf type", func(t *testing.T) {
+			res := &EvalResult{
+				Type: EvalResultTypeBuf,
+			}
+			val := evalValue{
+				btf: &btf.Void{},
+			}
+
+			err := postCheckFuncCall(res, val, 0, 0, "buf")
+			test.AssertHaveErr(t, err)
+			test.AssertErrorPrefix(t, err, "disallow non-{pointer,array} type Void for buf()")
+		})
+
+		t.Run("valid btf type", func(t *testing.T) {
+			res := &EvalResult{
+				Type: EvalResultTypeBuf,
+			}
+			val := evalValue{
+				btf: &btf.Pointer{
+					Target: getU8Btf(t),
+				},
+			}
+
+			err := postCheckFuncCall(res, val, 0, 8, "buf")
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, res.Btf, val.btf)
+			test.AssertEqual(t, res.Size, int(8))
+		})
+	})
+
+	t.Run("str", func(t *testing.T) {
+		t.Run("invalid btf type", func(t *testing.T) {
+			res := &EvalResult{
+				Type: EvalResultTypeString,
+			}
+			val := evalValue{
+				btf: &btf.Void{},
+			}
+
+			err := postCheckFuncCall(res, val, 0, 0, "str")
+			test.AssertHaveErr(t, err)
+			test.AssertErrorPrefix(t, err, "disallow non-{pointer,array} type Void for str()")
+		})
+
+		t.Run("ptr", func(t *testing.T) {
+			res := &EvalResult{
+				Type: EvalResultTypeString,
+			}
+			val := evalValue{
+				btf: &btf.Pointer{
+					Target: getU8Btf(t),
+				},
+			}
+
+			err := postCheckFuncCall(res, val, 0, -1, "str")
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, res.Btf, val.btf)
+			test.AssertEqual(t, res.Size, int(64))
+		})
+
+		t.Run("invalid array type", func(t *testing.T) {
+			res := &EvalResult{
+				Type: EvalResultTypeString,
+			}
+			val := evalValue{
+				btf: &btf.Array{
+					Type:   &btf.Void{},
+					Nelems: 8,
+				},
+			}
+
+			err := postCheckFuncCall(res, val, 0, -1, "str")
+			test.AssertHaveErr(t, err)
+			test.AssertErrorPrefix(t, err, "disallow non-1-byte-size type Void for str()")
+		})
+
+		t.Run("arr", func(t *testing.T) {
+			res := &EvalResult{
+				Type: EvalResultTypeString,
+			}
+			val := evalValue{
+				btf: &btf.Array{
+					Type:   getU8Btf(t),
+					Nelems: 8,
+				},
+			}
+
+			err := postCheckFuncCall(res, val, 0, -1, "str")
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, res.Btf, val.btf)
+			test.AssertEqual(t, res.Size, int(8))
+		})
+	})
+
+	t.Run("pkt,...", func(t *testing.T) {
+		t.Run("invalid btf type", func(t *testing.T) {
+			res := &EvalResult{
+				Type: EvalResultTypePkt,
+			}
+			val := evalValue{
+				btf: &btf.Void{},
+			}
+
+			err := postCheckFuncCall(res, val, 0, 0, "pkt")
+			test.AssertHaveErr(t, err)
+			test.AssertErrorPrefix(t, err, "disallow non-pointer type Void for pkt()")
+		})
+
+		t.Run("valid btf type", func(t *testing.T) {
+			res := &EvalResult{
+				Type: EvalResultTypePkt,
+			}
+			val := evalValue{
+				btf: &btf.Pointer{
+					Target: getU8Btf(t),
+				},
+			}
+
+			err := postCheckFuncCall(res, val, 0, 64, "pkt")
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, res.Btf, val.btf)
+			test.AssertEqual(t, res.Size, int(64))
+		})
+	})
+
+	t.Run("default", func(t *testing.T) {
+		res := &EvalResult{
+			Type: EvalResultTypeDefault,
+		}
+		val := evalValue{
+			btf: &btf.Void{},
+		}
+
+		err := postCheckFuncCall(res, val, 0, 0, "default")
+		test.AssertNoErr(t, err)
+		test.AssertEqual(t, res.Btf, val.btf)
+		test.AssertEqual(t, res.Size, int(0))
 	})
 }

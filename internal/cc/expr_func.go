@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/Asphaltt/mybtf"
+	"github.com/cilium/ebpf/btf"
 	"rsc.io/c2go/cc"
 )
 
@@ -257,4 +259,79 @@ func compileFuncCall(expr *cc.Expr) (funcCallValue, error) {
 	}
 
 	return val, err
+}
+
+func postCheckFuncCall(res *EvalResult, val evalValue, dataOffset, dataSize int64, fnName string) error {
+	if res.Type != EvalResultTypeDefault && isMemberBitfield(val.mem) {
+		return fmt.Errorf("disallow member bitfield for %s()", fnName)
+	}
+
+	switch res.Type {
+	case EvalResultTypeDeref:
+		t := mybtf.UnderlyingType(val.btf)
+		ptr, ok := t.(*btf.Pointer)
+		if !ok {
+			return fmt.Errorf("disallow non-pointer type %v for pointer dereference", t)
+		}
+
+		size, _ := btf.Sizeof(ptr.Target)
+		if size == 0 {
+			return fmt.Errorf("disallow zero size type %v for pointer dereference", ptr.Target)
+		}
+
+		res.Btf = ptr.Target
+		res.Size = size
+
+	case EvalResultTypeBuf:
+		t := mybtf.UnderlyingType(val.btf)
+		_, isPtr := t.(*btf.Pointer)
+		_, isArray := t.(*btf.Array)
+		if !isPtr && !isArray {
+			return fmt.Errorf("disallow non-{pointer,array} type %v for %s()", t, fnName)
+		}
+
+		res.Off = int(dataOffset)
+		res.Size = int(dataSize)
+		res.Btf = t
+
+	case EvalResultTypeString:
+		t := mybtf.UnderlyingType(val.btf)
+		_, isPtr := t.(*btf.Pointer)
+		arr, isArray := t.(*btf.Array)
+		if !isPtr && !isArray {
+			return fmt.Errorf("disallow non-{pointer,array} type %v for %s()", t, fnName)
+		}
+
+		if dataSize == -1 {
+			if isPtr {
+				dataSize = 64
+			} else {
+				size, _ := btf.Sizeof(arr.Type)
+				if size != 1 {
+					return fmt.Errorf("disallow non-1-byte-size type %v for %s()", arr.Type, fnName)
+				}
+				dataSize = int64(arr.Nelems)
+			}
+		}
+
+		res.Size = int(dataSize)
+		res.Btf = t
+
+	case EvalResultTypePkt, EvalResultTypeAddr, EvalResultTypePort:
+		t := mybtf.UnderlyingType(val.btf)
+		_, isPtr := t.(*btf.Pointer)
+		if !isPtr {
+			return fmt.Errorf("disallow non-pointer type %v for %s()", t, fnName)
+		}
+
+		res.Off = int(dataOffset)
+		res.Size = int(dataSize)
+		res.Btf = t
+
+	default:
+		res.Btf = val.btf
+		res.Mem = val.mem
+	}
+
+	return nil
 }
