@@ -52,6 +52,7 @@ type funcArgumentOutput struct {
 	addrType string
 	isPort   bool
 	portType string
+	isSlice  bool
 }
 
 type argDataOutput struct {
@@ -273,7 +274,7 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, o
 		offset, err = arg.genDerefInsns(&res, offset, size, labelExit)
 
 	case cc.EvalResultTypeBuf, cc.EvalResultTypeString, cc.EvalResultTypePkt,
-		cc.EvalResultTypeAddr, cc.EvalResultTypePort:
+		cc.EvalResultTypeAddr, cc.EvalResultTypePort, cc.EvalResultTypeSlice:
 		arg.isBuf = res.Type == cc.EvalResultTypeBuf
 		arg.isString = res.Type == cc.EvalResultTypeString
 		arg.isPkt = res.Type == cc.EvalResultTypePkt
@@ -282,6 +283,7 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, o
 		arg.addrType = res.Addr
 		arg.isPort = res.Type == cc.EvalResultTypePort
 		arg.portType = res.Port
+		arg.isSlice = res.Type == cc.EvalResultTypeSlice
 		offset, err = arg.genBufInsns(&res, offset, size, labelExit)
 
 	default:

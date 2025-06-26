@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Asphaltt/mybtf"
+	"github.com/cilium/ebpf/btf"
 	"github.com/fatih/color"
 	"github.com/gopacket/gopacket"
 	"github.com/gopacket/gopacket/layers"
@@ -139,6 +140,27 @@ func outputFuncArgAttrs(sb *strings.Builder, info *funcInfo, data []byte, f btfx
 					be.Uint16(data[:cc.PortSize]),
 					be.Uint16(data[cc.PortSize:cc.PortSize*2]))
 			}
+
+		case arg.isSlice:
+			size, _ := btf.Sizeof(arg.t)
+			cnt := arg.trueDataSize / size
+
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("(%s)'%s'=[", btfx.Repr(arg.t), arg.expr))
+			for i := range cnt {
+				dd, err := mybtf.DumpData(arg.t, data[i*size:(i+1)*size])
+				if err != nil {
+					return fmt.Errorf("failed to dump slice data: %w", err)
+				}
+
+				if i != 0 {
+					sb.WriteString(",")
+				}
+				sb.WriteString(dd)
+			}
+			sb.WriteString("]")
+
+			s = sb.String()
 		}
 
 		if s != "" {

@@ -55,3 +55,12 @@ test: -t netif_receive_skb --filter-pkt 'host 127.0.0.1 and tcp' --output-arg 'p
 match: (unsigned char *)'port(skb->head + skb->transport_header)'=8081
 prerequisite: python3 -m http.server 8081
 trigger: curl -s http://127.0.0.1:8081 --output /dev/null
+
+---
+
+# slice()
+name: cc::slice
+tag: cc,slice
+test: -k dev_xdp_install --output-arg 'slice(prog->aux->used_maps, 1)'
+match: (struct bpf_map *)'slice(prog->aux->used_maps, 1)'=[0xffff
+trigger: ./xdpcrc -d lo
