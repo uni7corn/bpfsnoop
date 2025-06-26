@@ -370,6 +370,30 @@ func TestCompileFuncCall(t *testing.T) {
 		})
 	})
 
+	t.Run("port", func(t *testing.T) {
+		t.Run("port(skb->data + 14 + 20)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("port(skb->data + 14 + 20)")
+			test.AssertNoErr(t, err)
+
+			val, err := compileFuncCall(expr)
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, val.typ, EvalResultTypePort)
+			test.AssertEqual(t, val.port, Port)
+			test.AssertEqual(t, val.dataSize, PortSize)
+		})
+
+		t.Run("port2(skb->data + 14 + 20)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("port2(skb->data + 14 + 20)")
+			test.AssertNoErr(t, err)
+
+			val, err := compileFuncCall(expr)
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, val.typ, EvalResultTypePort)
+			test.AssertEqual(t, val.port, Port2)
+			test.AssertEqual(t, val.dataSize, PortSize*2)
+		})
+	})
+
 	t.Run("unsupported func call", func(t *testing.T) {
 		expr, err := cc.ParseExpr("unsupported(skb->cb)")
 		test.AssertNoErr(t, err)

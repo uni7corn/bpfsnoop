@@ -28,12 +28,17 @@ const (
 	AddrTypeIP42 = "ip42"
 	AddrTypeIP6  = "ip6"
 	AddrTypeIP62 = "ip62"
+
+	Port  = "port"
+	Port2 = "port2"
 )
 
 const (
 	EthAddrSize = 6
 	IP4AddrSize = 4
 	IP6AddrSize = 16
+
+	PortSize = 2 // TCP/UDP port size
 )
 
 type funcCallValue struct {
@@ -43,6 +48,7 @@ type funcCallValue struct {
 	dataSize   int64
 	pkt        string
 	addr       string
+	port       string
 }
 
 func parseExprNumber(expr *cc.Expr) (int64, error) {
@@ -191,7 +197,8 @@ func compileFuncCall(expr *cc.Expr) (funcCallValue, error) {
 
 	case AddrTypeEth, AddrTypeEth2,
 		AddrTypeIP4, AddrTypeIP42,
-		AddrTypeIP6, AddrTypeIP62:
+		AddrTypeIP6, AddrTypeIP62,
+		Port, Port2:
 		switch len(expr.List) {
 		case 1:
 			break
@@ -230,9 +237,20 @@ func compileFuncCall(expr *cc.Expr) (funcCallValue, error) {
 		case AddrTypeIP62:
 			val.dataSize = IP6AddrSize * 2 // IPv6 address size * 2
 			val.addr = AddrTypeIP62
+
+		case Port:
+			val.dataSize = PortSize // TCP/UDP port size
+			val.port = Port
+
+		case Port2:
+			val.dataSize = PortSize * 2 // TCP/UDP port size * 2
+			val.port = Port2
 		}
 
 		val.typ = EvalResultTypeAddr
+		if fnName == Port || fnName == Port2 {
+			val.typ = EvalResultTypePort
+		}
 
 	default:
 		return val, fmt.Errorf("unknown function call: %s", fnName)
