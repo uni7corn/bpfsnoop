@@ -4,6 +4,7 @@
 package bpfsnoop
 
 import (
+	"encoding/hex"
 	"fmt"
 	"net"
 	"strings"
@@ -161,6 +162,10 @@ func outputFuncArgAttrs(sb *strings.Builder, info *funcInfo, data []byte, f btfx
 			sb.WriteString("]")
 
 			s = sb.String()
+
+		case arg.isHex:
+			s = fmt.Sprintf("(%s)'%s'=%s", btfx.Repr(arg.t), arg.expr,
+				hex.EncodeToString(data[:arg.trueDataSize]))
 		}
 
 		if s != "" {

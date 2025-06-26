@@ -64,3 +64,12 @@ tag: cc,slice
 test: -k dev_xdp_install --output-arg 'slice(prog->aux->used_maps, 1)'
 match: (struct bpf_map *)'slice(prog->aux->used_maps, 1)'=[0xffff
 trigger: ./xdpcrc -d lo
+
+---
+
+# hex()
+name: cc::hex
+tag: cc,hex
+test: -t netif_receive_skb --filter-pkt 'host 127.0.0.1 and icmp' --output-arg 'hex(skb->head + skb->network_header + 12, 8)'
+match: (unsigned char *)'hex(skb->head + skb->network_header + 12, 8)'=7f0000017f000001
+trigger: ping -c 1 -s 64 127.0.0.1
