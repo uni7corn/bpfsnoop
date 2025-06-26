@@ -55,81 +55,93 @@ func outputFuncArgAttrs(sb *strings.Builder, info *funcInfo, data []byte, f btfx
 			continue
 		}
 
-		if arg.isDeref || arg.isBuf || arg.isString || arg.isPkt || arg.isAddr {
-			var (
-				s   string
-				err error
-			)
+		var (
+			s   string
+			err error
+		)
 
-			switch {
-			case arg.isDeref:
-				s, err = mybtf.DumpData(arg.t, data[:arg.trueDataSize])
-				if err != nil {
-					return fmt.Errorf("failed to dump deref data: %w", err)
-				}
-
-				s = fmt.Sprintf("(%s)'%s'=%s", btfx.Repr(arg.t), arg.expr, s)
-
-			case arg.isBuf:
-				s = fmt.Sprintf("(%s)'%s'=%s", btfx.Repr(arg.t), arg.expr,
-					dumpOutputArgBuf(data[:arg.trueDataSize]))
-
-			case arg.isString:
-				s = fmt.Sprintf(`(%s)'%s'="%s"`, btfx.Repr(arg.t), arg.expr,
-					strx.NullTerminated(data[:arg.trueDataSize]))
-
-			case arg.isPkt:
-				layer := layers.LayerTypeEthernet
-				switch arg.pktType {
-				case cc.PktTypeEth:
-					layer = layers.LayerTypeEthernet
-				case cc.PktTypeIP, cc.PktTypeIP4:
-					layer = layers.LayerTypeIPv4
-				case cc.PktTypeIP6:
-					layer = layers.LayerTypeIPv6
-				case cc.PktTypeICMP:
-					layer = layers.LayerTypeICMPv4
-				case cc.PktTypeICMP6:
-					layer = layers.LayerTypeICMPv6
-				case cc.PktTypeTCP:
-					layer = layers.LayerTypeTCP
-				case cc.PktTypeUDP:
-					layer = layers.LayerTypeUDP
-				}
-				pkt := gopacket.NewPacket(data[:arg.trueDataSize], layer, gopacket.NoCopy)
-				s = fmt.Sprintf("(%s)'%s'=%v", btfx.Repr(arg.t), arg.expr, pkt)
-
-			case arg.isAddr:
-				switch arg.addrType {
-				case cc.AddrTypeEth:
-					s = fmt.Sprintf("(%s)'%s'=%s", btfx.Repr(arg.t), arg.expr,
-						net.HardwareAddr(data[:cc.EthAddrSize]))
-
-				case cc.AddrTypeEth2:
-					s = fmt.Sprintf("(%s)'%s'=[%s,%s]", btfx.Repr(arg.t), arg.expr,
-						net.HardwareAddr(data[:cc.EthAddrSize]),
-						net.HardwareAddr(data[cc.EthAddrSize:cc.EthAddrSize*2]))
-
-				case cc.AddrTypeIP4:
-					s = fmt.Sprintf("(%s)'%s'=%s", btfx.Repr(arg.t), arg.expr,
-						net.IP(data[:cc.IP4AddrSize]))
-
-				case cc.AddrTypeIP42:
-					s = fmt.Sprintf("(%s)'%s'=[%s,%s]", btfx.Repr(arg.t), arg.expr,
-						net.IP(data[:cc.IP4AddrSize]),
-						net.IP(data[cc.IP4AddrSize:cc.IP4AddrSize*2]))
-
-				case cc.AddrTypeIP6:
-					s = fmt.Sprintf("(%s)'%s'=%s", btfx.Repr(arg.t), arg.expr,
-						net.IP(data[:cc.IP6AddrSize]))
-
-				case cc.AddrTypeIP62:
-					s = fmt.Sprintf("(%s)'%s'=[%s,%s]", btfx.Repr(arg.t), arg.expr,
-						net.IP(data[:cc.IP6AddrSize]),
-						net.IP(data[cc.IP6AddrSize:cc.IP6AddrSize*2]))
-				}
+		switch {
+		case arg.isDeref:
+			s, err = mybtf.DumpData(arg.t, data[:arg.trueDataSize])
+			if err != nil {
+				return fmt.Errorf("failed to dump deref data: %w", err)
 			}
 
+			s = fmt.Sprintf("(%s)'%s'=%s", btfx.Repr(arg.t), arg.expr, s)
+
+		case arg.isBuf:
+			s = fmt.Sprintf("(%s)'%s'=%s", btfx.Repr(arg.t), arg.expr,
+				dumpOutputArgBuf(data[:arg.trueDataSize]))
+
+		case arg.isString:
+			s = fmt.Sprintf(`(%s)'%s'="%s"`, btfx.Repr(arg.t), arg.expr,
+				strx.NullTerminated(data[:arg.trueDataSize]))
+
+		case arg.isPkt:
+			layer := layers.LayerTypeEthernet
+			switch arg.pktType {
+			case cc.PktTypeEth:
+				layer = layers.LayerTypeEthernet
+			case cc.PktTypeIP, cc.PktTypeIP4:
+				layer = layers.LayerTypeIPv4
+			case cc.PktTypeIP6:
+				layer = layers.LayerTypeIPv6
+			case cc.PktTypeICMP:
+				layer = layers.LayerTypeICMPv4
+			case cc.PktTypeICMP6:
+				layer = layers.LayerTypeICMPv6
+			case cc.PktTypeTCP:
+				layer = layers.LayerTypeTCP
+			case cc.PktTypeUDP:
+				layer = layers.LayerTypeUDP
+			}
+			pkt := gopacket.NewPacket(data[:arg.trueDataSize], layer, gopacket.NoCopy)
+			s = fmt.Sprintf("(%s)'%s'=%v", btfx.Repr(arg.t), arg.expr, pkt)
+
+		case arg.isAddr:
+			switch arg.addrType {
+			case cc.AddrTypeEth:
+				s = fmt.Sprintf("(%s)'%s'=%s", btfx.Repr(arg.t), arg.expr,
+					net.HardwareAddr(data[:cc.EthAddrSize]))
+
+			case cc.AddrTypeEth2:
+				s = fmt.Sprintf("(%s)'%s'=[%s,%s]", btfx.Repr(arg.t), arg.expr,
+					net.HardwareAddr(data[:cc.EthAddrSize]),
+					net.HardwareAddr(data[cc.EthAddrSize:cc.EthAddrSize*2]))
+
+			case cc.AddrTypeIP4:
+				s = fmt.Sprintf("(%s)'%s'=%s", btfx.Repr(arg.t), arg.expr,
+					net.IP(data[:cc.IP4AddrSize]))
+
+			case cc.AddrTypeIP42:
+				s = fmt.Sprintf("(%s)'%s'=[%s,%s]", btfx.Repr(arg.t), arg.expr,
+					net.IP(data[:cc.IP4AddrSize]),
+					net.IP(data[cc.IP4AddrSize:cc.IP4AddrSize*2]))
+
+			case cc.AddrTypeIP6:
+				s = fmt.Sprintf("(%s)'%s'=%s", btfx.Repr(arg.t), arg.expr,
+					net.IP(data[:cc.IP6AddrSize]))
+
+			case cc.AddrTypeIP62:
+				s = fmt.Sprintf("(%s)'%s'=[%s,%s]", btfx.Repr(arg.t), arg.expr,
+					net.IP(data[:cc.IP6AddrSize]),
+					net.IP(data[cc.IP6AddrSize:cc.IP6AddrSize*2]))
+			}
+
+		case arg.isPort:
+			switch arg.portType {
+			case cc.Port:
+				s = fmt.Sprintf("(%s)'%s'=%d", btfx.Repr(arg.t), arg.expr,
+					be.Uint16(data[:cc.PortSize]))
+
+			case cc.Port2:
+				s = fmt.Sprintf("(%s)'%s'=[%d,%d]", btfx.Repr(arg.t), arg.expr,
+					be.Uint16(data[:cc.PortSize]),
+					be.Uint16(data[cc.PortSize:cc.PortSize*2]))
+			}
+		}
+
+		if s != "" {
 			if colorfulOutput {
 				gray.Fprint(sb, s)
 			} else {
@@ -151,7 +163,7 @@ func outputFuncArgAttrs(sb *strings.Builder, info *funcInfo, data []byte, f btfx
 			}
 		}
 
-		s := btfx.ReprExprType(arg.expr, arg.t, arg.mem, arg.isStr, arg.isNumPtr, argVal, argVal2, 0, argStr, f)
+		s = btfx.ReprExprType(arg.expr, arg.t, arg.mem, arg.isStr, arg.isNumPtr, argVal, argVal2, 0, argStr, f)
 		if colorfulOutput {
 			gray.Fprint(sb, s)
 		} else {

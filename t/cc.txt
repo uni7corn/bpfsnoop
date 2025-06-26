@@ -45,3 +45,13 @@ tag: cc,addr,tp
 test: -t netif_receive_skb --filter-pkt 'host 127.0.0.1 and icmp' --output-arg 'ip42(skb->head + skb->network_header, 12)'
 match: (unsigned char *)'ip42(skb->head + skb->network_header, 12)'=[127.0.0.1,127.0.0.1]
 trigger: ping -c 1 -s 64 127.0.0.1
+
+---
+
+# port
+name: cc::port
+tag: cc,port,tp
+test: -t netif_receive_skb --filter-pkt 'host 127.0.0.1 and tcp' --output-arg 'port(skb->head + skb->transport_header)'
+match: (unsigned char *)'port(skb->head + skb->transport_header)'=8081
+prerequisite: python3 -m http.server 8081
+trigger: curl -s http://127.0.0.1:8081 --output /dev/null
