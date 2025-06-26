@@ -419,6 +419,19 @@ func TestCompileFuncCall(t *testing.T) {
 		})
 	})
 
+	t.Run("hex", func(t *testing.T) {
+		t.Run("hex(skb->cb, 14)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("hex(skb->cb, 14)")
+			test.AssertNoErr(t, err)
+
+			val, err := compileFuncCall(expr)
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, val.typ, EvalResultTypeHex)
+			test.AssertEqual(t, val.dataSize, 14)
+			test.AssertEqual(t, val.dataOffset, 0)
+		})
+	})
+
 	t.Run("unsupported func call", func(t *testing.T) {
 		expr, err := cc.ParseExpr("unsupported(skb->cb)")
 		test.AssertNoErr(t, err)

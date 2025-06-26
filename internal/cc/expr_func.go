@@ -76,7 +76,7 @@ func compileFuncCall(expr *cc.Expr) (funcCallValue, error) {
 
 	fnName := expr.Left.Text
 	switch fnName {
-	case "buf", "slice":
+	case "buf", "slice", "hex":
 		switch len(expr.List) {
 		case 2, 3:
 			val.dataSize, err = parseExprNumber(expr.List[1])
@@ -102,8 +102,12 @@ func compileFuncCall(expr *cc.Expr) (funcCallValue, error) {
 		}
 
 		val.typ = EvalResultTypeBuf
-		if fnName == "slice" {
+		switch fnName {
+		case "slice":
 			val.typ = EvalResultTypeSlice
+
+		case "hex":
+			val.typ = EvalResultTypeHex
 		}
 
 	case "str":
@@ -285,7 +289,7 @@ func postCheckFuncCall(res *EvalResult, val evalValue, dataOffset, dataSize int6
 		res.Btf = ptr.Target
 		res.Size = size
 
-	case EvalResultTypeBuf:
+	case EvalResultTypeBuf, EvalResultTypeHex:
 		t := mybtf.UnderlyingType(val.btf)
 		_, isPtr := t.(*btf.Pointer)
 		_, isArray := t.(*btf.Array)

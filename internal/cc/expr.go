@@ -104,6 +104,7 @@ const (
 	EvalResultTypeAddr
 	EvalResultTypePort
 	EvalResultTypeSlice
+	EvalResultTypeHex
 )
 
 type EvalResult struct {
