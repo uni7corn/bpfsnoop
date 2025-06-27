@@ -76,6 +76,14 @@ func test(w io.Writer, t testCase) bool {
 
 	var errg errgroup.Group
 
+	errCh := make(chan error, 1)
+
+	errg.Go(func() error {
+		defer close(errCh)
+		errCh <- cmd.Wait()
+		return nil
+	})
+
 	errg.Go(func() error {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
@@ -107,13 +115,13 @@ func test(w io.Writer, t testCase) bool {
 		return nil
 	})
 
-	if cmd.ProcessState != nil && cmd.ProcessState.ExitCode() != 0 {
-		prErr(w, red, "Test FAILED in %s (bpfsnoop exited with code %d)\n",
-			time.Since(started), cmd.ProcessState.ExitCode())
-		return false
-	}
-
 	select {
+	case err := <-errCh:
+		if err != nil {
+			prErr(w, red, "Test FAILED in %s (failed to start bpfsnoop)\n", time.Since(started))
+			return false
+		}
+
 	case <-ready:
 		prInfo(w, yellow, "bpfsnoop is ready\n")
 		break
