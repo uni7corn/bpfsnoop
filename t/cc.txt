@@ -73,3 +73,13 @@ tag: cc,hex
 test: -t netif_receive_skb --filter-pkt 'host 127.0.0.1 and icmp' --output-arg 'hex(skb->head + skb->network_header + 12, 8)'
 match: (unsigned char *)'hex(skb->head + skb->network_header + 12, 8)'=7f0000017f000001
 trigger: ping -c 1 -s 64 127.0.0.1
+
+---
+
+# cast void
+name: cc::cast-void
+tag: cc,type-cast
+test: -p 'n:crc' --filter-pkt 'host 127.0.0.1 and icmp' --output-arg '((struct iphdr *)(void *)(ctx->data + 14))->saddr'
+match: (__be32)'((struct iphdr *)(void *)(ctx->data + 14))->saddr'=0x100007f/16777343
+prerequisite: ./xdpcrc -d lo
+trigger: ping -c 1 -s 64 127.0.0.1

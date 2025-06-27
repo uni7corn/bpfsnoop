@@ -258,8 +258,29 @@ func (c *compiler) accessMemory(expr *cc.Expr) (accessResult, error) {
 				return accessResult{}, fmt.Errorf("expected struct/union type for cast, got %T", t)
 			}
 		} else {
+			tryFindType := func(name string) (btf.Type, error) {
+				typ, err := c.kernelBtf.AnyTypeByName(name)
+				if err == nil {
+					return typ, nil
+				}
+
+				krnl, err := btf.LoadKernelSpec()
+				if err != nil {
+					return nil, fmt.Errorf("failed to load kernel spec: %w", err)
+				}
+
+				typ, err = krnl.AnyTypeByName(name)
+				return typ, err
+			}
+
 			typeName := ccType.String()
-			typ, err = c.kernelBtf.AnyTypeByName(typeName)
+			switch typeName {
+			case "void":
+				typ = &btf.Void{}
+
+			default:
+				typ, err = tryFindType(typeName)
+			}
 			if err != nil {
 				return accessResult{}, fmt.Errorf("failed to find type '%s': %w", typeName, err)
 			}
