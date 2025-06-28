@@ -106,6 +106,7 @@ func (arg *funcArgument) inject(prog *ebpf.ProgramSpec, krnl, spec *btf.Spec, pa
 		Expr:      arg.expr,
 		Params:    params,
 		Spec:      spec,
+		Kernel:    krnl,
 		LabelExit: "__label_cc_exit",
 
 		MemoryReadMode: mode,

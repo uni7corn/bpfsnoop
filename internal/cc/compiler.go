@@ -24,7 +24,8 @@ type compiler struct {
 	vars []string
 	btfs []btf.Type
 
-	kernelBtf *btf.Spec
+	btfSpec  *btf.Spec
+	krnlSpec *btf.Spec
 
 	labelExit     string
 	labelExitUsed bool
@@ -41,12 +42,13 @@ func newCompiler(opts CompileExprOptions) (*compiler, error) {
 	if opts.Expr == "" || opts.LabelExit == "" {
 		return nil, fmt.Errorf("expression and label exit cannot be empty")
 	}
-	if opts.Spec == nil {
+	if opts.Spec == nil || opts.Kernel == nil {
 		return nil, fmt.Errorf("btf spec cannot be empty")
 	}
 
 	c := &compiler{
-		kernelBtf:     opts.Spec,
+		btfSpec:       opts.Spec,
+		krnlSpec:      opts.Kernel,
 		labelExit:     opts.LabelExit,
 		reservedStack: opts.ReservedStack,
 		memMode:       opts.MemoryReadMode,
@@ -65,7 +67,7 @@ func newCompiler(opts CompileExprOptions) (*compiler, error) {
 		c.reservedStack = (c.reservedStack + 7) & -8 // align to 8 bytes
 	}
 
-	typ, err := opts.Spec.AnyTypeByName(kfuncBpfRdonlyCast)
+	typ, err := opts.Kernel.AnyTypeByName(kfuncBpfRdonlyCast)
 	if err != nil {
 		if errors.Is(err, btf.ErrNotFound) {
 			return c, nil
@@ -78,7 +80,7 @@ func newCompiler(opts CompileExprOptions) (*compiler, error) {
 		return nil, fmt.Errorf("%s should be a function", kfuncBpfRdonlyCast)
 	}
 
-	rdonlyCastID, err := opts.Spec.TypeID(fn)
+	rdonlyCastID, err := opts.Kernel.TypeID(fn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get type ID for kfunc %s: %w", kfuncBpfRdonlyCast, err)
 	}

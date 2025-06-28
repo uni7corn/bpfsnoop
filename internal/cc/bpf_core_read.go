@@ -71,7 +71,7 @@ func (c *compiler) coreReadOffsets(offsets []accessOffset, reg asm.Register) err
 			continue
 		}
 
-		canCast, typID, err := canRdonlyCast(c.kernelBtf, offset.prev)
+		canCast, typID, err := canRdonlyCast(c.btfSpec, offset.prev)
 		if err != nil {
 			return fmt.Errorf("failed to check if %v can be bpf_rdonly_cast: %w", offset.prev, err)
 		}

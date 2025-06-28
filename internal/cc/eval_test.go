@@ -104,7 +104,7 @@ func TestAdjustNum(t *testing.T) {
 	})
 
 	t.Run("u8", func(t *testing.T) {
-		u8, err := c.kernelBtf.AnyTypeByName("__u8")
+		u8, err := c.btfSpec.AnyTypeByName("__u8")
 		test.AssertNoErr(t, err)
 
 		n := c.adjustNum(257, evalValue{
@@ -115,7 +115,7 @@ func TestAdjustNum(t *testing.T) {
 	})
 
 	t.Run("u16", func(t *testing.T) {
-		u16, err := c.kernelBtf.AnyTypeByName("__u16")
+		u16, err := c.btfSpec.AnyTypeByName("__u16")
 		test.AssertNoErr(t, err)
 
 		n := c.adjustNum(0x12345678, evalValue{
@@ -126,7 +126,7 @@ func TestAdjustNum(t *testing.T) {
 	})
 
 	t.Run("u32", func(t *testing.T) {
-		u32, err := c.kernelBtf.AnyTypeByName("__u32")
+		u32, err := c.btfSpec.AnyTypeByName("__u32")
 		test.AssertNoErr(t, err)
 
 		n := c.adjustNum(0x12345678, evalValue{
@@ -137,7 +137,7 @@ func TestAdjustNum(t *testing.T) {
 	})
 
 	t.Run("u64", func(t *testing.T) {
-		u64, err := c.kernelBtf.AnyTypeByName("__u64")
+		u64, err := c.btfSpec.AnyTypeByName("__u64")
 		test.AssertNoErr(t, err)
 
 		n := c.adjustNum(0x12345678, evalValue{
@@ -152,7 +152,7 @@ func TestPreHandleBinaryOp(t *testing.T) {
 	c := prepareCompiler(t)
 
 	t.Run("a.btf cannot be calculated", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a, b evalValue
@@ -165,7 +165,7 @@ func TestPreHandleBinaryOp(t *testing.T) {
 	})
 
 	t.Run("b.btf cannot be calculated", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a, b evalValue
@@ -253,7 +253,7 @@ func TestAdd(t *testing.T) {
 	c := prepareCompiler(t)
 
 	t.Run("failed to pre-handle", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a, b evalValue
@@ -382,7 +382,7 @@ func TestAdd(t *testing.T) {
 	t.Run("num(1) + reg(struct bpf_map *)", func(t *testing.T) {
 		defer c.reset()
 
-		bpfMap, err := c.kernelBtf.AnyTypeByName("bpf_map")
+		bpfMap, err := c.btfSpec.AnyTypeByName("bpf_map")
 		test.AssertNoErr(t, err)
 
 		size, _ := btf.Sizeof(bpfMap)
@@ -518,7 +518,7 @@ func TestAdd(t *testing.T) {
 	t.Run("reg(struct bpf_map *) + num(1)", func(t *testing.T) {
 		defer c.reset()
 
-		bpfMap, err := c.kernelBtf.AnyTypeByName("bpf_map")
+		bpfMap, err := c.btfSpec.AnyTypeByName("bpf_map")
 		test.AssertNoErr(t, err)
 
 		size, _ := btf.Sizeof(bpfMap)
@@ -621,7 +621,7 @@ func TestAnd(t *testing.T) {
 	c := prepareCompiler(t)
 
 	t.Run("failed to pre-handle", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a, b evalValue
@@ -726,7 +726,7 @@ func TestAndand(t *testing.T) {
 	c := prepareCompiler(t)
 
 	t.Run("failed to pre-handle", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a, b evalValue
@@ -888,7 +888,7 @@ func TestCond(t *testing.T) {
 	c := prepareCompiler(t)
 
 	t.Run("invalid cond", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var cond, a, b evalValue
@@ -901,7 +901,7 @@ func TestCond(t *testing.T) {
 	})
 
 	t.Run("invalid first value", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var cond, a, b evalValue
@@ -915,7 +915,7 @@ func TestCond(t *testing.T) {
 	})
 
 	t.Run("invalid second value", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var cond, a, b evalValue
@@ -1016,7 +1016,7 @@ func TestDiv(t *testing.T) {
 	c := prepareCompiler(t)
 
 	t.Run("failed to pre-handle", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a, b evalValue
@@ -1160,7 +1160,7 @@ func TestEqeq(t *testing.T) {
 	c := prepareCompiler(t)
 
 	t.Run("failed to pre-handle", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a, b evalValue
@@ -1274,7 +1274,7 @@ func TestGt(t *testing.T) {
 	c := prepareCompiler(t)
 
 	t.Run("failed to pre-handle", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a, b evalValue
@@ -1388,7 +1388,7 @@ func TestGteq(t *testing.T) {
 	c := prepareCompiler(t)
 
 	t.Run("failed to pre-handle", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a, b evalValue
@@ -1502,7 +1502,7 @@ func TestLsh(t *testing.T) {
 	c := prepareCompiler(t)
 
 	t.Run("failed to pre-handle", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a, b evalValue
@@ -1678,7 +1678,7 @@ func TestLt(t *testing.T) {
 	c := prepareCompiler(t)
 
 	t.Run("failed to pre-handle", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a, b evalValue
@@ -1792,7 +1792,7 @@ func TestLteq(t *testing.T) {
 	c := prepareCompiler(t)
 
 	t.Run("failed to pre-handle", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a, b evalValue
@@ -1951,7 +1951,7 @@ func TestMod(t *testing.T) {
 	c := prepareCompiler(t)
 
 	t.Run("failed to pre-handle", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a, b evalValue
@@ -2128,7 +2128,7 @@ func TestMul(t *testing.T) {
 	c := prepareCompiler(t)
 
 	t.Run("failed to pre-handle", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a, b evalValue
@@ -2261,7 +2261,7 @@ func TestNot(t *testing.T) {
 	t.Run("!reg, invalid type", func(t *testing.T) {
 		defer c.reset()
 
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a evalValue
@@ -2312,7 +2312,7 @@ func TestNoteq(t *testing.T) {
 	c := prepareCompiler(t)
 
 	t.Run("failed to pre-handle", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a, b evalValue
@@ -2426,7 +2426,7 @@ func TestOr(t *testing.T) {
 	c := prepareCompiler(t)
 
 	t.Run("failed to pre-handle", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a, b evalValue
@@ -2565,7 +2565,7 @@ func TestOror(t *testing.T) {
 	c := prepareCompiler(t)
 
 	t.Run("failed to pre-handle", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a, b evalValue
@@ -2729,7 +2729,7 @@ func TestPreDec(t *testing.T) {
 	t.Run("reg, invalid type", func(t *testing.T) {
 		defer c.reset()
 
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a evalValue
@@ -2789,7 +2789,7 @@ func TestPreInc(t *testing.T) {
 	t.Run("reg, invalid type", func(t *testing.T) {
 		defer c.reset()
 
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a evalValue
@@ -2836,7 +2836,7 @@ func TestRsh(t *testing.T) {
 	c := prepareCompiler(t)
 
 	t.Run("failed to pre-handle", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a, b evalValue
@@ -3010,7 +3010,7 @@ func TestSub(t *testing.T) {
 	c := prepareCompiler(t)
 
 	t.Run("failed to pre-handle", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a, b evalValue
@@ -3295,7 +3295,7 @@ func TestTwid(t *testing.T) {
 	t.Run("reg, invalid type", func(t *testing.T) {
 		defer c.reset()
 
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a evalValue
@@ -3342,7 +3342,7 @@ func TestXor(t *testing.T) {
 	c := prepareCompiler(t)
 
 	t.Run("failed to pre-handle", func(t *testing.T) {
-		skb, err := c.kernelBtf.AnyTypeByName("sk_buff")
+		skb, err := c.btfSpec.AnyTypeByName("sk_buff")
 		test.AssertNoErr(t, err)
 
 		var a, b evalValue
@@ -3530,7 +3530,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("skb->len + 1")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -3581,7 +3581,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("skb->len & 1")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -3632,7 +3632,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("skb->len && 1")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -3696,7 +3696,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("skb->len ? 1 : 2")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -3750,7 +3750,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("skb->len / 1")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -3801,7 +3801,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("skb->len == 1")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -3855,7 +3855,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("skb->len > 1")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -3909,7 +3909,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("skb->len >= 1")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -3963,7 +3963,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("skb->len << 1")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -4014,7 +4014,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("skb->len < 1")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -4068,7 +4068,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("skb->len <= 1")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -4112,7 +4112,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("-skb->len")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -4163,7 +4163,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("skb->len % 2")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -4214,7 +4214,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("skb->len * 2")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -4323,7 +4323,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("!skb->len")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -4377,7 +4377,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("skb->len != 1")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -4458,7 +4458,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("skb->len | 1")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -4509,7 +4509,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("skb->len || 0")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -4542,7 +4542,7 @@ func TestEval(t *testing.T) {
 		expr, err := cc.ParseExpr("(skb->len)")
 		test.AssertNoErr(t, err)
 
-		unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+		unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 		test.AssertNoErr(t, err)
 
 		res, err := c.eval(expr)
@@ -4582,7 +4582,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("+skb->len")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -4621,7 +4621,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("--skb->len")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -4661,7 +4661,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("++skb->len")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -4712,7 +4712,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("skb->len >> 1")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -4763,7 +4763,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("skb->len - 2")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -4804,7 +4804,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("~skb->len")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)
@@ -4855,7 +4855,7 @@ func TestEval(t *testing.T) {
 			expr, err := cc.ParseExpr("skb->len ^ 1")
 			test.AssertNoErr(t, err)
 
-			unsignedInt, err := c.kernelBtf.AnyTypeByName("unsigned int")
+			unsignedInt, err := c.btfSpec.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.eval(expr)

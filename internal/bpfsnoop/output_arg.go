@@ -237,7 +237,7 @@ func (arg *funcArgumentOutput) genDefaultInsns(res *cc.EvalResult, offset, size 
 	return offset, nil
 }
 
-func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, offset int, labelExit string) (int, error) {
+func (arg *funcArgumentOutput) compile(params []btf.FuncParam, krnl, spec *btf.Spec, offset int, labelExit string) (int, error) {
 	mode := cc.MemoryReadModeProbeRead
 	if _, err := spec.AnyTypeByName("bpf_rdonly_cast"); err == nil {
 		mode = cc.MemoryReadModeCoreRead
@@ -247,6 +247,7 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, spec *btf.Spec, o
 		Expr:          arg.expr,
 		Params:        params,
 		Spec:          spec,
+		Kernel:        krnl,
 		LabelExit:     labelExit,
 		ReservedStack: argOutputStackOff,
 		UsedRegisters: []asm.Register{outputArgRegBuff, outputArgRegArgs},
@@ -377,6 +378,11 @@ func (arg *argDataOutput) matchParams(params []btf.FuncParam, spec *btf.Spec, ch
 		}
 	}
 
+	krnl, err := btf.LoadKernelSpec()
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to load kernel spec: %w", err)
+	}
+
 	offset := 0
 	for _, a := range arg.args {
 		if !a.match(params) {
@@ -385,7 +391,7 @@ func (arg *argDataOutput) matchParams(params []btf.FuncParam, spec *btf.Spec, ch
 
 		a := a
 		var err error
-		offset, err = a.compile(params, spec, offset, arg.genExitLabel())
+		offset, err = a.compile(params, krnl, spec, offset, arg.genExitLabel())
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to compile expr '%s': %w", a.expr, err)
 		}

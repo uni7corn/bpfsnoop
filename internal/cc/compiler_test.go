@@ -60,6 +60,7 @@ func TestNewCompiler(t *testing.T) {
 		Expr:      "skb->len == 0",
 		LabelExit: "__label_exit",
 		Spec:      testBtf,
+		Kernel:    testBtf,
 	}
 
 	t.Run("empty expr", func(t *testing.T) {

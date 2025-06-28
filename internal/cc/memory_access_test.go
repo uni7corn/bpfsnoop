@@ -120,14 +120,14 @@ func TestAccessMemory(t *testing.T) {
 			test.AssertNoErr(t, err)
 
 			skb := getSkbBtf(t)
-			intTyp, err := testBtf.AnyTypeByName("int")
+			intType, err := testBtf.AnyTypeByName("int")
 			test.AssertNoErr(t, err)
 
 			res, err := c.accessMemory(expr)
 			test.AssertNoErr(t, err)
 			test.AssertEqual(t, res.idx, 0)
 			test.AssertEqualSliceFn(t, res.offsets,
-				[]accessOffset{{prev: skb, btf: intTyp, offset: 220}},
+				[]accessOffset{{prev: skb, btf: intType, offset: 220}},
 				equalsOffset)
 		})
 
@@ -136,13 +136,13 @@ func TestAccessMemory(t *testing.T) {
 			test.AssertNoErr(t, err)
 
 			skb := getSkbBtf(t)
-			intTyp, err := testBtf.AnyTypeByName("int")
+			intType, err := testBtf.AnyTypeByName("int")
 			test.AssertNoErr(t, err)
 			char, err := testBtf.AnyTypeByName("char")
 			test.AssertNoErr(t, err)
 			cb := &btf.Array{
 				Type:   char,
-				Index:  intTyp,
+				Index:  intType,
 				Nelems: 48,
 			}
 
@@ -347,11 +347,11 @@ func TestAccessMemory(t *testing.T) {
 			skb := getSkbBtf(t)
 			char, err := testBtf.AnyTypeByName("char")
 			test.AssertNoErr(t, err)
-			intTyp, err := testBtf.AnyTypeByName("int")
+			intType, err := testBtf.AnyTypeByName("int")
 			test.AssertNoErr(t, err)
 			cb := &btf.Array{
 				Type:   char,
-				Index:  intTyp,
+				Index:  intType,
 				Nelems: 48,
 			}
 			charPtr := &btf.Pointer{Target: char}
@@ -395,9 +395,9 @@ func TestAccessMemory(t *testing.T) {
 			test.AssertNoErr(t, err)
 
 			skb := getSkbBtf(t)
-			intTyp, err := testBtf.AnyTypeByName("unsigned int")
+			intType, err := testBtf.AnyTypeByName("unsigned int")
 			test.AssertNoErr(t, err)
-			intPtr := &btf.Pointer{Target: intTyp}
+			intPtr := &btf.Pointer{Target: intType}
 
 			res, err := c.accessMemory(expr)
 			test.AssertNoErr(t, err)
@@ -468,8 +468,8 @@ func TestAccessMemory(t *testing.T) {
 			test.AssertStrPrefix(t, err.Error(), "failed to find type")
 		})
 
-		t.Run("(struct ethhdr *)(skb->head)", func(t *testing.T) {
-			expr, err := cc.ParseExpr("(struct ethhdr *)(skb->head)")
+		t.Run("(struct ethhdr *)(void *)(skb->head)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("(struct ethhdr *)(void *)(skb->head)")
 			test.AssertNoErr(t, err)
 
 			skb := getSkbBtf(t)
@@ -607,13 +607,13 @@ func TestAccessMemory(t *testing.T) {
 			test.AssertNoErr(t, err)
 
 			skb := getSkbBtf(t)
-			intTyp, err := testBtf.AnyTypeByName("int")
+			intType, err := testBtf.AnyTypeByName("int")
 			test.AssertNoErr(t, err)
 			char, err := testBtf.AnyTypeByName("char")
 			test.AssertNoErr(t, err)
 			arr := &btf.Array{
 				Type:   char,
-				Index:  intTyp,
+				Index:  intType,
 				Nelems: 48,
 			}
 
@@ -774,11 +774,11 @@ func TestAccessMemory(t *testing.T) {
 			skb := getSkbBtf(t)
 			char, err := testBtf.AnyTypeByName("char")
 			test.AssertNoErr(t, err)
-			intTyp, err := testBtf.AnyTypeByName("int")
+			intType, err := testBtf.AnyTypeByName("int")
 			test.AssertNoErr(t, err)
 			cb := &btf.Array{
 				Type:   char,
-				Index:  intTyp,
+				Index:  intType,
 				Nelems: 48,
 			}
 			charPtr := &btf.Pointer{Target: char}
@@ -914,7 +914,7 @@ func TestAccess(t *testing.T) {
 		char, err := testBtf.AnyTypeByName("char")
 		test.AssertNoErr(t, err)
 
-		intTyp, err := testBtf.AnyTypeByName("int")
+		intType, err := testBtf.AnyTypeByName("int")
 		test.AssertNoErr(t, err)
 
 		defer c.reset()
@@ -924,7 +924,7 @@ func TestAccess(t *testing.T) {
 		test.AssertEqual(t, eval.typ, evalValueTypeRegBtf)
 		test.AssertEqual(t, eval.reg, asm.R8)
 		test.AssertTrue(t, reflect.DeepEqual(eval.btf, &btf.Array{
-			Index:  intTyp,
+			Index:  intType,
 			Type:   char,
 			Nelems: 48,
 		}))

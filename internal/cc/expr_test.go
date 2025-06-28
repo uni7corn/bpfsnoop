@@ -171,7 +171,8 @@ func prepareCompiler(t *testing.T) *compiler {
 		reservedStack:    8,
 		vars:             []string{"skb", "prog", "ops", "attr"},
 		btfs:             []btf.Type{getSkbBtf(t), getBpfProgBtf(t), getFakeOpsBtf(), getBpfAttrBtf(t)},
-		kernelBtf:        testBtf,
+		btfSpec:          testBtf,
+		krnlSpec:         testBtf,
 		rdonlyCastTypeID: 41126,
 	}
 	c.regalloc.registers[asm.R9] = true
@@ -199,6 +200,7 @@ func TestCompileFilterExpr(t *testing.T) {
 			Expr:      "not_found->xxx == 0",
 			LabelExit: "__label_exit",
 			Spec:      testBtf,
+			Kernel:    testBtf,
 			Params: []btf.FuncParam{
 				{
 					Name: "skb",
@@ -219,6 +221,7 @@ func TestCompileFilterExpr(t *testing.T) {
 			Expr:      "skb->len == 0",
 			LabelExit: "__label_exit",
 			Spec:      testBtf,
+			Kernel:    testBtf,
 			Params: []btf.FuncParam{
 				{
 					Name: "skb",
@@ -325,6 +328,7 @@ func TestCompileEvalExpr(t *testing.T) {
 			Expr:      "a ^^ b",
 			LabelExit: "__label_exit",
 			Spec:      testBtf,
+			Kernel:    testBtf,
 			Params: []btf.FuncParam{
 				{
 					Name: "skb",
@@ -345,6 +349,7 @@ func TestCompileEvalExpr(t *testing.T) {
 			Expr:      "(skb->dev->netdev_ops->ndo_bpf)(dev, bpf)",
 			LabelExit: "__label_exit",
 			Spec:      testBtf,
+			Kernel:    testBtf,
 			Params: []btf.FuncParam{
 				{
 					Name: "skb",
@@ -361,6 +366,7 @@ func TestCompileEvalExpr(t *testing.T) {
 			Expr:      "xxx(skb->cb)",
 			LabelExit: "__label_exit",
 			Spec:      testBtf,
+			Kernel:    testBtf,
 			Params: []btf.FuncParam{
 				{
 					Name: "skb",
@@ -377,6 +383,7 @@ func TestCompileEvalExpr(t *testing.T) {
 			Expr:      "not_found->xxx == 0",
 			LabelExit: "__label_exit",
 			Spec:      testBtf,
+			Kernel:    testBtf,
 			Params: []btf.FuncParam{
 				{
 					Name: "skb",
@@ -398,6 +405,7 @@ func TestCompileEvalExpr(t *testing.T) {
 			Expr:          "1 > 2",
 			LabelExit:     "__label_exit",
 			Spec:          testBtf,
+			Kernel:        testBtf,
 			ReservedStack: 9,
 		})
 		test.AssertHaveErr(t, err)
@@ -409,6 +417,7 @@ func TestCompileEvalExpr(t *testing.T) {
 			Expr:          "*skb->len",
 			LabelExit:     "__label_exit",
 			Spec:          testBtf,
+			Kernel:        testBtf,
 			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
 			UsedRegisters: []asm.Register{asm.R8, asm.R9},
 		})
@@ -421,6 +430,7 @@ func TestCompileEvalExpr(t *testing.T) {
 			Expr:          "str(skb->cb, 4)",
 			LabelExit:     "__label_exit",
 			Spec:          testBtf,
+			Kernel:        testBtf,
 			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
 			UsedRegisters: []asm.Register{asm.R8, asm.R9},
 		})
@@ -438,6 +448,7 @@ func TestCompileEvalExpr(t *testing.T) {
 			Expr:          "skb->len",
 			LabelExit:     "__label_exit",
 			Spec:          testBtf,
+			Kernel:        testBtf,
 			Params:        []btf.FuncParam{{Name: "skb", Type: getSkbBtf(t)}},
 			UsedRegisters: []asm.Register{asm.R8, asm.R9},
 		})
