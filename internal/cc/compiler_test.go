@@ -157,3 +157,22 @@ func TestNewCompiler(t *testing.T) {
 	test.AssertNoErr(t, err)
 	test.AssertFalse(t, c.rdonlyCastFastcall)
 }
+
+func TestFindType(t *testing.T) {
+	c := prepareCompiler(t)
+
+	t.Run("btf spec", func(t *testing.T) {
+		typ, err := c.findType("sk_buff")
+		test.AssertNoErr(t, err)
+		test.AssertNotNil(t, typ)
+		strct, ok := typ.(*btf.Struct)
+		test.AssertTrue(t, ok)
+		test.AssertEqual(t, strct.Name, "sk_buff")
+	})
+
+	t.Run("kernel spec", func(t *testing.T) {
+		_, err := c.findType("not_found")
+		test.AssertHaveErr(t, err)
+		test.AssertIsErr(t, err, btf.ErrNotFound)
+	})
+}

@@ -236,54 +236,9 @@ func (c *compiler) accessMemory(expr *cc.Expr) (accessResult, error) {
 			return accessResult{}, fmt.Errorf("failed to access memory for cast: %w", err)
 		}
 
-		ccType := expr.Type
-		isPointer := ccType.Kind == cc.Ptr
-		if isPointer {
-			ccType = ccType.Base
-		}
-
-		var typ btf.Type
-
-		if ccType.Kind == cc.Struct {
-			typeName := ccType.Tag
-			typ, err = c.btfSpec.AnyTypeByName(typeName)
-			if err != nil {
-				return accessResult{}, fmt.Errorf("failed to find type '%s': %w", typeName, err)
-			}
-
-			t := mybtf.UnderlyingType(typ)
-			_, isStruct := t.(*btf.Struct)
-			_, isUnion := t.(*btf.Union)
-			if !isStruct && !isUnion {
-				return accessResult{}, fmt.Errorf("expected struct/union type for cast, got %T", t)
-			}
-		} else {
-			tryFindType := func(name string) (btf.Type, error) {
-				typ, err := c.btfSpec.AnyTypeByName(name)
-				if err == nil {
-					return typ, nil
-				}
-
-				return c.krnlSpec.AnyTypeByName(name)
-			}
-
-			typeName := ccType.String()
-			switch typeName {
-			case "void":
-				typ = &btf.Void{}
-
-			default:
-				typ, err = tryFindType(typeName)
-			}
-			if err != nil {
-				return accessResult{}, fmt.Errorf("failed to find type '%s': %w", typeName, err)
-			}
-		}
-
-		if isPointer {
-			res.btf = &btf.Pointer{Target: typ}
-		} else {
-			res.btf = typ
+		res.btf, err = c.cc2btf(expr)
+		if err != nil {
+			return accessResult{}, fmt.Errorf("failed to cast type %s: %w", expr.Type, err)
 		}
 
 		if res.lastIdx >= 0 {

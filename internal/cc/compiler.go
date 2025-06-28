@@ -90,3 +90,12 @@ func newCompiler(opts CompileExprOptions) (*compiler, error) {
 
 	return c, nil
 }
+
+func (c *compiler) findType(name string) (btf.Type, error) {
+	typ, err := c.btfSpec.AnyTypeByName(name)
+	if err == nil {
+		return typ, nil
+	}
+
+	return c.krnlSpec.AnyTypeByName(name)
+}

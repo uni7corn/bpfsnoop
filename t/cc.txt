@@ -83,3 +83,13 @@ test: -p 'n:crc' --filter-pkt 'host 127.0.0.1 and icmp' --output-arg '((struct i
 match: (__be32)'((struct iphdr *)(void *)(ctx->data + 14))->saddr'=0x100007f/16777343
 prerequisite: ./xdpcrc -d lo
 trigger: ping -c 1 -s 64 127.0.0.1
+
+---
+
+# cast int
+name: cc::cast-int
+tag: cc,type-cast
+test: -p 'n:crc' --filter-pkt 'host 127.0.0.1 and icmp' --output-arg '*(int *)(ctx->data + 14 + 12)'
+match: (int)'*(int *)(ctx->data + 14 + 12)'=16777343
+prerequisite: ./xdpcrc -d lo
+trigger: ping -c 1 -s 64 127.0.0.1

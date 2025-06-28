@@ -298,6 +298,60 @@ func (c *compiler) andand(left, right evalValue) (evalValue, error) {
 	}
 }
 
+func (c *compiler) cc2btf(expr *cc.Expr) (btf.Type, error) {
+	ccType := expr.Type
+	isPointer := ccType.Kind == cc.Ptr
+	if isPointer {
+		ccType = ccType.Base
+	}
+
+	var typ btf.Type
+	var err error
+
+	if ccType.Kind == cc.Struct {
+		typeName := ccType.Tag
+		typ, err = c.findType(typeName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find type '%s': %w", typeName, err)
+		}
+
+		t := mybtf.UnderlyingType(typ)
+		_, isStruct := t.(*btf.Struct)
+		_, isUnion := t.(*btf.Union)
+		if !isStruct && !isUnion {
+			return nil, fmt.Errorf("expected struct/union type for cast, got %T", t)
+		}
+	} else {
+		typeName := ccType.String()
+		switch typeName {
+		case "void":
+			typ = &btf.Void{}
+
+		default:
+			typ, err = c.findType(typeName)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to find type '%s': %w", typeName, err)
+		}
+	}
+
+	if isPointer {
+		return &btf.Pointer{Target: typ}, nil
+	} else {
+		return typ, nil
+	}
+}
+
+func (c *compiler) cast(expr *cc.Expr, val evalValue) (evalValue, error) {
+	typ, err := c.cc2btf(expr)
+	if err != nil {
+		return val, fmt.Errorf("failed to convert cc type to btf type: %w", err)
+	}
+
+	val.btf = typ
+	return val, nil
+}
+
 func (c *compiler) cond(cond, left, right evalValue) (evalValue, error) {
 	if cond.typ == evalValueTypeRegBtf && !canCalculate(cond.btf) {
 		c.regalloc.Free(cond.reg)
@@ -1110,6 +1164,14 @@ func (c *compiler) eval(expr *cc.Expr) (evalValue, error) {
 		}
 
 		return c.andand(l, r)
+
+	case cc.Cast:
+		val, err := c.eval(expr.Left)
+		if err != nil {
+			return evalValue{}, fmt.Errorf("failed to evaluate cast operand: %w", err)
+		}
+
+		return c.cast(expr, val)
 
 	case cc.Cond:
 		cond, err := c.eval(expr.List[0])

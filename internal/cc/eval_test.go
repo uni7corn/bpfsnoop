@@ -884,6 +884,107 @@ func TestAndand(t *testing.T) {
 	})
 }
 
+func TestCC2btf(t *testing.T) {
+	c := prepareCompiler(t)
+
+	t.Run("(struct not_found *)(skb->head)", func(t *testing.T) {
+		expr, err := cc.ParseExpr("(struct not_found *)(skb->head)")
+		test.AssertNoErr(t, err)
+
+		_, err = c.cc2btf(expr)
+		test.AssertHaveErr(t, err)
+		test.AssertStrPrefix(t, err.Error(), "failed to find type")
+	})
+
+	t.Run("(struct u64 *)(skb->head)", func(t *testing.T) {
+		expr, err := cc.ParseExpr("(struct u64 *)(skb->head)")
+		test.AssertNoErr(t, err)
+
+		_, err = c.cc2btf(expr)
+		test.AssertHaveErr(t, err)
+		test.AssertStrPrefix(t, err.Error(), "expected struct/union type for cast")
+	})
+
+	t.Run("(union not_found *)(skb->head)", func(t *testing.T) {
+		expr, err := cc.ParseExpr("(union not_found *)(skb->head)")
+		test.AssertNoErr(t, err)
+
+		_, err = c.cc2btf(expr)
+		test.AssertHaveErr(t, err)
+		test.AssertStrPrefix(t, err.Error(), "failed to find type")
+	})
+
+	t.Run("(union u64 *)(skb->head)", func(t *testing.T) {
+		expr, err := cc.ParseExpr("(union u64 *)(skb->head)")
+		test.AssertNoErr(t, err)
+
+		_, err = c.cc2btf(expr)
+		test.AssertHaveErr(t, err)
+		test.AssertStrPrefix(t, err.Error(), "expected struct/union type for cast")
+	})
+
+	t.Run("(long long)skb->head", func(t *testing.T) {
+		expr, err := cc.ParseExpr("(long long)skb->head")
+		test.AssertNoErr(t, err)
+
+		_, err = c.cc2btf(expr)
+		test.AssertHaveErr(t, err)
+		test.AssertStrPrefix(t, err.Error(), "failed to find type")
+	})
+
+	t.Run("(struct iphdr *)skb->head", func(t *testing.T) {
+		expr, err := cc.ParseExpr("(struct iphdr *)skb->head")
+		test.AssertNoErr(t, err)
+
+		res, err := c.cc2btf(expr)
+		test.AssertNoErr(t, err)
+		test.AssertNotNil(t, res)
+
+		ptr, ok := res.(*btf.Pointer)
+		test.AssertTrue(t, ok)
+		strct, ok := ptr.Target.(*btf.Struct)
+		test.AssertTrue(t, ok)
+		test.AssertEqual(t, strct.Name, "iphdr")
+	})
+
+	t.Run("(int)skb->head", func(t *testing.T) {
+		expr, err := cc.ParseExpr("(int)skb->head")
+		test.AssertNoErr(t, err)
+
+		typ, err := c.cc2btf(expr)
+		test.AssertNoErr(t, err)
+
+		intType, ok := typ.(*btf.Int)
+		test.AssertTrue(t, ok)
+		test.AssertEqual(t, intType.Name, "int")
+	})
+}
+
+func TestCast(t *testing.T) {
+	c := prepareCompiler(t)
+
+	t.Run("invalid cast", func(t *testing.T) {
+		expr, err := cc.ParseExpr("(struct not_found *)skb->head")
+		test.AssertNoErr(t, err)
+
+		_, err = c.cast(expr, evalValue{})
+		test.AssertHaveErr(t, err)
+		test.AssertErrorPrefix(t, err, "failed to convert cc type to btf type")
+	})
+
+	t.Run("cast", func(t *testing.T) {
+		expr, err := cc.ParseExpr("(int)skb->head")
+		test.AssertNoErr(t, err)
+
+		val, err := c.cast(expr, evalValue{})
+		test.AssertNoErr(t, err)
+
+		intType, ok := val.btf.(*btf.Int)
+		test.AssertTrue(t, ok)
+		test.AssertEqual(t, intType.Name, "int")
+	})
+}
+
 func TestCond(t *testing.T) {
 	c := prepareCompiler(t)
 
@@ -3656,6 +3757,32 @@ func TestEval(t *testing.T) {
 				Ja(1),
 				asm.Xor.Reg(asm.R8, asm.R8),
 			})
+		})
+	})
+
+	t.Run("cast", func(t *testing.T) {
+		t.Run("invalid operand", func(t *testing.T) {
+			expr, err := cc.ParseExpr("(int)not_found->xxx")
+			test.AssertNoErr(t, err)
+
+			_, err = c.eval(expr)
+			test.AssertHaveErr(t, err)
+			test.AssertTrue(t, errors.Is(err, ErrVarNotFound))
+			test.AssertStrPrefix(t, err.Error(), "failed to evaluate cast operand")
+		})
+
+		t.Run("(int)skb->head", func(t *testing.T) {
+			defer c.reset()
+
+			expr, err := cc.ParseExpr("(int)skb->head")
+			test.AssertNoErr(t, err)
+
+			val, err := c.eval(expr)
+			test.AssertNoErr(t, err)
+
+			intType, ok := val.btf.(*btf.Int)
+			test.AssertTrue(t, ok)
+			test.AssertEqual(t, intType.Name, "int")
 		})
 	})
 

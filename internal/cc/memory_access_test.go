@@ -429,43 +429,7 @@ func TestAccessMemory(t *testing.T) {
 
 			_, err = c.accessMemory(expr)
 			test.AssertHaveErr(t, err)
-			test.AssertStrPrefix(t, err.Error(), "failed to find type")
-		})
-
-		t.Run("(struct u64 *)(skb->head)", func(t *testing.T) {
-			expr, err := cc.ParseExpr("(struct u64 *)(skb->head)")
-			test.AssertNoErr(t, err)
-
-			_, err = c.accessMemory(expr)
-			test.AssertHaveErr(t, err)
-			test.AssertStrPrefix(t, err.Error(), "expected struct/union type for cast")
-		})
-
-		t.Run("(union not_found *)(skb->head)", func(t *testing.T) {
-			expr, err := cc.ParseExpr("(union not_found *)(skb->head)")
-			test.AssertNoErr(t, err)
-
-			_, err = c.accessMemory(expr)
-			test.AssertHaveErr(t, err)
-			test.AssertStrPrefix(t, err.Error(), "failed to find type")
-		})
-
-		t.Run("(union u64 *)(skb->head)", func(t *testing.T) {
-			expr, err := cc.ParseExpr("(union u64 *)(skb->head)")
-			test.AssertNoErr(t, err)
-
-			_, err = c.accessMemory(expr)
-			test.AssertHaveErr(t, err)
-			test.AssertStrPrefix(t, err.Error(), "expected struct/union type for cast")
-		})
-
-		t.Run("(long long)skb->head", func(t *testing.T) {
-			expr, err := cc.ParseExpr("(long long)skb->head")
-			test.AssertNoErr(t, err)
-
-			_, err = c.accessMemory(expr)
-			test.AssertHaveErr(t, err)
-			test.AssertStrPrefix(t, err.Error(), "failed to find type")
+			test.AssertErrorPrefix(t, err, "failed to cast type")
 		})
 
 		t.Run("(struct ethhdr *)(void *)(skb->head)", func(t *testing.T) {
