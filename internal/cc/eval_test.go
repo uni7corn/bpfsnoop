@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/Asphaltt/mybtf"
 	"github.com/bpfsnoop/bpfsnoop/internal/test"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/btf"
@@ -923,15 +924,6 @@ func TestCC2btf(t *testing.T) {
 		test.AssertStrPrefix(t, err.Error(), "expected struct/union type for cast")
 	})
 
-	t.Run("(long long)skb->head", func(t *testing.T) {
-		expr, err := cc.ParseExpr("(long long)skb->head")
-		test.AssertNoErr(t, err)
-
-		_, err = c.cc2btf(expr)
-		test.AssertHaveErr(t, err)
-		test.AssertStrPrefix(t, err.Error(), "failed to find type")
-	})
-
 	t.Run("(struct iphdr *)skb->head", func(t *testing.T) {
 		expr, err := cc.ParseExpr("(struct iphdr *)skb->head")
 		test.AssertNoErr(t, err)
@@ -947,6 +939,56 @@ func TestCC2btf(t *testing.T) {
 		test.AssertEqual(t, strct.Name, "iphdr")
 	})
 
+	t.Run("(char)skb->head", func(t *testing.T) {
+		expr, err := cc.ParseExpr("(char)skb->head")
+		test.AssertNoErr(t, err)
+
+		typ, err := c.cc2btf(expr)
+		test.AssertNoErr(t, err)
+
+		intType, ok := typ.(*btf.Int)
+		test.AssertTrue(t, ok)
+		test.AssertEqual(t, intType.Size, 1)
+	})
+
+	t.Run("(unsigned char)skb->head", func(t *testing.T) {
+		expr, err := cc.ParseExpr("(unsigned char)skb->head")
+		test.AssertNoErr(t, err)
+
+		typ, err := c.cc2btf(expr)
+		test.AssertNoErr(t, err)
+
+		intType, ok := mybtf.UnderlyingType(typ).(*btf.Int)
+		test.AssertTrue(t, ok)
+		test.AssertEqual(t, intType.Size, 1)
+	})
+
+	t.Run("(short)skb->head", func(t *testing.T) {
+		expr, err := cc.ParseExpr("(short)skb->head")
+		test.AssertNoErr(t, err)
+
+		typ, err := c.cc2btf(expr)
+		test.AssertNoErr(t, err)
+
+		intType, ok := mybtf.UnderlyingType(typ).(*btf.Int)
+		test.AssertTrue(t, ok)
+		test.AssertEqual(t, intType.Size, 2)
+		test.AssertEqual(t, intType.Encoding, btf.Signed)
+	})
+
+	t.Run("(unsigned short)skb->head", func(t *testing.T) {
+		expr, err := cc.ParseExpr("(unsigned short)skb->head")
+		test.AssertNoErr(t, err)
+
+		typ, err := c.cc2btf(expr)
+		test.AssertNoErr(t, err)
+
+		intType, ok := mybtf.UnderlyingType(typ).(*btf.Int)
+		test.AssertTrue(t, ok)
+		test.AssertEqual(t, intType.Size, 2)
+		test.AssertEqual(t, intType.Encoding, btf.Unsigned)
+	})
+
 	t.Run("(int)skb->head", func(t *testing.T) {
 		expr, err := cc.ParseExpr("(int)skb->head")
 		test.AssertNoErr(t, err)
@@ -957,6 +999,87 @@ func TestCC2btf(t *testing.T) {
 		intType, ok := typ.(*btf.Int)
 		test.AssertTrue(t, ok)
 		test.AssertEqual(t, intType.Name, "int")
+		test.AssertEqual(t, intType.Size, 4)
+		test.AssertEqual(t, intType.Encoding, btf.Signed)
+	})
+
+	t.Run("(unsigned int)skb->head", func(t *testing.T) {
+		expr, err := cc.ParseExpr("(unsigned int)skb->head")
+		test.AssertNoErr(t, err)
+
+		typ, err := c.cc2btf(expr)
+		test.AssertNoErr(t, err)
+
+		intType, ok := mybtf.UnderlyingType(typ).(*btf.Int)
+		test.AssertTrue(t, ok)
+		test.AssertEqual(t, intType.Name, "unsigned int")
+		test.AssertEqual(t, intType.Size, 4)
+		test.AssertEqual(t, intType.Encoding, btf.Unsigned)
+	})
+
+	t.Run("(long)skb->head", func(t *testing.T) {
+		expr, err := cc.ParseExpr("(long)skb->head")
+		test.AssertNoErr(t, err)
+
+		typ, err := c.cc2btf(expr)
+		test.AssertNoErr(t, err)
+
+		intType, ok := mybtf.UnderlyingType(typ).(*btf.Int)
+		test.AssertTrue(t, ok)
+		test.AssertEqual(t, intType.Name, "long long int")
+		test.AssertEqual(t, intType.Size, 8)
+		test.AssertEqual(t, intType.Encoding, btf.Signed)
+	})
+
+	t.Run("(unsigned long)skb->head", func(t *testing.T) {
+		expr, err := cc.ParseExpr("(unsigned long)skb->head")
+		test.AssertNoErr(t, err)
+
+		typ, err := c.cc2btf(expr)
+		test.AssertNoErr(t, err)
+
+		intType, ok := mybtf.UnderlyingType(typ).(*btf.Int)
+		test.AssertTrue(t, ok)
+		test.AssertEqual(t, intType.Name, "long unsigned int")
+		test.AssertEqual(t, intType.Size, 8)
+		test.AssertEqual(t, intType.Encoding, btf.Unsigned)
+	})
+
+	t.Run("(long long)skb->head", func(t *testing.T) {
+		expr, err := cc.ParseExpr("(long long)skb->head")
+		test.AssertNoErr(t, err)
+
+		typ, err := c.cc2btf(expr)
+		test.AssertNoErr(t, err)
+
+		intType, ok := mybtf.UnderlyingType(typ).(*btf.Int)
+		test.AssertTrue(t, ok)
+		test.AssertEqual(t, intType.Name, "long long int")
+		test.AssertEqual(t, intType.Size, 8)
+		test.AssertEqual(t, intType.Encoding, btf.Signed)
+	})
+
+	t.Run("(unsigned long long)skb->head", func(t *testing.T) {
+		expr, err := cc.ParseExpr("(unsigned long long)skb->head")
+		test.AssertNoErr(t, err)
+
+		typ, err := c.cc2btf(expr)
+		test.AssertNoErr(t, err)
+
+		intType, ok := mybtf.UnderlyingType(typ).(*btf.Int)
+		test.AssertTrue(t, ok)
+		test.AssertEqual(t, intType.Name, "long long unsigned int")
+		test.AssertEqual(t, intType.Size, 8)
+		test.AssertEqual(t, intType.Encoding, btf.Unsigned)
+	})
+
+	t.Run("(enum XXX)skb->head", func(t *testing.T) {
+		expr, err := cc.ParseExpr("(enum XXX)skb->head")
+		test.AssertNoErr(t, err)
+
+		_, err = c.cc2btf(expr)
+		test.AssertHaveErr(t, err)
+		test.AssertErrorPrefix(t, err, "failed to find type")
 	})
 }
 

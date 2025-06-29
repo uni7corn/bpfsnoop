@@ -327,8 +327,23 @@ func (c *compiler) cc2btf(expr *cc.Expr) (btf.Type, error) {
 		case "void":
 			typ = &btf.Void{}
 
+		case "uchar":
+			typ, err = c.krnlSpec.AnyTypeByName("unsigned char")
+
+		case "short":
+			typ, err = c.krnlSpec.AnyTypeByName("s16")
+
+		case "ushort":
+			typ, err = c.krnlSpec.AnyTypeByName("u16")
+
+		case "long", "longlong":
+			typ, err = c.krnlSpec.AnyTypeByName("s64")
+
+		case "ulonglong":
+			typ, err = c.krnlSpec.AnyTypeByName("u64")
+
 		default:
-			typ, err = c.findType(typeName)
+			typ, err = c.krnlSpec.AnyTypeByName(typeName)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to find type '%s': %w", typeName, err)
