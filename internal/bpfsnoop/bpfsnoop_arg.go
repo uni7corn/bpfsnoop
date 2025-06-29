@@ -4,10 +4,12 @@
 package bpfsnoop
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"net"
 	"strings"
+	"unsafe"
 
 	"github.com/Asphaltt/mybtf"
 	"github.com/cilium/ebpf/btf"
@@ -166,6 +168,58 @@ func outputFuncArgAttrs(sb *strings.Builder, info *funcInfo, data []byte, f btfx
 		case arg.isHex:
 			s = fmt.Sprintf("(%s)'%s'=%s", btfx.Repr(arg.t), arg.expr,
 				hex.EncodeToString(data[:arg.trueDataSize]))
+
+		case arg.isInt:
+			le, be := binary.LittleEndian, binary.BigEndian
+
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("(%s)'%s'=", btfx.Repr(arg.t), arg.expr))
+			switch arg.intType {
+			case cc.IntTypeU8:
+				n := data[0]
+				sb.WriteString(fmt.Sprintf("%#x/%d", n, n))
+			case cc.IntTypeU16:
+				u16 := *(*uint16)(unsafe.Pointer(&data[0]))
+				sb.WriteString(fmt.Sprintf("%#x/%d", u16, u16))
+			case cc.IntTypeU32:
+				u32 := *(*uint32)(unsafe.Pointer(&data[0]))
+				sb.WriteString(fmt.Sprintf("%#x/%d", u32, u32))
+			case cc.IntTypeU64:
+				u64 := *(*uint64)(unsafe.Pointer(&data[0]))
+				sb.WriteString(fmt.Sprintf("%#x/%d", u64, u64))
+			case cc.IntTypeS8:
+				n := int8(data[0])
+				sb.WriteString(fmt.Sprintf("%d", n))
+			case cc.IntTypeS16:
+				s16 := *(*int16)(unsafe.Pointer(&data[0]))
+				sb.WriteString(fmt.Sprintf("%d", s16))
+			case cc.IntTypeS32:
+				s32 := *(*int32)(unsafe.Pointer(&data[0]))
+				sb.WriteString(fmt.Sprintf("%d", s32))
+			case cc.IntTypeS64:
+				s64 := *(*int64)(unsafe.Pointer(&data[0]))
+				sb.WriteString(fmt.Sprintf("%d", s64))
+			case cc.IntTypeBe16:
+				be16 := be.Uint16(data[:2])
+				sb.WriteString(fmt.Sprintf("%#x/%d", be16, be16))
+			case cc.IntTypeBe32:
+				be32 := be.Uint32(data[:4])
+				sb.WriteString(fmt.Sprintf("%#x/%d", be32, be32))
+			case cc.IntTypeBe64:
+				be64 := be.Uint64(data[:8])
+				sb.WriteString(fmt.Sprintf("%#x/%d", be64, be64))
+			case cc.IntTypeLe16:
+				le16 := le.Uint16(data[:2])
+				sb.WriteString(fmt.Sprintf("%#x/%d", le16, le16))
+			case cc.IntTypeLe32:
+				le32 := le.Uint32(data[:4])
+				sb.WriteString(fmt.Sprintf("%#x/%d", le32, le32))
+			case cc.IntTypeLe64:
+				le64 := le.Uint64(data[:8])
+				sb.WriteString(fmt.Sprintf("%#x/%d", le64, le64))
+			}
+
+			s = sb.String()
 		}
 
 		if s != "" {

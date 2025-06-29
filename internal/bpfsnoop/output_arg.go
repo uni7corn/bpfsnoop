@@ -54,6 +54,8 @@ type funcArgumentOutput struct {
 	portType string
 	isSlice  bool
 	isHex    bool
+	isInt    bool
+	intType  string
 }
 
 type argDataOutput struct {
@@ -277,7 +279,7 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, krnl, spec *btf.S
 
 	case cc.EvalResultTypeBuf, cc.EvalResultTypeString, cc.EvalResultTypePkt,
 		cc.EvalResultTypeAddr, cc.EvalResultTypePort, cc.EvalResultTypeSlice,
-		cc.EvalResultTypeHex:
+		cc.EvalResultTypeHex, cc.EvalResultTypeInt:
 		arg.isBuf = res.Type == cc.EvalResultTypeBuf
 		arg.isString = res.Type == cc.EvalResultTypeString
 		arg.isPkt = res.Type == cc.EvalResultTypePkt
@@ -288,6 +290,8 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, krnl, spec *btf.S
 		arg.portType = res.Port
 		arg.isSlice = res.Type == cc.EvalResultTypeSlice
 		arg.isHex = res.Type == cc.EvalResultTypeHex
+		arg.isInt = res.Type == cc.EvalResultTypeInt
+		arg.intType = res.Int
 		offset, err = arg.genBufInsns(&res, offset, size, labelExit)
 
 	default:

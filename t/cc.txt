@@ -93,3 +93,13 @@ test: -p 'n:crc' --filter-pkt 'host 127.0.0.1 and icmp' --output-arg '*(int *)(c
 match: (int)'*(int *)(ctx->data + 14 + 12)'=16777343
 prerequisite: ./xdpcrc -d lo
 trigger: ping -c 1 -s 64 127.0.0.1
+
+---
+
+# be32()
+name: cc::be32
+tag: cc,int
+test: -p 'n:crc' --filter-pkt 'host 127.0.0.1 and icmp' --output-arg 'be32(ctx->data + 14 + 12)'
+match: (void *)'be32(ctx->data + 14 + 12)'=0x7f000001/2130706433
+prerequisite: ./xdpcrc -d lo
+trigger: ping -c 1 -s 64 127.0.0.1
