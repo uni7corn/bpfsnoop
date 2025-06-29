@@ -432,6 +432,66 @@ func TestCompileFuncCall(t *testing.T) {
 		})
 	})
 
+	t.Run("int", func(t *testing.T) {
+		t.Run("u8(skb->cb, 0xFFULL)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("u8(skb->cb, 0xFFULL)")
+			test.AssertNoErr(t, err)
+
+			_, err = compileFuncCall(expr)
+			test.AssertHaveErr(t, err)
+			test.AssertErrorPrefix(t, err, "u8() second argument must be a number")
+		})
+
+		t.Run("u8(skb->cb, 4, 4)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("u8(skb->cb, 4, 4)")
+			test.AssertNoErr(t, err)
+
+			_, err = compileFuncCall(expr)
+			test.AssertHaveErr(t, err)
+			test.AssertErrorPrefix(t, err, "u8() must have 1 or 2 arguments")
+		})
+
+		t.Run("u8(skb->cb)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("u8(skb->cb)")
+			test.AssertNoErr(t, err)
+
+			val, err := compileFuncCall(expr)
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, val.typ, EvalResultTypeInt)
+			test.AssertEqual(t, val.dataSize, 1)
+		})
+
+		t.Run("u16(skb->cb)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("u16(skb->cb)")
+			test.AssertNoErr(t, err)
+
+			val, err := compileFuncCall(expr)
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, val.typ, EvalResultTypeInt)
+			test.AssertEqual(t, val.dataSize, 2)
+		})
+
+		t.Run("u32(skb->cb)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("u32(skb->cb)")
+			test.AssertNoErr(t, err)
+
+			val, err := compileFuncCall(expr)
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, val.typ, EvalResultTypeInt)
+			test.AssertEqual(t, val.dataSize, 4)
+		})
+
+		t.Run("u64(skb->cb)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("u64(skb->cb)")
+			test.AssertNoErr(t, err)
+
+			val, err := compileFuncCall(expr)
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, val.typ, EvalResultTypeInt)
+			test.AssertEqual(t, val.dataSize, 8)
+		})
+	})
+
 	t.Run("unsupported func call", func(t *testing.T) {
 		expr, err := cc.ParseExpr("unsupported(skb->cb)")
 		test.AssertNoErr(t, err)
@@ -688,6 +748,38 @@ func TestPostCheckFuncCall(t *testing.T) {
 			test.AssertNoErr(t, err)
 			test.AssertEqual(t, res.Btf, val.btf.(*btf.Array).Type)
 			test.AssertEqual(t, res.Size, int(8*4))
+		})
+	})
+
+	t.Run("int", func(t *testing.T) {
+		t.Run("invalid btf type", func(t *testing.T) {
+			res := &EvalResult{
+				Type: EvalResultTypeInt,
+			}
+			val := evalValue{
+				btf: &btf.Void{},
+			}
+
+			err := postCheckFuncCall(res, val, 0, 0, "u8")
+			test.AssertHaveErr(t, err)
+			test.AssertErrorPrefix(t, err, "disallow non-{pointer,array} type Void for u8()")
+		})
+
+		t.Run("u8", func(t *testing.T) {
+			res := &EvalResult{
+				Type: EvalResultTypeInt,
+			}
+			val := evalValue{
+				btf: &btf.Pointer{
+					Target: getU8Btf(t),
+				},
+			}
+
+			err := postCheckFuncCall(res, val, 0, 1, "u8")
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, res.Btf, val.btf)
+			test.AssertEqual(t, res.Size, int(1))
+			test.AssertEqual(t, res.Int, "u8")
 		})
 	})
 

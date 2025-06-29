@@ -105,6 +105,7 @@ const (
 	EvalResultTypePort
 	EvalResultTypeSlice
 	EvalResultTypeHex
+	EvalResultTypeInt
 )
 
 type EvalResult struct {
@@ -118,6 +119,7 @@ type EvalResult struct {
 	Pkt   string // pkt type, e.g. "eth", "ip4", "ip6", "icmp", "icmp6", "tcp" and "udp"
 	Addr  string // addr type, e.g. "eth", "eth2", "ip4", "ip42", "ip6", "ip62"
 	Port  string // port type, e.g. "port", "port2"
+	Int   string // number type, e.g. "u8", "u16", "u32", "u64", "s8", "s16", "s32", "s64", "le16", "le32", "le64", "be16", "be32" and "be64"
 
 	LabelUsed bool
 }

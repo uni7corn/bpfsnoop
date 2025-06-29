@@ -36,6 +36,23 @@ const (
 )
 
 const (
+	IntTypeU8   = "u8"
+	IntTypeU16  = "u16"
+	IntTypeU32  = "u32"
+	IntTypeU64  = "u64"
+	IntTypeS8   = "s8"
+	IntTypeS16  = "s16"
+	IntTypeS32  = "s32"
+	IntTypeS64  = "s64"
+	IntTypeLe16 = "le16"
+	IntTypeLe32 = "le32"
+	IntTypeLe64 = "le64"
+	IntTypeBe16 = "be16"
+	IntTypeBe32 = "be32"
+	IntTypeBe64 = "be64"
+)
+
+const (
 	EthAddrSize = 6
 	IP4AddrSize = 4
 	IP6AddrSize = 16
@@ -261,6 +278,39 @@ func compileFuncCall(expr *cc.Expr) (funcCallValue, error) {
 			val.typ = EvalResultTypePort
 		}
 
+	case IntTypeU8, IntTypeU16, IntTypeU32, IntTypeU64,
+		IntTypeS8, IntTypeS16, IntTypeS32, IntTypeS64,
+		IntTypeLe16, IntTypeLe32, IntTypeLe64,
+		IntTypeBe16, IntTypeBe32, IntTypeBe64:
+		switch len(expr.List) {
+		case 1:
+			break
+
+		case 2:
+			val.dataOffset, err = parseExprNumber(expr.List[1])
+			if err != nil {
+				return val, fmt.Errorf("%s() second argument must be a number: %w", fnName, err)
+			}
+
+		default:
+			return val, fmt.Errorf("%s() must have 1 or 2 arguments", fnName)
+		}
+
+		val.typ = EvalResultTypeInt
+		switch fnName {
+		case IntTypeU8, IntTypeS8:
+			val.dataSize = 1
+
+		case IntTypeU16, IntTypeS16, IntTypeLe16, IntTypeBe16:
+			val.dataSize = 2
+
+		case IntTypeU32, IntTypeS32, IntTypeLe32, IntTypeBe32:
+			val.dataSize = 4
+
+		case IntTypeU64, IntTypeS64, IntTypeLe64, IntTypeBe64:
+			val.dataSize = 8
+		}
+
 	default:
 		return val, fmt.Errorf("unknown function call: %s", fnName)
 	}
@@ -355,6 +405,21 @@ func postCheckFuncCall(res *EvalResult, val evalValue, dataOffset, dataSize int6
 
 		res.Off = int(dataOffset) * size
 		res.Size = int(dataSize) * size
+
+	case EvalResultTypeInt:
+		// u8(), u16(), u32(), u64(), s8(), s16(), s32(), s64(),
+		// le16(), le32(), le64(), be16(), be32() and be64() functions
+		t := mybtf.UnderlyingType(val.btf)
+		_, isPtr := t.(*btf.Pointer)
+		_, isArray := t.(*btf.Array)
+		if !isPtr && !isArray {
+			return fmt.Errorf("disallow non-{pointer,array} type %v for %s()", t, fnName)
+		}
+
+		res.Btf = t
+		res.Off = int(dataOffset)
+		res.Size = int(dataSize)
+		res.Int = fnName
 
 	default:
 		res.Btf = val.btf
