@@ -7,5 +7,5 @@
 name: kfuncs::icmp_rcv
 tag: kfuncs,pkt,fnarg
 test: -k 'icmp_rcv' --filter-pkt 'host 127.0.0.1' --output-pkt --output-arg 'skb->dev->name' -m 'entry,exit'
-match: icmp_rcv[ex]
+match: → icmp_rcv
 trigger: ping -c 1 -s 64 127.0.0.1

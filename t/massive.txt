@@ -7,6 +7,6 @@
 name: massive::kallsyms
 tag: massive,kfuncs
 test: -k 'kallsyms_*'
-match: kallsyms_open[ex]
+match: → kallsyms_open
 timeout: 10s
 trigger: grep -q icmp_rcv /proc/kallsyms

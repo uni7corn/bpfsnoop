@@ -26,6 +26,6 @@ trigger: ping -c 1 -s 64 127.0.0.1
 name: xdp::entry_exit
 tag: xdp,pkt,fnarg
 test: -p 'n:crc' --filter-pkt 'host 127.0.0.1 and icmp' --output-arg '*ctx' --output-arg 'buf(ctx->data, 34)' -m 'entry,exit'
-match: crc[bpf][en]
+match: → crc[bpf]
 prerequisite: ./xdpcrc -d lo
 trigger: ping -c 1 -s 64 127.0.0.1
