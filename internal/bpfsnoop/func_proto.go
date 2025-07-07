@@ -103,17 +103,23 @@ func ShowFuncProto(f *Flags) {
 			assert.NoErr(err, "Failed to inference kernel module names for kernel functions: %v")
 		}
 
+		kmods = sortCompact(append([]string{"vmlinux"}, kmods...))
 		kfuncs, err := findKernelFuncs(f.kfuncs, kmods, kallsyms, MAX_BPF_FUNC_ARGS, false, true)
 		assert.NoErr(err, "Failed to find kernel functions: %v")
 
 		fmt.Fprint(&sb, "Kernel functions:")
 		color.New(color.FgGreen).Fprintf(&sb, " (total %d)\n", len(kfuncs))
 
-		keys := maps.Keys(kfuncs)
-		slices.Sort(keys)
+		fns := make([]*btf.Func, 0, len(kfuncs))
+		for _, kf := range kfuncs {
+			fns = append(fns, kf.Func)
+		}
+		slices.SortFunc(fns, func(a, b *btf.Func) int {
+			return strings.Compare(a.Name, b.Name)
+		})
 
-		for _, k := range keys {
-			printFuncProto(&sb, kfuncs[k].Func, yellow, f.listFuncParams)
+		for _, fn := range fns {
+			printFuncProto(&sb, fn, yellow, f.listFuncParams)
 		}
 
 		printNewline = true
