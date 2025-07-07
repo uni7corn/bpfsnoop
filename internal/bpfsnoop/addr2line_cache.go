@@ -6,7 +6,6 @@ package bpfsnoop
 import (
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
 
 	"github.com/Asphaltt/addr2line"
@@ -33,13 +32,13 @@ type dbgsymCache struct {
 }
 
 func newDbgsymCache() (*dbgsymCache, error) {
-	user, err := user.Current()
+	dirname, err := os.UserHomeDir()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get current user: %w", err)
+		return nil, fmt.Errorf("failed to get current user home dir: %w", err)
 	}
 
 	var d dbgsymCache
-	cacheDir := filepath.Join(user.HomeDir, ".cache", "bpfsnoop")
+	cacheDir := filepath.Join(dirname, ".cache", "bpfsnoop")
 	_ = os.MkdirAll(cacheDir, 0x666)
 	d.cacheFile = filepath.Join(cacheDir, dbgsymCacheFile)
 
