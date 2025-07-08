@@ -35,7 +35,7 @@ type bpfProgFuncInfo struct {
 	argDataSz  int
 	isRetStr   bool
 	pktOutput  bool
-	fgraph     bool
+	flag       progFlagImmInfo
 	progType   ebpf.ProgramType
 
 	jitedLineInfo []uintptr        // ordered

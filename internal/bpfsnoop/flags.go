@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	flag "github.com/spf13/pflag"
 )
@@ -64,7 +65,8 @@ type Flags struct {
 	showFuncProto  bool
 	listFuncParams bool
 
-	noVmlinux bool
+	noVmlinux       bool
+	requiredVmlinux bool
 }
 
 func ParseFlags() (*Flags, error) {
@@ -140,6 +142,18 @@ func ParseFlags() (*Flags, error) {
 		return nil, fmt.Errorf("--fgraph-max-depth must be greater than 0")
 	}
 
+	for _, s := range flags.kfuncs {
+		flags.requiredVmlinux = flags.requiredVmlinux || strings.Contains(s, "(s)")
+	}
+	for _, s := range flags.ktps {
+		flags.requiredVmlinux = flags.requiredVmlinux || strings.Contains(s, "(s)")
+	}
+	for _, s := range flags.progs {
+		flags.requiredVmlinux = flags.requiredVmlinux || strings.Contains(s, "(s)")
+	}
+	flags.requiredVmlinux = !flags.noVmlinux &&
+		(flags.requiredVmlinux || outputFuncStack || outputLbr)
+
 	return &flags, err
 }
 
@@ -200,10 +214,6 @@ func (f *Flags) OutputLbr() bool {
 	return outputLbr
 }
 
-func (f *Flags) OutputFuncStack() bool {
-	return outputFuncStack
-}
-
 func (f *Flags) ShowFuncProto() bool {
 	return f.showFuncProto
 }
@@ -213,5 +223,5 @@ func (f *Flags) ShowFgraphProto() bool {
 }
 
 func (f *Flags) Vmlinux() bool {
-	return !f.noVmlinux
+	return f.requiredVmlinux
 }

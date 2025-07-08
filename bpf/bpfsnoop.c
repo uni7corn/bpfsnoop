@@ -137,7 +137,7 @@ emit_bpfsnoop_event(void *ctx)
     evt->pid = pid;
     bpf_get_current_comm(evt->comm, sizeof(evt->comm));
     evt->func_stack_id = -1;
-    if (cfg->output_stack && can_output)
+    if (cfg->output_stack)
         evt->func_stack_id = bpf_get_stackid(ctx, &bpfsnoop_stacks, BPF_F_FAST_STACK_CMP);
     if (cfg->output_lbr && can_output)
         output_lbr_data(lbr, session_id);

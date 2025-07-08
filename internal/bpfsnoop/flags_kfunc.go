@@ -13,7 +13,7 @@ type KfuncFlag struct {
 	arg  string
 	typ  string
 	insn bool
-	grph bool
+	progFlagImmInfo
 }
 
 func parseKfuncFlag(k string) (KfuncFlag, error) {
@@ -25,13 +25,28 @@ func parseKfuncFlag(k string) (KfuncFlag, error) {
 			k = k[3:]
 		}
 		if strings.HasPrefix(k, "(g)") {
-			kf.grph = true
+			kf.graph = true
+			k = k[3:]
+		}
+		if strings.HasPrefix(k, "(s)") {
+			kf.stack = true
+			k = k[3:]
+		}
+		if strings.HasPrefix(k, "(l)") {
+			kf.lbr = true
+			k = k[3:]
+		}
+		if strings.HasPrefix(k, "(b)") {
+			kf.both = true
 			k = k[3:]
 		}
 	}
 	kf.insn = kf.insn || outputFuncInsns
-	kf.grph = kf.grph || outputFuncGraph
-	if kf.insn && kf.grph {
+	kf.graph = kf.graph || outputFuncGraph
+	kf.stack = kf.stack || outputFuncStack
+	kf.lbr = kf.lbr || outputLbr
+	kf.both = kf.both || (hasModeEntry() && hasModeExit())
+	if kf.insn && kf.graph {
 		return kf, fmt.Errorf("kfunc %s cannot be traced with both insn and graph", k)
 	}
 

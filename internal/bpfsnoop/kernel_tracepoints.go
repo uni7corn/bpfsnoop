@@ -20,6 +20,11 @@ func matchKernelTracepoints(tps []string, tpInfos map[string]tracepointInfo, sil
 		return Tracepoints{}, err
 	}
 
+	for i := range matches {
+		matches[i].flag.insn = false
+		matches[i].flag.graph = false
+	}
+
 	krnl := getKernelBTF()
 	kmods := make(map[string]*btf.Spec)
 
@@ -42,7 +47,7 @@ func matchKernelTracepoints(tps []string, tpInfos map[string]tracepointInfo, sil
 			continue
 		}
 
-		_, ok := matchKfunc(tpName, &fp, matches)
+		tpFlag, ok := matchKfunc(tpName, &fp, matches)
 		if !ok {
 			continue
 		}
@@ -74,6 +79,7 @@ func matchKernelTracepoints(tps []string, tpInfos map[string]tracepointInfo, sil
 			Func: &fn,
 			Btf:  kbtf,
 			Prms: params,
+			Flag: tpFlag.flag.progFlagImmInfo,
 			Ret:  ret,
 			IsTp: true,
 		}
@@ -125,13 +131,11 @@ func FindKernelTracepoints(tps []string, ksyms *Kallsyms) (Tracepoints, error) {
 
 func MergeTracepointsToKfuncs(tps Tracepoints, kfuncs KFuncs) {
 	for _, tp := range tps {
-		id := rand.Uint64()
-		for {
+		var id uint64
+		for id = rand.Uint64(); ; id = rand.Uint64() {
 			if _, ok := kfuncs[uintptr(id)]; !ok {
 				break
 			}
-
-			id = rand.Uint64()
 		}
 
 		tp.Ksym.addr = id

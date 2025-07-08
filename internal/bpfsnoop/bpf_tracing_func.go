@@ -47,7 +47,7 @@ func ignoreFuncTraceVerifierErr(err error, fnName string) bool {
 	return false
 }
 
-func (t *bpfTracing) traceFunc(spec *ebpf.CollectionSpec, reusedMaps map[string]*ebpf.Map, fn *KFunc, bothEntryExit, isExit bool) error {
+func (t *bpfTracing) traceFunc(spec *ebpf.CollectionSpec, reusedMaps map[string]*ebpf.Map, fn *KFunc, bothEntryExit, isExit, stack bool) error {
 	spec = spec.Copy()
 
 	isTracepoint := fn.IsTp
@@ -82,7 +82,8 @@ func (t *bpfTracing) traceFunc(spec *ebpf.CollectionSpec, reusedMaps map[string]
 		fn.Ent = fnArgsBufSize
 	}
 
-	if err := setBpfsnoopConfig(spec, fn.Ksym.addr, len(fn.Prms), fnArgsBufSize, argDataSize, bothEntryExit, withRet); err != nil {
+	if err := setBpfsnoopConfig(spec, fn.Ksym.addr, len(fn.Prms), fnArgsBufSize,
+		argDataSize, fn.Flag.lbr, stack, fn.Pkt, bothEntryExit, withRet); err != nil {
 		return fmt.Errorf("failed to set bpfsnoop config: %w", err)
 	}
 
@@ -141,23 +142,23 @@ func (t *bpfTracing) traceFuncs(errg *errgroup.Group, spec *ebpf.CollectionSpec,
 	}
 
 	for _, fn := range kfuncs {
-		bothEntryExit := fn.Insn || fn.Grph || (hasModeEntry() && hasModeExit())
+		bothEntryExit := fn.Insn || fn.Flag.graph || fn.Flag.both
 		fn := fn
 
 		if fn.IsTp {
 			errg.Go(func() error {
-				return t.traceFunc(spec, reusedMaps, fn, bothEntryExit, false)
+				return t.traceFunc(spec, reusedMaps, fn, false, false, fn.Flag.stack)
 			})
 			continue
 		}
 
 		errg.Go(func() error {
-			return t.traceFunc(spec, reusedMaps, fn, bothEntryExit, hasModeExit())
+			return t.traceFunc(spec, reusedMaps, fn, bothEntryExit, bothEntryExit, fn.Flag.stack)
 		})
 
 		if bothEntryExit {
 			errg.Go(func() error {
-				return t.traceFunc(spec, reusedMaps, fn, bothEntryExit, !hasModeExit())
+				return t.traceFunc(spec, reusedMaps, fn, bothEntryExit, false, false)
 			})
 		}
 	}

@@ -74,8 +74,6 @@ func Run(reader *ringbuf.Reader, maps map[string]*ebpf.Map, w io.Writer, helpers
 	var record ringbuf.Record
 	record.RawSample = make([]byte, 4096)
 
-	bothModes := hasModeEntry() && hasModeExit()
-
 	unlimited := limitEvents == 0
 	for i := int64(limitEvents); unlimited || i > 0; {
 		err := reader.ReadInto(&record)
@@ -123,7 +121,7 @@ func Run(reader *ringbuf.Reader, maps map[string]*ebpf.Map, w io.Writer, helpers
 
 		var sess *Session
 		var duration time.Duration
-		withDuration := fnInfo.insnMode || fnInfo.grphMode || (bothModes && !fnInfo.isTp)
+		withDuration := fnInfo.insnMode || fnInfo.grphMode || (fnInfo.bothMode && !fnInfo.isTp)
 		if withDuration {
 			if event.Type == eventTypeFuncEntry {
 				sess = sessions.Add(event.SessID, event.KernNs)
@@ -168,14 +166,18 @@ func Run(reader *ringbuf.Reader, maps map[string]*ebpf.Map, w io.Writer, helpers
 			data = data[fnInfo.argData:]
 		}
 
-		err = lbrStack.outputStack(&sb, helpers, &lbrData, lbrs, event)
-		if err != nil {
-			return fmt.Errorf("failed to output LBR stack: %w", err)
+		if fnInfo.lbrMode {
+			err = lbrStack.outputStack(&sb, helpers, &lbrData, lbrs, event)
+			if err != nil {
+				return fmt.Errorf("failed to output LBR stack: %w", err)
+			}
 		}
 
-		err = fnStack.output(&sb, helpers, stacks, fg, event)
-		if err != nil {
-			return fmt.Errorf("failed to output function stack: %w", err)
+		if fnInfo.stckMode && event.StackID >= 0 {
+			err = fnStack.output(&sb, helpers, stacks, fg, event)
+			if err != nil {
+				return fmt.Errorf("failed to output function stack: %w", err)
+			}
 		}
 
 		if sess == nil || withRetval || (!fnInfo.insnMode && !fnInfo.grphMode) {

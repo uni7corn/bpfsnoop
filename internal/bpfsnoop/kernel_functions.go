@@ -74,7 +74,7 @@ type KFunc struct {
 	Exit int // fn args buffer size for fexit
 	Data int // arg output data size
 	Insn bool
-	Grph bool
+	Flag progFlagImmInfo
 	IsTp bool
 	Pkt  bool
 }
@@ -141,7 +141,7 @@ func matchKernelFunc(matches []*kfuncMatch, fn *btf.Func, maxArgs int, ksyms *Ka
 			kf := KFunc{Ksym: ksym, Func: fn}
 			kf.Prms = params
 			kf.Insn = match.flag.insn
-			kf.Grph = match.flag.grph
+			kf.Flag = match.flag.progFlagImmInfo
 			kf.Ret = ret
 			return &kf, true
 		}
@@ -152,7 +152,7 @@ func matchKernelFunc(matches []*kfuncMatch, fn *btf.Func, maxArgs int, ksyms *Ka
 		kf := KFunc{Ksym: ksym, Func: fn}
 		kf.Prms = params
 		kf.Insn = match.flag.insn
-		kf.Grph = match.flag.grph
+		kf.Flag = match.flag.progFlagImmInfo
 		kf.Ret = ret
 		return &kf, true
 	}
@@ -201,7 +201,7 @@ func searchKernelFuncs(funcs, kmods []string, ksyms *Kallsyms, maxArgs int) (KFu
 
 	fexit := hasModeExit()
 	for ptr, kf := range kfuncs {
-		if (fexit || kf.Insn || kf.Grph) && slices.Contains(noreturnFuncs, kf.Name()) {
+		if (fexit || kf.Flag.both || kf.Insn || kf.Flag.graph) && slices.Contains(noreturnFuncs, kf.Name()) {
 			VerboseLog("Skip fexit for noreturn function %s", kf.Name())
 			delete(kfuncs, ptr)
 		}

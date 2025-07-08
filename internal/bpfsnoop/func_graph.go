@@ -42,14 +42,14 @@ func (fg FuncGraphs) Close() {
 func FindGraphFuncs(ctx context.Context, flags *Flags, kfuncs KFuncs, bprogs *bpfProgs, ksyms *Kallsyms, maxArgs int) (FuncGraphs, error) {
 	var kfs []*KFunc
 	for _, kf := range kfuncs {
-		if kf.Grph {
+		if kf.Flag.graph {
 			kfs = append(kfs, kf)
 		}
 	}
 
 	var bps []*bpfTracingInfo
 	for _, bp := range bprogs.tracings {
-		if bp.graph {
+		if bp.flag.graph {
 			bps = append(bps, bp)
 		}
 	}

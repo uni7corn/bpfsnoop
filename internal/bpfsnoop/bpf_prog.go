@@ -76,7 +76,7 @@ func (b *bpfProgs) parseProgs() {
 	b.err = wg.Wait()
 
 	for _, t := range b.tracings {
-		b.funcs[t.funcIP].fgraph = t.graph
+		b.funcs[t.funcIP].flag = t.flag
 	}
 
 	close(b.done)

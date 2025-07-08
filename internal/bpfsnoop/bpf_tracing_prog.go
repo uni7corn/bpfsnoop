@@ -13,7 +13,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]*ebpf.Map, info *bpfTracingInfo, bprogs *bpfProgs, bothEntryExit, fexit bool) error {
+func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]*ebpf.Map, info *bpfTracingInfo, bprogs *bpfProgs, bothEntryExit, fexit, stack bool) error {
 	krnl := getKernelBTF()
 
 	spec = spec.Copy()
@@ -22,7 +22,8 @@ func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]
 	tracingFuncName := TracingProgName()
 	progSpec := spec.Programs[tracingFuncName]
 	params := info.fn.Type.(*btf.FuncProto).Params
-	bprogs.funcs[info.funcIP].pktOutput = t.injectPktOutput(progSpec, params, traceeName)
+	bprog := bprogs.funcs[info.funcIP]
+	bprog.pktOutput = t.injectPktOutput(progSpec, params, traceeName)
 	if err := t.injectPktFilter(progSpec, params, traceeName); err != nil {
 		return err
 	}
@@ -33,19 +34,21 @@ func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]
 	if err != nil {
 		return err
 	}
-	bprogs.funcs[info.funcIP].funcArgs = args
-	bprogs.funcs[info.funcIP].argDataSz = argDataSize
+	bprog.funcArgs = args
+	bprog.argDataSz = argDataSize
 	fnArgsBufSize, err := injectOutputFuncArgs(progSpec, info.params, info.ret, fexit)
 	if err != nil {
 		return fmt.Errorf("failed to inject output func args: %w", err)
 	}
 	if fexit {
-		bprogs.funcs[info.funcIP].argExitSz = fnArgsBufSize
+		bprog.argExitSz = fnArgsBufSize
 	} else {
-		bprogs.funcs[info.funcIP].argEntrySz = fnArgsBufSize
+		bprog.argEntrySz = fnArgsBufSize
 	}
 
-	if err := setBpfsnoopConfig(spec, uint64(info.funcIP), len(info.params), fnArgsBufSize, argDataSize, bothEntryExit, fexit); err != nil {
+	if err := setBpfsnoopConfig(spec, uint64(info.funcIP), len(info.params),
+		fnArgsBufSize, argDataSize, info.flag.lbr, stack,
+		bprog.pktOutput, bothEntryExit, fexit); err != nil {
 		return fmt.Errorf("failed to set bpfsnoop config: %w", err)
 	}
 
@@ -98,16 +101,16 @@ func (t *bpfTracing) traceProgs(errg *errgroup.Group, spec *ebpf.CollectionSpec,
 	}
 
 	for _, info := range bprogs.tracings {
-		bothEntryExit := info.graph || (hasModeEntry() && hasModeExit())
+		bothEntryExit := info.flag.graph || info.flag.both
 		info := info
 
 		errg.Go(func() error {
-			return t.traceProg(spec, reusedMaps, info, bprogs, bothEntryExit, hasModeExit())
+			return t.traceProg(spec, reusedMaps, info, bprogs, bothEntryExit, bothEntryExit, info.flag.stack)
 		})
 
 		if bothEntryExit {
 			errg.Go(func() error {
-				return t.traceProg(spec, reusedMaps, info, bprogs, bothEntryExit, !hasModeExit())
+				return t.traceProg(spec, reusedMaps, info, bprogs, bothEntryExit, false, false)
 			})
 		}
 	}

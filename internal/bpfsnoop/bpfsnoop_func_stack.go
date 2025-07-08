@@ -97,10 +97,6 @@ func (s *fnStack) get(event *Event, helpers *Helpers, stacks *ebpf.Map, symbolOn
 }
 
 func (s *fnStack) output(sb *strings.Builder, helpers *Helpers, stacks *ebpf.Map, fg *FlameGraph, event *Event) error {
-	if !outputFuncStack || event.StackID <= 0 {
-		return nil
-	}
-
 	err := s.get(event, helpers, stacks, outputFlameGraph != "")
 	if err != nil {
 		return fmt.Errorf("failed to get function stack: %w", err)

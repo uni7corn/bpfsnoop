@@ -120,7 +120,7 @@ func main() {
 			assert.NoErr(err, "Failed to find vmlinux: %v")
 		}
 	}
-	if err == nil && flags.Vmlinux() && (flags.OutputLbr() || flags.OutputFuncStack()) {
+	if err == nil && flags.Vmlinux() {
 		bpfsnoop.VerboseLog("Found vmlinux: %s", vmlinux)
 
 		textAddr, err := bpfsnoop.ReadTextAddrFromVmlinux(vmlinux)

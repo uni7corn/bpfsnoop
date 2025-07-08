@@ -82,10 +82,6 @@ func (s *lbrStack) get(funcIP uintptr, lbrData *LbrData, helpers *Helpers) bool 
 }
 
 func (s *lbrStack) outputStack(sb *strings.Builder, helpers *Helpers, lbrData *LbrData, lbrs *ebpf.Map, ev *Event) error {
-	if !outputLbr {
-		return nil
-	}
-
 	b := ptr2bytes(unsafe.Pointer(lbrData), int(unsafe.Sizeof(*lbrData)))
 	err := lbrs.LookupAndDelete(ev.SessID, b)
 	if err != nil {

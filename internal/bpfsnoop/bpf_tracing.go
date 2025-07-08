@@ -29,11 +29,11 @@ func (t *bpfTracing) Progs() []*ebpf.Program {
 	return t.progs
 }
 
-func setBpfsnoopConfig(spec *ebpf.CollectionSpec, funcIP uint64, fnArgsNr, fnArgsBufSize, argDataSize int, bothEntryExit, withRet bool) error {
+func setBpfsnoopConfig(spec *ebpf.CollectionSpec, funcIP uint64, fnArgsNr, fnArgsBufSize, argDataSize int, lbr, stack, pkt, bothEntryExit, withRet bool) error {
 	var cfg BpfsnoopConfig
-	cfg.SetOutputLbr(outputLbr)
-	cfg.SetOutputStack(outputFuncStack)
-	cfg.SetOutputPktTuple(outputPkt)
+	cfg.SetOutputLbr(lbr)
+	cfg.SetOutputStack(stack)
+	cfg.SetOutputPktTuple(pkt)
 	cfg.SetOutputArg(argDataSize != 0)
 	cfg.SetBothEntryExit(bothEntryExit)
 	cfg.SetIsEntry(!withRet)

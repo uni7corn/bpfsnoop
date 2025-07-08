@@ -22,8 +22,11 @@ type funcInfo struct {
 	argEntry int
 	argExit  int
 	argData  int
+	lbrMode  bool
+	stckMode bool
 	insnMode bool
 	grphMode bool
+	bothMode bool
 	pktTuple bool
 	isTp     bool
 	isProg   bool
@@ -45,11 +48,14 @@ func getFuncInfo(funcIP uintptr, helpers *Helpers, graph *FuncGraph) *funcInfo {
 		info.params = progInfo.funcParams
 		info.retParam = progInfo.retParam
 		info.pktTuple = progInfo.pktOutput
-		info.isProg = true
 		info.argEntry = progInfo.argEntrySz
 		info.argExit = progInfo.argExitSz
 		info.argData = progInfo.argDataSz
-		info.grphMode = progInfo.fgraph
+		info.lbrMode = progInfo.flag.lbr
+		info.stckMode = progInfo.flag.stack
+		info.grphMode = progInfo.flag.graph
+		info.bothMode = progInfo.flag.both
+		info.isProg = true
 		info.progType = progInfo.progType
 		return &info
 	}
@@ -73,12 +79,15 @@ func getFuncInfo(funcIP uintptr, helpers *Helpers, graph *FuncGraph) *funcInfo {
 	info.args = fn.Args
 	info.params = fn.Prms
 	info.retParam = fn.Ret
-	info.insnMode = fn.Insn
-	info.pktTuple = fn.Pkt
 	info.argEntry = fn.Ent
 	info.argExit = fn.Exit
 	info.argData = fn.Data
-	info.grphMode = fn.Grph
+	info.lbrMode = fn.Flag.lbr
+	info.stckMode = fn.Flag.stack
+	info.insnMode = fn.Insn
+	info.grphMode = fn.Flag.graph
+	info.bothMode = fn.Flag.both
+	info.pktTuple = fn.Pkt
 
 	if fn.IsTp {
 		info.name = fn.Func.Name + "[tp]"

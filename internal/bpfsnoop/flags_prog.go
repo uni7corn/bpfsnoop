@@ -26,19 +26,37 @@ type ProgFlag struct {
 	pid    uint32
 
 	descriptor string
-	funcName   string
+	progFlagImmInfo
 
-	all   bool
-	graph bool
+	all bool
 }
 
 func parseProgFlag(p string) (ProgFlag, error) {
 	var pf ProgFlag
 
-	if strings.HasPrefix(p, "(g)") {
-		pf.graph = true
-		p = p[3:]
+	for strings.HasPrefix(p, "(") {
+		if strings.HasPrefix(p, "(g)") {
+			pf.graph = true
+			p = p[3:]
+		}
+		if strings.HasPrefix(p, "(s)") {
+			pf.stack = true
+			p = p[3:]
+		}
+		if strings.HasPrefix(p, "(l)") {
+			pf.lbr = true
+			p = p[3:]
+		}
+		if strings.HasPrefix(p, "(b)") {
+			pf.both = true
+			p = p[3:]
+		}
 	}
+
+	pf.graph = pf.graph || outputFuncGraph
+	pf.stack = pf.stack || outputFuncStack
+	pf.lbr = pf.lbr || outputLbr
+	pf.both = pf.both || (hasModeEntry() && hasModeExit())
 
 	if p == "*" {
 		pf.all = true
