@@ -1,7 +1,7 @@
 github.com/Asphaltt/addr2line v0.1.2 h1:GPZflkxPeF+7EKXt9ty8GDwBhd7tVxQilUkCHI/4Ujg=
 github.com/Asphaltt/addr2line v0.1.2/go.mod h1:02z/FcEJ9rsH1i7It81L6xHtjSoBOrKbDtTGlptzfP0=
-github.com/Asphaltt/mybtf v0.0.0-20250315135407-f9d09086616b h1:LRS0ckDlNnX2Bux8k0HqLVf/2PqvvykoB8HSxXf7XjA=
-github.com/Asphaltt/mybtf v0.0.0-20250315135407-f9d09086616b/go.mod h1:ZxswciFofS8TXGsc2j5CWCY8O3XwKEysCnU7hoI1fnI=
+github.com/Asphaltt/mybtf v0.0.0-20250708022622-be6f548674b2 h1:IzK5ZB+DlIrLYX2/4yOQgxhIxBsOtJvAmpvbi3RgRyc=
+github.com/Asphaltt/mybtf v0.0.0-20250708022622-be6f548674b2/go.mod h1:ZxswciFofS8TXGsc2j5CWCY8O3XwKEysCnU7hoI1fnI=
 github.com/bpfsnoop/gapstone v0.0.0-20250326151126-f4ba393504da h1:jMqMpXXLc7sZrIUOatcnO6cmlV1MuLZPtDMmaXksu6I=
 github.com/bpfsnoop/gapstone v0.0.0-20250326151126-f4ba393504da/go.mod h1:z8pjvjRs6upeW3rOvXbyAua+ngoozVZg6HwTdRsALoM=
 github.com/cilium/ebpf v0.17.4-0.20250310175843-23a70a77897a h1:Gwqct80mVVFXishYmIJKmnkSxSUsPIkoEHpLagVHIjU=

@@ -6,6 +6,7 @@ package bpfsnoop
 import (
 	"fmt"
 
+	"github.com/Asphaltt/mybtf"
 	"github.com/cilium/ebpf/btf"
 	"github.com/gobwas/glob"
 
@@ -54,7 +55,7 @@ func (m kfuncMatch) match(fn string, fp *btf.FuncProto) bool {
 				return true
 			}
 
-			ptyp := btfx.Repr(p.Type)
+			ptyp := btfx.Repr(mybtf.UnderlyingType(p.Type))
 			return ptyp == m.flag.typ
 		}
 	}
