@@ -3,7 +3,11 @@
 
 package bpfsnoop
 
-import "log"
+import (
+	"log"
+
+	"github.com/fatih/color"
+)
 
 func VerboseLog(format string, args ...interface{}) {
 	if verbose {
@@ -26,5 +30,11 @@ func DebugLog(format string, args ...any) {
 func debugLogIf(cond bool, format string, args ...interface{}) {
 	if cond && debugLog {
 		log.Printf(format, args...)
+	}
+}
+
+func WarnLogIf(cond bool, format string, args ...any) {
+	if cond {
+		log.Print(color.New(color.FgRed, color.Bold).Sprintf("WARNING: "+format, args...))
 	}
 }

@@ -153,6 +153,8 @@ func main() {
 	default:
 	}
 
+	bpfsnoop.WarnLogIf(len(graphs) != 0, "funcgraph is possible to crash your kernel, please use it with caution!")
+
 	tracingTargets := bpfProgs.Tracings()
 	assert.True(len(tracingTargets)+len(kfuncs)+len(insns)+len(graphs) != 0, "No tracing target")
 
