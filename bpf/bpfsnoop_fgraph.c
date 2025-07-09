@@ -39,10 +39,42 @@ struct bpfsnoop_fgraph_event {
     __u32 depth;
 };
 
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, __u64);
+    __type(value, __u32);
+    __uint(max_entries, 1024 * 1024); // 1Mi entries
+} bpfsnoop_fgraph_tracee_ips SEC(".maps");
+
+/* Check the tracee ip in the following stack layout:
+ * +----+ tracee caller fp
+ * | .. |
+ * | ip | tracee caller ip
+ * | ip | tracee ip        <-- check this ip
+ * | fp | tracee caller fp
+ * +----+ tramp fp
+ * | .. |
+ * | ip | tramp ip
+ * | fp | tramp fp
+ * +----+ fgraph prog fp
+ * | .. |
+ *
+ */
+static __always_inline bool
+is_tramp_fp(__u64 ip)
+{
+    __u32 *val;
+
+    val = bpf_map_lookup_elem(&bpfsnoop_fgraph_tracee_ips, &ip);
+    return val != NULL;
+}
+
 static __always_inline struct bpfsnoop_sess *
 try_get_session(int *depth)
 {
     struct bpfsnoop_sess *sess;
+    __u32 max_depth;
+    __u64 buff[2]; /* [FP|IP] */
     __u64 fp;
     int i;
 
@@ -50,16 +82,21 @@ try_get_session(int *depth)
     asm volatile ("%[fp] = r10" : [fp] "+r"(fp) :); /* read prog fp */
     (void) bpf_probe_read_kernel(&fp, sizeof(fp), (void *) fp); /* read tramp fp */
     (void) bpf_probe_read_kernel(&fp, sizeof(fp), (void *) fp); /* read caller fp */
-    (void) bpf_probe_read_kernel(&fp, sizeof(fp), (void *) fp); /* read caller's caller fp */
 
-    int max_tries = cfg->max_depth;
+    *depth = 0;
+    max_depth = cfg->max_depth;
+    int max_tries = max_depth * 2;
     for (i = 0; i < max_tries; i++) {
-        (void) bpf_probe_read_kernel(&fp, sizeof(fp), (void *) fp);
-        sess = get_session(fp);
-        if (sess) {
-            *depth = i + 1; // 1-based depth
+        (void) bpf_probe_read_kernel(&buff, sizeof(buff), (void *) fp); /* read both fp&ip at same time */
+        sess = get_session(buff[0]);
+        if (sess)
             return sess;
-        }
+
+        if (!is_tramp_fp(buff[1]))
+            (*depth)++;
+        if (*depth > max_depth)
+            break;
+        fp = buff[0]; /* next frame pointer */
     }
 
     return NULL;
@@ -105,9 +142,10 @@ int BPF_PROG(bpfsnoop_fgraph)
     evt->cpu = bpf_get_smp_processor_id();
     evt->depth = depth;
 
-    output_fn_args(args, buffer + sizeof(*evt), retval);
+    buffer += sizeof(*evt);
+    output_fn_args(args, buffer, retval);
 
-    bpf_ringbuf_submit(buffer, 0);
+    bpf_ringbuf_submit(evt, 0);
 
     return BPF_OK;
 }

@@ -27,6 +27,7 @@ type FuncGraph struct {
 	ArgsEnSz int
 	ArgsExSz int
 	bytes    uint
+	traced   bool
 }
 
 type FuncGraphs map[uint64]*FuncGraph // key is the func IP

@@ -9,6 +9,7 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
+	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/bpfsnoop/bpfsnoop/internal/bpf"
@@ -98,6 +99,7 @@ func (t *bpfTracing) traceGraph(spec *ebpf.CollectionSpec,
 	t.glnks = append(t.glnks, l)
 	t.llock.Unlock()
 
+	graph.traced = true
 	return nil
 }
 
@@ -137,7 +139,15 @@ func (t *bpfTracing) traceGraphs(reusedMaps map[string]*ebpf.Map, graphs FuncGra
 		return fmt.Errorf("failed to load graph bpf spec: %w", err)
 	}
 
+	traceeIPsMapName := "bpfsnoop_fgraph_tracee_ips"
+	traceeIPs, err := ebpf.NewMap(spec.Maps[traceeIPsMapName])
+	if err != nil {
+		return fmt.Errorf("failed to create tracee IPs map: %w", err)
+	}
+	defer traceeIPs.Close()
+
 	replacedMaps := map[string]*ebpf.Map{
+		traceeIPsMapName:    traceeIPs,
 		".data.ready":       reusedMaps[".data.ready"],
 		"bpfsnoop_events":   reusedMaps["bpfsnoop_events"],
 		"bpfsnoop_sessions": reusedMaps["bpfsnoop_sessions"],
@@ -164,5 +174,49 @@ func (t *bpfTracing) traceGraphs(reusedMaps map[string]*ebpf.Map, graphs FuncGra
 		}
 	}
 
-	return errg.Wait()
+	if err := errg.Wait(); err != nil {
+		return fmt.Errorf("failed to trace graph funcs/progs: %w", err)
+	}
+
+	if err := t.populateFgraphTraceeIPs(traceeIPs, graphs); err != nil {
+		return fmt.Errorf("failed to populate fgraph tracee IPs map: %w", err)
+	}
+
+	return nil
+}
+
+func (t *bpfTracing) populateFgraphTraceeIPs(ips *ebpf.Map, graphs FuncGraphs) error {
+	traceeIPs := make(map[uint64]struct{}, len(graphs))
+	for _, graph := range graphs {
+		if !graph.traced {
+			continue
+		}
+
+		var traceeIP uint64
+		if graph.Kfunc != nil {
+			traceeIP = graph.Kfunc.Ksym.addr
+		} else if graph.Bprog != nil {
+			traceeIP = uint64(graph.Bprog.kaddrRange.start)
+		} else {
+			continue
+		}
+
+		// Get the IP of calling trampoline.
+		traceeIP += insnCallqSize
+		if hasEndbr {
+			traceeIP += insnEndbrSize
+		}
+		traceeIPs[traceeIP] = struct{}{}
+	}
+
+	// update_batch is supported since kernel 5.6
+	// commit aa2e93b ("bpf: Add generic support for update and delete batch ops")
+
+	keys := maps.Keys(traceeIPs)
+	vals := make([]uint32, len(keys))
+	if _, err := ips.BatchUpdate(keys, vals, nil); err != nil {
+		return fmt.Errorf("failed to update fgraph tracee IPs map: %w", err)
+	}
+
+	return nil
 }

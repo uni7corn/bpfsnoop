@@ -9,6 +9,10 @@ import (
 	"github.com/cilium/ebpf"
 )
 
+const (
+	insnEndbrSize = 4 // size of endbr instruction in bytes
+)
+
 // The following genEndbrPoison() and isEndbrInsn() functions are taken from the
 // kernel's arch/x86/include/asm/ibt.h file.
 
