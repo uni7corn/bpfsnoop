@@ -25,6 +25,11 @@ const (
 
 var ne = binary.NativeEndian // use native endianness for kernel addresses
 
+type fgraphParsedKey struct {
+	ip    uint64 // instruction pointer of the caller
+	depth uint   // depth of the function call graph
+}
+
 type FuncGraphParser struct {
 	ksyms *Kallsyms
 	progs *bpfProgs
@@ -40,6 +45,9 @@ type FuncGraphParser struct {
 
 	unlock       sync.RWMutex        // protects the untraceable map
 	untraceables map[uint64]struct{} // IPs that are not traceable
+
+	plock  sync.RWMutex                 // protects the parsed map
+	parsed map[fgraphParsedKey]struct{} // parsed functions to avoid parsing again
 
 	maxDepth uint // max depth of the function call graph
 	maxArgs  int  // max number of arguments to trace kfunc
@@ -60,9 +68,10 @@ func newFuncGraphParser(ctx context.Context, ksyms *Kallsyms, progs *bpfProgs,
 		includes:     includes,
 		excludes:     excludes,
 		graphs:       make(map[uint64]*FuncGraph, 64),
-		syms:         make(map[string]struct{}, 64), // to avoid duplicate symbols
-		callee:       make(map[uint64][]uint64, 64), // callee IPs for each caller IP
-		untraceables: make(map[uint64]struct{}, 64), // IPs that are not traceable
+		syms:         make(map[string]struct{}, 64),          // to avoid duplicate symbols
+		callee:       make(map[uint64][]uint64, 64),          // callee IPs for each caller IP
+		untraceables: make(map[uint64]struct{}, 64),          // IPs that are not traceable
+		parsed:       make(map[fgraphParsedKey]struct{}, 64), // parsed functions to avoid parsing again
 		maxDepth:     maxDepth,
 		maxArgs:      maxArgs,
 		errg:         errg,
@@ -80,8 +89,23 @@ func getCalleeIP(kaddr uint64, offset uint32) uint64 {
 	return kaddr + insnCallqSize + uint64(offset) | 0xFFFFFFFF00000000 // ensure it's a kernel address
 }
 
+func (p *FuncGraphParser) checkParsed(ip uint64, depth uint) bool {
+	p.plock.Lock()
+	defer p.plock.Unlock()
+	key := fgraphParsedKey{ip: ip, depth: depth}
+	_, parsed := p.parsed[key]
+	if !parsed {
+		p.parsed[key] = struct{}{}
+	}
+	return parsed
+}
+
 func (p *FuncGraphParser) parse(ip uint64, bytes uint, depth uint, isBPF bool, tracee string) error {
-	DebugLog("Parsing graph %s at %#x %d bytes %d depth bpf:%v", tracee, ip, bytes, depth, isBPF)
+	if p.checkParsed(ip, depth) {
+		return nil
+	}
+
+	DebugLog("Parsing graph %s at %#x %d bytes depth:%d bpf:%v", tracee, ip, bytes, depth, isBPF)
 
 	p.glock.RLock()
 	callees, ok := p.callee[ip]
