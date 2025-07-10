@@ -15,6 +15,16 @@ import (
 	"github.com/bpfsnoop/bpfsnoop/internal/bpf"
 )
 
+type tracingInsn struct {
+	l link.Link
+	p *ebpf.Program
+}
+
+func (t *tracingInsn) Close() {
+	_ = t.l.Close()
+	_ = t.p.Close()
+}
+
 func (t *bpfTracing) traceInsn(spec *ebpf.CollectionSpec, reusedMaps map[string]*ebpf.Map, insn FuncInsn) error {
 	spec = spec.Copy()
 
@@ -52,7 +62,10 @@ func (t *bpfTracing) traceInsn(spec *ebpf.CollectionSpec, reusedMaps map[string]
 
 	t.llock.Lock()
 	t.progs = append(t.progs, prog)
-	t.ilnks = append(t.ilnks, l)
+	t.insns = append(t.insns, tracingInsn{
+		l: l,
+		p: prog,
+	})
 	t.llock.Unlock()
 
 	return nil

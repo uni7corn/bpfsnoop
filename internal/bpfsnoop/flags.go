@@ -141,6 +141,9 @@ func ParseFlags() (*Flags, error) {
 	if flags.fgraphDepth == 0 {
 		return nil, fmt.Errorf("--fgraph-max-depth must be greater than 0")
 	}
+	if flags.fgraphDepth > 500 {
+		return nil, fmt.Errorf("--fgraph-max-depth is larger than limit 500")
+	}
 
 	for _, s := range flags.kfuncs {
 		flags.requiredVmlinux = flags.requiredVmlinux || strings.Contains(s, "(s)")
@@ -224,4 +227,8 @@ func (f *Flags) ShowFgraphProto() bool {
 
 func (f *Flags) Vmlinux() bool {
 	return f.requiredVmlinux
+}
+
+func (f *Flags) FgraphMaxDepth() uint {
+	return f.fgraphDepth
 }

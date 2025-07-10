@@ -177,10 +177,10 @@ func ProbeTailcallIssue(spec *ebpf.CollectionSpec) error {
 		return fmt.Errorf("failed to probe tailcall info: %w", err)
 	}
 
-	DebugLog("Current kernel has fixed tailcall infinite loop issue caused by trampoline: %v",
-		info.fixedTailcallInfiniteLoopCausedByTrampoline)
-	verboseLogIf(!info.fixedTailcallInfiniteLoopCausedByTrampoline,
-		"Current kernel does not have fixed tailcall infinite loop issue caused by trampoline")
+	WarnLogIf(!info.fixedTailcallInfiniteLoopCausedByTrampoline,
+		"Current kernel has tailcall infinite loop issue caused by trampoline")
+	DebugLog("Tailcall info: tailcall-in-bpf2bpf=%t, fixedTailcallInfiniteLoopCausedByTrampoline=%t",
+		true, info.fixedTailcallInfiniteLoopCausedByTrampoline)
 
 	tailcallInfo = info
 	tailcallInfo.supportTailcallInBpf2bpf = true

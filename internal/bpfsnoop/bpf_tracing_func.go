@@ -15,6 +15,16 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+type tracingFunc struct {
+	l link.Link
+	p *ebpf.Program
+}
+
+func (t *tracingFunc) Close() {
+	_ = t.l.Close()
+	_ = t.p.Close()
+}
+
 func ignoreFuncTraceErr(err error, fnName string) bool {
 	if errors.Is(err, unix.ENOENT) || errors.Is(err, unix.EINVAL) ||
 		errors.Is(err, unix.EOPNOTSUPP) || errors.Is(err, ebpf.ErrNotSupported) {
@@ -130,7 +140,10 @@ func (t *bpfTracing) traceFunc(spec *ebpf.CollectionSpec, reusedMaps map[string]
 
 	t.llock.Lock()
 	t.progs = append(t.progs, prog)
-	t.klnks = append(t.klnks, l)
+	t.kfns = append(t.kfns, tracingFunc{
+		l: l,
+		p: prog,
+	})
 	t.llock.Unlock()
 
 	return nil

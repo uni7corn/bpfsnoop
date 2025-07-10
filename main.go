@@ -145,6 +145,8 @@ func main() {
 	assert.NoErr(err, "Failed to find graph functions: %v")
 	defer graphs.Close()
 	bpfsnoop.DebugLog("Found %d graph functions/progs cost %s", len(graphs), time.Since(fgTs))
+	assert.False(bpfsnoop.FgraphExceedMaxDepth(flags, graphs),
+		"Current kernel does not support too large --fgraph-max-depth %d, limit 10", flags.FgraphMaxDepth())
 
 	select {
 	case <-ctx.Done():
@@ -165,12 +167,8 @@ func main() {
 	reusedMaps := bpfsnoop.PrepareBPFMaps(bpfSpec)
 	defer bpfsnoop.CloseBPFMaps(reusedMaps)
 
-	if len(kfuncs) > 20 {
-		log.Printf("bpfsnoop is tracing %d kernel functions/tracepoints, this may take a while", len(kfuncs))
-	}
-	if len(graphs) > 20 {
-		log.Printf("bpfsnoop is tracing %d graph functions/progs, this may take a while", len(graphs))
-	}
+	bpfsnoop.LogIf(len(kfuncs) > 20, "bpfsnoop is tracing %d kernel functions/tracepoints, this may take a while", len(kfuncs))
+	bpfsnoop.LogIf(len(graphs) > 20, "bpfsnoop is tracing %d graph functions/progs, this may take a while", len(graphs))
 
 	tstarted := time.Now()
 	tracings, err := bpfsnoop.NewBPFTracing(bpfSpec, reusedMaps, bpfProgs, kfuncs, insns, graphs)

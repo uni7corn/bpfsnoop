@@ -33,8 +33,18 @@ func debugLogIf(cond bool, format string, args ...interface{}) {
 	}
 }
 
+func WarnLog(format string, args ...any) {
+	log.Print(color.New(color.FgRed, color.Bold).Sprintf("WARNING: "+format, args...))
+}
+
 func WarnLogIf(cond bool, format string, args ...any) {
 	if cond {
-		log.Print(color.New(color.FgRed, color.Bold).Sprintf("WARNING: "+format, args...))
+		WarnLog(format, args...)
+	}
+}
+
+func LogIf(cond bool, format string, args ...interface{}) {
+	if cond {
+		log.Printf(format, args...)
 	}
 }

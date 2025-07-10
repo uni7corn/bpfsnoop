@@ -19,7 +19,9 @@ struct bpfsnoop_fn_args {
 struct bpfsnoop_fgraph_configs {
     __u64 func_ip;
     __u32 max_depth;
-    __u32 entry; // 1 for entry, 0 for exit
+    __u8 entry; /* 1 for entry, 0 for exit */
+    __u8 tailcall_in_bpf2bpf; /* supported since v5.10 for x86_64 */
+    __u8 pad[2];
     __u32 mypid;
     struct bpfsnoop_fn_args fn_args;
 } __attribute__((packed));
@@ -38,6 +40,39 @@ struct bpfsnoop_fgraph_event {
     __u32 cpu;
     __u32 depth;
 };
+
+struct bpfsnoop_fgraph_tailcall_data {
+    __u64 fp;
+    int depth;
+    int max_depth;
+    __u64 sess;
+    bool found;
+    bool oo_depth;
+};
+
+struct {
+    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+    __type(key, __u32);
+    __type(value, struct bpfsnoop_fgraph_tailcall_data);
+    __uint(max_entries, 1);
+} bpfsnoop_fgraph_tailcall SEC(".maps");
+
+static __always_inline struct bpfsnoop_fgraph_tailcall_data *
+get_fgraph_tailcall_data(void)
+{
+    struct bpfsnoop_fgraph_tailcall_data *data;
+    __u32 key = 0;
+
+    data = bpf_map_lookup_elem(&bpfsnoop_fgraph_tailcall, &key);
+    return data;
+}
+
+struct {
+    __uint(type, BPF_MAP_TYPE_PROG_ARRAY);
+    __type(key, __u32);
+    __type(value, __u32);
+    __uint(max_entries, 1);
+} bpfsnoop_fgraph_tailcall_prog_array SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
@@ -59,6 +94,8 @@ struct {
  * +----+ fgraph prog fp
  * | .. |
  *
+ * As a result, if the eip is in the tracee ips map, it means current fp is a
+ * tramp fp.
  */
 static __always_inline bool
 is_tramp_fp(__u64 ip)
@@ -70,13 +107,17 @@ is_tramp_fp(__u64 ip)
 }
 
 static __always_inline struct bpfsnoop_sess *
-try_get_session(int *depth)
+try_get_session_limited(int *depth)
 {
     struct bpfsnoop_sess *sess;
-    __u32 max_depth;
+    __u32 max_depth, max_tries;
     __u64 buff[2]; /* [FP|IP] */
     __u64 fp;
     int i;
+
+    max_depth = cfg->max_depth;
+    if (max_depth > 10)
+        return NULL; /* max depth is too large, avoid 'BPF program is too large' */
 
     /* get frame pointer */
     asm volatile ("%[fp] = r10" : [fp] "+r"(fp) :); /* read prog fp */
@@ -84,22 +125,98 @@ try_get_session(int *depth)
     (void) bpf_probe_read_kernel(&fp, sizeof(fp), (void *) fp); /* read caller fp */
 
     *depth = 0;
-    max_depth = cfg->max_depth;
-    int max_tries = max_depth * 2;
+    max_tries = max_depth * 2;
     for (i = 0; i < max_tries; i++) {
         (void) bpf_probe_read_kernel(&buff, sizeof(buff), (void *) fp); /* read both fp&ip at same time */
         sess = get_session(buff[0]);
         if (sess)
             return sess;
 
-        if (!is_tramp_fp(buff[1]))
-            (*depth)++;
-        if (*depth > max_depth)
+        if (!is_tramp_fp(buff[1]) && ++(*depth) > max_depth)
             break;
+
         fp = buff[0]; /* next frame pointer */
     }
 
     return NULL;
+}
+
+SEC("fexit")
+int BPF_PROG(bpfsnoop_fgraph_tailcallee)
+{
+    struct bpfsnoop_fgraph_tailcall_data *data;
+    struct bpfsnoop_sess *sess;
+    __u64 buff[2]; /* [FP|IP] */
+    __u64 fp;
+    int i;
+
+    data = get_fgraph_tailcall_data();
+    if (!data) /* won't failed, but required to check it in bpf code */
+        return false;
+
+    fp = data->fp;
+    for (i = 0; i < 100; i++) {
+        (void) bpf_probe_read_kernel(&buff, sizeof(buff), (void *) fp); /* read both fp&ip at same time */
+        sess = get_session(buff[0]);
+        if (sess) {
+            data->sess = (__u64) sess;
+            data->found = true;
+            return false;
+        }
+
+        if (!is_tramp_fp(buff[1]) && ++(data->depth) > data->max_depth) {
+            data->oo_depth = true; /* out of depth */
+            return false;
+        }
+
+        data->fp = fp = buff[0]; /* next frame pointer */
+    }
+
+    return false;
+}
+
+static __noinline int
+get_session_from_tailcall(void *ctx)
+{
+    /* tailcall bpfsnoop_fgraph_tailcallee */
+    bpf_tail_call_static(ctx, &bpfsnoop_fgraph_tailcall_prog_array, 0);
+    return 0; /* won't failed, as tailcall must succeed when prog_array is populated */
+}
+
+static __always_inline struct bpfsnoop_sess *
+try_get_session(void *ctx, int *depth)
+{
+    struct bpfsnoop_fgraph_tailcall_data *data;
+    __u64 fp;
+
+    if (!cfg->tailcall_in_bpf2bpf)
+        return try_get_session_limited(depth);
+
+    data = get_fgraph_tailcall_data();
+    if (!data)
+        return NULL;
+
+    /* get frame pointer */
+    asm volatile ("%[fp] = r10" : [fp] "+r"(fp) :); /* read prog fp */
+    (void) bpf_probe_read_kernel(&fp, sizeof(fp), (void *) fp); /* read tramp fp */
+    (void) bpf_probe_read_kernel(&fp, sizeof(fp), (void *) fp); /* read caller fp */
+
+    __builtin_memset(data, 0, sizeof(*data));
+    data->fp = fp;
+    data->max_depth = cfg->max_depth;
+
+    const int max_loop = 10;
+    for (int i = 0; i < max_loop; i++) {
+        (void) get_session_from_tailcall(ctx);
+        if (data->found) {
+            *depth = data->depth;
+            return (struct bpfsnoop_sess *) data->sess;
+        }
+        if (data->oo_depth)
+            return NULL; /* out of max depth */
+    }
+
+    return NULL; /* not found */
 }
 
 SEC("fexit")
@@ -119,7 +236,7 @@ int BPF_PROG(bpfsnoop_fgraph)
     if (cfg->mypid == (bpf_get_current_pid_tgid() >> 32))
         return BPF_OK;
 
-    sess = try_get_session(&depth);
+    sess = try_get_session(ctx, &depth);
     if (!sess)
         return BPF_OK;
 
@@ -137,7 +254,10 @@ int BPF_PROG(bpfsnoop_fgraph)
                            : BPFSNOOP_EVENT_TYPE_GRAPH_EXIT;
     evt->length = buffer_sz;
     evt->kernel_ts = (__u32) bpf_ktime_get_ns();
-    evt->session_id = sess->session_id;
+    if (cfg->tailcall_in_bpf2bpf)
+        (void) bpf_probe_read_kernel(&evt->session_id, sizeof(evt->session_id), &sess->session_id);
+    else
+        evt->session_id = sess->session_id;
     evt->func_ip = cfg->func_ip;
     evt->cpu = bpf_get_smp_processor_id();
     evt->depth = depth;

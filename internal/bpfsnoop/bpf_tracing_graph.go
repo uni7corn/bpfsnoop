@@ -4,6 +4,7 @@
 package bpfsnoop
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -11,14 +12,29 @@ import (
 	"github.com/cilium/ebpf/link"
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sys/unix"
 
 	"github.com/bpfsnoop/bpfsnoop/internal/bpf"
 )
 
+type tracingGraph struct {
+	l link.Link
+	p *ebpf.Program
+	m *ebpf.Map
+}
+
+func (t *tracingGraph) Close() {
+	_ = t.l.Close()
+	_ = t.p.Close()
+	_ = t.m.Close()
+}
+
 type bpfFgraphConfig struct {
 	FuncIP    uint64
 	MaxDepth  uint32
-	Entry     uint32 // 1 for entry, 0 for exit
+	Entry     uint8 // 1 for entry, 0 for exit
+	TinBPF    uint8 // tailcall in bpf2bpf
+	Pad2      uint16
 	MyPID     uint32
 	FnArgsNr  uint32
 	WithRet   bool
@@ -45,7 +61,8 @@ func (t *bpfTracing) traceGraph(spec *ebpf.CollectionSpec,
 	var cfg bpfFgraphConfig
 	cfg.FuncIP = graph.IP
 	cfg.MaxDepth = uint32(graph.MaxDepth)
-	cfg.Entry = uint32(b2i(entry))
+	cfg.Entry = uint8(b2i(entry))
+	cfg.TinBPF = uint8(b2i(tailcallInfo.supportTailcallInBpf2bpf))
 	cfg.FnArgsNr = uint32(len(params))
 	cfg.WithRet = !entry
 	cfg.FnArgsBuf = uint32(fnArgsBufSize)
@@ -60,11 +77,17 @@ func (t *bpfTracing) traceGraph(spec *ebpf.CollectionSpec,
 		attachType = ebpf.AttachTraceFEntry
 	}
 
+	tailcallProgName := "bpfsnoop_fgraph_tailcallee"
+	tailcallProgSpec := spec.Programs[tailcallProgName]
+
 	if bp != nil {
 		progSpec.AttachTarget = bp
+		tailcallProgSpec.AttachTarget = bp
 	}
 	progSpec.AttachTo = traceeName
 	progSpec.AttachType = attachType
+	tailcallProgSpec.AttachTo = traceeName
+	tailcallProgSpec.AttachType = attachType
 
 	coll, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{
 		MapReplacements: reusedMaps,
@@ -77,14 +100,19 @@ func (t *bpfTracing) traceGraph(spec *ebpf.CollectionSpec,
 	}
 	defer coll.Close()
 
+	tailcallProg := coll.Programs[tailcallProgName]
+	progArrayMapName := "bpfsnoop_fgraph_tailcall_prog_array"
+	progArray := coll.Maps[progArrayMapName]
+	if err := progArray.Put(uint32(0), tailcallProg); err != nil {
+		return fmt.Errorf("failed to put tailcall prog into prog array: %w", err)
+	}
+
 	prog := coll.Programs[tracingProgName]
-	delete(coll.Programs, tracingProgName)
 	l, err := link.AttachTracing(link.TracingOptions{
 		Program:    prog,
 		AttachType: attachType,
 	})
 	if err != nil {
-		_ = prog.Close()
 		if ignoreFuncTraceErr(err, traceeName) {
 			return nil
 		}
@@ -94,9 +122,17 @@ func (t *bpfTracing) traceGraph(spec *ebpf.CollectionSpec,
 	verboseLogIf(entry, "Fentry func graph %s at %#x", traceeName, graph.IP)
 	verboseLogIf(!entry, "Fexit func graph %s at %#x", traceeName, graph.IP)
 
+	delete(coll.Maps, progArrayMapName)
+	delete(coll.Programs, tracingProgName)
 	t.llock.Lock()
 	t.progs = append(t.progs, prog)
-	t.glnks = append(t.glnks, l)
+	t.grphs = append(t.grphs, tracingGraph{
+		l: l,
+		p: prog,
+		// Keep prog_array map alive in order to avoid clearing it while closing
+		// it because its usercnt decrements to 0 but its refcnt is still non-0.
+		m: progArray,
+	})
 	t.llock.Unlock()
 
 	graph.traced = true
@@ -175,6 +211,7 @@ func (t *bpfTracing) traceGraphs(reusedMaps map[string]*ebpf.Map, graphs FuncGra
 	}
 
 	if err := errg.Wait(); err != nil {
+		WarnLogIf(errors.Is(err, unix.EMFILE), "Too many open files, please increase the limit with 'ulimit -n' or 'sysctl fs.file-max'.")
 		return fmt.Errorf("failed to trace graph funcs/progs: %w", err)
 	}
 

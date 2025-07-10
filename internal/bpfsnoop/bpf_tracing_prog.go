@@ -13,6 +13,16 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+type tracingProg struct {
+	l link.Link
+	p *ebpf.Program
+}
+
+func (t *tracingProg) Close() {
+	_ = t.l.Close()
+	_ = t.p.Close()
+}
+
 func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]*ebpf.Map, info *bpfTracingInfo, bprogs *bpfProgs, bothEntryExit, fexit, stack bool) error {
 	krnl := getKernelBTF()
 
@@ -70,14 +80,11 @@ func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]
 	defer coll.Close()
 
 	prog := coll.Programs[tracingFuncName]
-	delete(coll.Programs, tracingFuncName)
-
 	l, err := link.AttachTracing(link.TracingOptions{
 		Program:    prog,
 		AttachType: attachType,
 	})
 	if err != nil {
-		_ = prog.Close()
 		if strings.Contains(err.Error(), "Cannot recursively attach") {
 			VerboseLog("Skipped tracing a tracing prog %s", traceeName)
 			return nil
@@ -87,9 +94,13 @@ func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]
 
 	VerboseLog("Tracing %s of prog %v", info.funcName, info.prog)
 
+	delete(coll.Programs, tracingFuncName)
 	t.llock.Lock()
 	t.progs = append(t.progs, prog)
-	t.links = append(t.links, l)
+	t.bprgs = append(t.bprgs, tracingProg{
+		l: l,
+		p: prog,
+	})
 	t.llock.Unlock()
 
 	return nil

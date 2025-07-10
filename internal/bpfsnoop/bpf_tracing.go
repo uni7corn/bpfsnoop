@@ -10,7 +10,6 @@ import (
 	"github.com/Asphaltt/mybtf"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/btf"
-	"github.com/cilium/ebpf/link"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/bpfsnoop/bpfsnoop/internal/btfx"
@@ -19,10 +18,10 @@ import (
 type bpfTracing struct {
 	llock sync.Mutex
 	progs []*ebpf.Program
-	links []link.Link
-	klnks []link.Link
-	ilnks []link.Link
-	glnks []link.Link
+	bprgs []tracingProg
+	kfns  []tracingFunc
+	insns []tracingInsn
+	grphs []tracingGraph
 }
 
 func (t *bpfTracing) Progs() []*ebpf.Program {
@@ -54,10 +53,8 @@ func setBpfsnoopConfig(spec *ebpf.CollectionSpec, funcIP uint64, fnArgsNr, fnArg
 }
 
 func NewBPFTracing(spec *ebpf.CollectionSpec, reusedMaps map[string]*ebpf.Map, bprogs *bpfProgs, kfuncs KFuncs, insns FuncInsns, graphs FuncGraphs) (*bpfTracing, error) {
-	var t bpfTracing
-	t.links = make([]link.Link, 0, len(kfuncs)+len(bprogs.tracings)+len(insns))
-
 	var errg errgroup.Group
+	var t bpfTracing
 
 	t.traceProgs(&errg, spec, reusedMaps, bprogs)
 	t.traceFuncs(&errg, spec, reusedMaps, kfuncs)
@@ -85,7 +82,7 @@ func (t *bpfTracing) HaveTracing() bool {
 	t.llock.Lock()
 	defer t.llock.Unlock()
 
-	return len(t.links) > 0 || len(t.klnks) > 0
+	return len(t.progs) > 0
 }
 
 func (t *bpfTracing) Close() {
@@ -94,42 +91,34 @@ func (t *bpfTracing) Close() {
 
 	var errg errgroup.Group
 
-	for _, l := range t.links {
-		l := l
+	for _, b := range t.bprgs {
+		b := b
 		errg.Go(func() error {
-			_ = l.Close()
+			b.Close()
 			return nil
 		})
 	}
 
-	for _, l := range t.klnks {
-		l := l
+	for _, k := range t.kfns {
+		k := k
 		errg.Go(func() error {
-			_ = l.Close()
+			k.Close()
 			return nil
 		})
 	}
 
-	for _, l := range t.ilnks {
-		l := l
+	for _, i := range t.insns {
+		i := i
 		errg.Go(func() error {
-			_ = l.Close()
+			i.Close()
 			return nil
 		})
 	}
 
-	for _, l := range t.glnks {
-		l := l
+	for _, g := range t.grphs {
+		g := g
 		errg.Go(func() error {
-			_ = l.Close()
-			return nil
-		})
-	}
-
-	for _, prog := range t.progs {
-		prog := prog
-		errg.Go(func() error {
-			_ = prog.Close()
+			g.Close()
 			return nil
 		})
 	}
