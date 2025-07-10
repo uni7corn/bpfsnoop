@@ -51,12 +51,17 @@ func parseProgFlag(p string) (ProgFlag, error) {
 			pf.both = true
 			p = p[3:]
 		}
+		if strings.HasPrefix(p, "(p)") {
+			pf.pkt = true
+			p = p[3:]
+		}
 	}
 
 	pf.graph = pf.graph || outputFuncGraph
 	pf.stack = pf.stack || outputFuncStack
 	pf.lbr = pf.lbr || outputLbr
 	pf.both = pf.both || (hasModeEntry() && hasModeExit())
+	pf.pkt = pf.pkt || outputPkt
 
 	if p == "*" {
 		pf.all = true

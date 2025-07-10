@@ -40,12 +40,17 @@ func parseKfuncFlag(k string) (KfuncFlag, error) {
 			kf.both = true
 			k = k[3:]
 		}
+		if strings.HasPrefix(k, "(p)") {
+			kf.pkt = true
+			k = k[3:]
+		}
 	}
 	kf.insn = kf.insn || outputFuncInsns
 	kf.graph = kf.graph || outputFuncGraph
 	kf.stack = kf.stack || outputFuncStack
 	kf.lbr = kf.lbr || outputLbr
 	kf.both = kf.both || (hasModeEntry() && hasModeExit())
+	kf.pkt = kf.pkt || outputPkt
 	if kf.insn && kf.graph {
 		return kf, fmt.Errorf("kfunc %s cannot be traced with both insn and graph", k)
 	}

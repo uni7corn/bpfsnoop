@@ -20,9 +20,5 @@ func TrimSpec(spec *ebpf.CollectionSpec) {
 		if len(argOutput.args) == 0 {
 			argOutput.clear(prog)
 		}
-
-		if !outputPkt {
-			pktOutput.clear(prog)
-		}
 	}
 }

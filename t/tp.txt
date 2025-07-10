@@ -10,3 +10,13 @@ test: -t netif_receive_skb --filter-arg '1 == skb->dev->ifindex' --filter-pkt 'i
 match: skb->dev->name
 trigger: ping -c 1 -s 64 127.0.0.1
 timeout: 5s
+
+---
+
+# netif_receive_skb pkt mode
+name: tp::netif_receive_skb:pkt-mode
+tag: tp,pkt,fnarg
+test: -t '(p)netif_receive_skb' --filter-arg '1 == skb->dev->ifindex' --filter-pkt 'icmp' --output-arg 'skb->dev->name' --output-arg 'skb->cb[2]'
+match: skb->dev->name
+trigger: ping -c 1 -s 64 127.0.0.1
+timeout: 5s

@@ -79,8 +79,8 @@ func matchKernelTracepoints(tps []string, tpInfos map[string]tracepointInfo, sil
 			Func: &fn,
 			Btf:  kbtf,
 			Prms: params,
-			Flag: tpFlag.flag.progFlagImmInfo,
 			Ret:  ret,
+			Flag: tpFlag.flag.progFlagImmInfo,
 			IsTp: true,
 		}
 	}

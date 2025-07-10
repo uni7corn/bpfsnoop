@@ -57,7 +57,7 @@ func (t *bpfTracing) traceFunc(spec *ebpf.CollectionSpec, reusedMaps map[string]
 	progSpec := spec.Programs[tracingFuncName]
 	funcProto := fn.Func.Type.(*btf.FuncProto)
 	params := funcProto.Params
-	fn.Pkt = t.injectPktOutput(progSpec, params, traceeName)
+	fn.Pkt = t.injectPktOutput(fn.Flag.pkt, progSpec, params, traceeName)
 	if err := t.injectPktFilter(progSpec, params, traceeName); err != nil {
 		return err
 	}
