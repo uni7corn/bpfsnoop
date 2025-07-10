@@ -26,10 +26,17 @@ const (
 	sizeOfGraphEvent = int(unsafe.Sizeof(GraphEvent{}))
 )
 
-func outputGraphEvent(sb *strings.Builder, sessions *Sessions, graphs FuncGraphs, event *GraphEvent, fnInfo string) {
+func outputGraphEvent(sb *strings.Builder, sessions *Sessions, graphs FuncGraphs, event *GraphEvent, fnInfo string, isEntry bool) {
 	sess, ok := sessions.Get(event.SessID)
 	if !ok {
 		return
+	}
+
+	cost := time.Duration(event.KernNs - sess.lastTstamp())
+	if isEntry {
+		sess.pushTstamp(event.KernNs)
+	} else {
+		sess.popTstamp()
 	}
 
 	duration := time.Duration(event.KernNs - sess.started)
@@ -37,9 +44,10 @@ func outputGraphEvent(sb *strings.Builder, sessions *Sessions, graphs FuncGraphs
 		color.RGB(58, 64, 94 /* lighter gray */).Fprint(sb, strings.Repeat("..", int(event.Depth)))
 		fmt.Fprint(sb, fnInfo)
 		color.New(color.FgCyan).Fprintf(sb, " cpu=%d depth=%d", event.CPU, event.Depth)
-		color.RGB(0xFF, 0x00, 0x7F /* rose red */).Fprintf(sb, " duration=%s", duration)
+		color.RGB(0xFF, 0x00, 0x7F /* rose red */).Fprintf(sb, " duration=%s|%s", cost, duration)
 	} else {
-		fmt.Fprintf(sb, "%s%s cpu=%d depth=%d duration=%s", strings.Repeat("  ", int(event.Depth)), fnInfo, event.CPU, event.Depth, duration)
+		fmt.Fprintf(sb, "%s%s cpu=%d depth=%d duration=%s|%s", strings.Repeat("  ", int(event.Depth)),
+			fnInfo, event.CPU, event.Depth, cost, duration)
 	}
 	fmt.Fprintln(sb)
 

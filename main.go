@@ -217,6 +217,7 @@ func main() {
 
 	errg.Go(func() error {
 		return bpfsnoop.Run(reader, reusedMaps, w, &bpfsnoop.Helpers{
+			Flags:     flags,
 			Progs:     bpfProgs,
 			Addr2line: addr2line,
 			Ksyms:     kallsyms,

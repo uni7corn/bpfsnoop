@@ -48,6 +48,7 @@ func ptr2bytes(p unsafe.Pointer, size int) []byte {
 }
 
 type Helpers struct {
+	Flags     *Flags
 	Progs     *bpfProgs
 	Addr2line *Addr2Line
 	Ksyms     *Kallsyms
@@ -74,6 +75,7 @@ func Run(reader *ringbuf.Reader, maps map[string]*ebpf.Map, w io.Writer, helpers
 	var record ringbuf.Record
 	record.RawSample = make([]byte, 4096)
 
+	fgraphMaxDepth := helpers.Flags.fgraphDepth
 	unlimited := limitEvents == 0
 	for i := int64(limitEvents); unlimited || i > 0; {
 		err := reader.ReadInto(&record)
@@ -100,13 +102,14 @@ func Run(reader *ringbuf.Reader, maps map[string]*ebpf.Map, w io.Writer, helpers
 				continue
 			}
 
+			isExit := typ == eventTypeGraphExit
 			fnInfo := getFuncInfo(uintptr(event.FuncIP), helpers, graph)
 			data := record.RawSample[sizeOfGraphEvent : sizeOfGraphEvent+int(event.Length)]
-			outputFuncInfo(&sb, fnInfo, helpers, graph.ArgsEnSz, graph.ArgsExSz, typ == eventTypeGraphExit, true, data)
+			outputFuncInfo(&sb, fnInfo, helpers, graph.ArgsEnSz, graph.ArgsExSz, isExit, true, data)
 			s := sb.String()
 			sb.Reset()
 
-			outputGraphEvent(&sb, sessions, helpers.Graphs, event, s)
+			outputGraphEvent(&sb, sessions, helpers.Graphs, event, s, !isExit)
 			sb.Reset()
 			continue
 		}
@@ -124,7 +127,7 @@ func Run(reader *ringbuf.Reader, maps map[string]*ebpf.Map, w io.Writer, helpers
 		withDuration := fnInfo.insnMode || fnInfo.grphMode || (fnInfo.bothMode && !fnInfo.isTp)
 		if withDuration {
 			if event.Type == eventTypeFuncEntry {
-				sess = sessions.Add(event.SessID, event.KernNs)
+				sess = sessions.Add(event.SessID, event.KernNs, fgraphMaxDepth, fnInfo.grphMode)
 			} else {
 				s, ok := sessions.GetAndDel(event.SessID + 1)
 				if ok {
