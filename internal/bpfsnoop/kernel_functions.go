@@ -51,6 +51,9 @@ var tracingDenyFuncs = []string{
 
 	"__rcu_read_lock",
 	"__rcu_read_unlock",
+
+	// check func_graph.go::fgraphDenyList for more explanation.
+	"bpf_dispatcher_xdp_func",
 }
 
 type ParamFlags struct {
