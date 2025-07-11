@@ -65,6 +65,9 @@ func Run(reader *ringbuf.Reader, maps map[string]*ebpf.Map, w io.Writer, helpers
 	stacks := maps["bpfsnoop_stacks"]
 	lbrs := maps["bpfsnoop_lbrs"]
 
+	runDelta := runDurationThreshold
+	DebugLog("Run duration threshold: %s", runDelta)
+
 	var lbrData LbrData
 
 	fg := NewFlameGraph()
@@ -124,8 +127,8 @@ func Run(reader *ringbuf.Reader, maps map[string]*ebpf.Map, w io.Writer, helpers
 
 		var sess *Session
 		var duration time.Duration
-		withDuration := fnInfo.insnMode || fnInfo.grphMode || (fnInfo.bothMode && !fnInfo.isTp)
-		if withDuration {
+		requiredSession := fnInfo.insnMode || fnInfo.grphMode || (fnInfo.bothMode && !fnInfo.isTp)
+		if requiredSession {
 			if event.Type == eventTypeFuncEntry {
 				sess = sessions.Add(event.SessID, event.KernNs, fgraphMaxDepth, fnInfo.grphMode)
 			} else {
@@ -133,22 +136,27 @@ func Run(reader *ringbuf.Reader, maps map[string]*ebpf.Map, w io.Writer, helpers
 				if ok {
 					sess = s
 					duration = time.Duration(event.KernNs - s.started)
+					if duration < runDelta {
+						continue
+					}
+				} else {
+					continue // skip if session not found
 				}
 			}
 		}
 
 		data = outputFuncInfo(&sb, fnInfo, helpers, fnInfo.argEntry, fnInfo.argExit, event.Type == eventTypeFuncExit, false, data)
 
-		withRetval := event.Type == eventTypeFuncExit
+		haveRetval := event.Type == eventTypeFuncExit
 		if colorfulOutput {
 			color.New(color.FgCyan).Fprintf(&sb, " cpu=%d", event.CPU)
 			color.New(color.FgMagenta).Fprintf(&sb, " process=(%d:%s)", event.Pid, strx.NullTerminated(event.Comm[:]))
-			if withDuration && withRetval {
+			if requiredSession && haveRetval {
 				color.RGB(0xFF, 0x00, 0x7F /* rose red */).Fprintf(&sb, " duration=%s", duration)
 			}
 		} else {
 			fmt.Fprintf(&sb, " cpu=%d process=(%d:%s)", event.CPU, event.Pid, strx.NullTerminated(event.Comm[:]))
-			if withDuration && withRetval {
+			if requiredSession && haveRetval {
 				fmt.Fprintf(&sb, " duration=%s", duration)
 			}
 		}
@@ -183,19 +191,17 @@ func Run(reader *ringbuf.Reader, maps map[string]*ebpf.Map, w io.Writer, helpers
 			}
 		}
 
-		if sess == nil || withRetval || (!fnInfo.insnMode && !fnInfo.grphMode) {
-			fmt.Fprintln(&sb)
-		}
 		if sess != nil {
 			sess.outputs = append(sess.outputs, sb.String())
-			if withRetval {
+			if haveRetval {
 				for _, output := range sess.outputs {
 					fmt.Fprint(w, output)
 				}
+				fmt.Fprintln(w)
 				i--
 			}
 		} else {
-			fmt.Fprint(w, sb.String())
+			fmt.Fprintln(w, sb.String())
 			i--
 		}
 

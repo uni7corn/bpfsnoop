@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	flag "github.com/spf13/pflag"
 )
@@ -40,6 +41,8 @@ var (
 	noColorOutput   bool
 	colorfulOutput  bool
 	limitEvents     uint
+
+	runDurationThreshold time.Duration
 
 	debugTraceInsnCnt uint
 
@@ -108,6 +111,7 @@ func ParseFlags() (*Flags, error) {
 	f.BoolVarP(&flags.listFuncParams, "show-func-proto-internal", "S", false, "show function prototype of -p,-k,-t")
 	f.UintVarP(&limitEvents, "limit-events-internal", "E", 0, "limited number events to output, 0 to output all events")
 	f.BoolVarP(&flags.noVmlinux, "no-vmlinux", "N", false, "do not load vmlinux")
+	f.DurationVar(&runDurationThreshold, "duration-threshold", 0, "threshold for run duration, e.g. 1s, 100ms, 0 to disable")
 
 	f.MarkHidden("debug-log")
 	f.MarkHidden("output-flamegraph")
@@ -115,6 +119,7 @@ func ParseFlags() (*Flags, error) {
 	f.MarkHidden("limit-events-internal")
 	f.MarkHidden("trace-insn-debug-cnt")
 	f.MarkHidden("no-vmlinux")
+	f.MarkHidden("duration-threshold")
 
 	err := f.Parse(os.Args)
 
