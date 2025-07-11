@@ -202,6 +202,14 @@ func ReprEnumValue(t btf.Type, val uint64) string {
 	return fmt.Sprintf("%d", val)
 }
 
+func GetU64(data []byte, offset int) uint64 {
+	return *(*uint64)(unsafe.Pointer(&data[offset]))
+}
+
+func SetU64(data []byte, val uint64) {
+	*(*uint64)(unsafe.Pointer(&data[0])) = val
+}
+
 func reprMember(sb *strings.Builder, m *btf.Member, data []byte, find FindSymbol) {
 	if m.Name != "" {
 		fmt.Fprintf(sb, "%s=", m.Name)
@@ -209,19 +217,21 @@ func reprMember(sb *strings.Builder, m *btf.Member, data []byte, find FindSymbol
 	if m.BitfieldSize != 0 {
 		fmt.Fprint(sb, mybtf.DumpBitfield(m.Offset, m.BitfieldSize, data))
 	} else {
-		fmt.Fprint(sb, ReprValue(m.Type, *(*uint64)(unsafe.Pointer(&data[m.Offset])), *(*uint64)(unsafe.Pointer(&data[m.Offset+8])), find))
+		offset := int(m.Offset.Bytes())
+		val, valNext := GetU64(data, offset), GetU64(data, offset+8)
+		fmt.Fprint(sb, ReprValue(m.Type, val, valNext, find))
 	}
 }
 
-func reprStructUnion(sb *strings.Builder, name string, members []btf.Member, data []byte, find FindSymbol) {
+func reprStructUnionMembers(sb *strings.Builder, name string, members []btf.Member, data []byte, find FindSymbol) {
 	fmt.Fprintf(sb, "%s{", name)
+	defer fmt.Fprint(sb, "}")
 	for i, m := range members {
 		if i > 0 {
 			fmt.Fprint(sb, ",")
 		}
 		reprMember(sb, &m, data, find)
 	}
-	fmt.Fprint(sb, "}")
 }
 
 func ReprValue(t btf.Type, val, valNext uint64, find FindSymbol) string {
@@ -237,16 +247,16 @@ func ReprValue(t btf.Type, val, valNext uint64, find FindSymbol) string {
 
 	if stt, ok := t.(*btf.Struct); ok {
 		var data [24]byte
-		*(*uint64)(unsafe.Pointer(&data[0])) = val
-		*(*uint64)(unsafe.Pointer(&data[8])) = valNext
-		reprStructUnion(&sb, stt.Name, stt.Members, data[:], find)
+		SetU64(data[:], val)
+		SetU64(data[8:], valNext)
+		reprStructUnionMembers(&sb, stt.Name, stt.Members, data[:], find)
 		return sb.String()
 	}
 	if unn, ok := t.(*btf.Union); ok {
 		var data [24]byte
-		*(*uint64)(unsafe.Pointer(&data[0])) = val
-		*(*uint64)(unsafe.Pointer(&data[8])) = valNext
-		reprStructUnion(&sb, unn.Name, unn.Members, data[:], find)
+		SetU64(data[:], val)
+		SetU64(data[8:], valNext)
+		reprStructUnionMembers(&sb, unn.Name, unn.Members, data[:], find)
 		return sb.String()
 	}
 
@@ -328,8 +338,8 @@ func ReprExprType(expr string, t btf.Type, mem *btf.Member, isStr, isNumberPtr b
 
 	if mem != nil && mem.BitfieldSize != 0 {
 		var memData [24]byte
-		*(*uint64)(unsafe.Pointer(&memData[0])) = data
-		*(*uint64)(unsafe.Pointer(&memData[8])) = data2
+		SetU64(memData[:], data)
+		SetU64(memData[8:], data2)
 		reprMember(&sb, mem, memData[:], f)
 	} else {
 		reprValue(&sb, t, isStr, isNumberPtr, data, data2, dataNext, s, f)

@@ -129,9 +129,12 @@ L_output:
 	}
 }
 
+func getU64(data []byte) uint64 {
+	return *(*uint64)(unsafe.Pointer(&data[0]))
+}
+
 func readUint64(data []byte) (uint64, []byte) {
-	num := *(*uint64)(unsafe.Pointer(&data[0]))
-	return num, data[8:]
+	return getU64(data), data[8:]
 }
 
 func readStrN(data []byte, n int) (string, []byte) {
@@ -186,7 +189,7 @@ func outputFnArgs(sb *strings.Builder, info *funcInfo, helpers *Helpers, data []
 
 		valNext := uint64(0)
 		if i < lastIdx {
-			valNext = *(*uint64)(unsafe.Pointer(&data[0]))
+			valNext = getU64(data)
 		}
 
 		fp := btfx.ReprFuncParam(&params[idx], i, param.IsStr, param.IsNumberPtr, arg, argVal, valNext, argStr, f)

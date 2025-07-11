@@ -103,3 +103,12 @@ test: -p 'n:crc' --filter-pkt 'host 127.0.0.1 and icmp' --output-arg 'be32(ctx->
 match: (void *)'be32(ctx->data + 14 + 12)'=0x7f000001/2130706433
 prerequisite: ./xdpcrc -d lo
 trigger: ping -c 1 -s 64 127.0.0.1
+
+---
+
+# output bitfield in struct
+name: cc::output-struct
+tag: cc,struct
+test: -k '__sys_bpf' --filter-arg 'cmd == 5'
+match: is_kernel=0x0
+trigger: ./xdpcrc -d lo
