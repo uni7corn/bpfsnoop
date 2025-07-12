@@ -90,6 +90,8 @@ func Run(reader *ringbuf.Reader, maps map[string]*ebpf.Map, w io.Writer, helpers
 			return fmt.Errorf("failed to read ringbuf: %w", err)
 		}
 
+		currts := time.Now()
+
 		typ := *(*uint16)(unsafe.Pointer(&record.RawSample[0]))
 		if typ == eventTypeInsn {
 			event := (*InsnEvent)(unsafe.Pointer(&record.RawSample[0]))
@@ -154,11 +156,13 @@ func Run(reader *ringbuf.Reader, maps map[string]*ebpf.Map, w io.Writer, helpers
 			if requiredSession && haveRetval {
 				color.RGB(0xFF, 0x00, 0x7F /* rose red */).Fprintf(&sb, " duration=%s", duration)
 			}
+			color.RGB(0x90, 0xEE, 0x90 /* light green */).Fprintf(&sb, " timestamp=%s", currts.Format("15:04:05.999999999"))
 		} else {
 			fmt.Fprintf(&sb, " cpu=%d process=(%d:%s)", event.CPU, event.Pid, strx.NullTerminated(event.Comm[:]))
 			if requiredSession && haveRetval {
 				fmt.Fprintf(&sb, " duration=%s", duration)
 			}
+			fmt.Fprintf(&sb, " timestamp=%s", currts.Format("15:04:05.999999999"))
 		}
 		fmt.Fprintln(&sb)
 
