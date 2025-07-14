@@ -115,13 +115,17 @@ func (t *bpfTracing) traceProgs(errg *errgroup.Group, spec *ebpf.CollectionSpec,
 		bothEntryExit := info.flag.graph || info.flag.both
 		info := info
 
-		errg.Go(func() error {
-			return t.traceProg(spec, reusedMaps, info, bprogs, bothEntryExit, bothEntryExit, info.flag.stack)
-		})
-
 		if bothEntryExit {
 			errg.Go(func() error {
-				return t.traceProg(spec, reusedMaps, info, bprogs, bothEntryExit, false, false)
+				return t.traceProg(spec, reusedMaps, info, bprogs, true, false, false)
+			})
+
+			errg.Go(func() error {
+				return t.traceProg(spec, reusedMaps, info, bprogs, true, true, info.flag.stack)
+			})
+		} else {
+			errg.Go(func() error {
+				return t.traceProg(spec, reusedMaps, info, bprogs, false, hasModeExit(), info.flag.stack)
 			})
 		}
 	}

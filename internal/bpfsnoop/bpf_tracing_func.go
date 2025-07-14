@@ -165,13 +165,17 @@ func (t *bpfTracing) traceFuncs(errg *errgroup.Group, spec *ebpf.CollectionSpec,
 			continue
 		}
 
-		errg.Go(func() error {
-			return t.traceFunc(spec, reusedMaps, fn, bothEntryExit, bothEntryExit, fn.Flag.stack)
-		})
-
 		if bothEntryExit {
 			errg.Go(func() error {
-				return t.traceFunc(spec, reusedMaps, fn, bothEntryExit, false, false)
+				return t.traceFunc(spec, reusedMaps, fn, true, false, false)
+			})
+
+			errg.Go(func() error {
+				return t.traceFunc(spec, reusedMaps, fn, true, true, fn.Flag.stack)
+			})
+		} else {
+			errg.Go(func() error {
+				return t.traceFunc(spec, reusedMaps, fn, false, hasModeExit(), fn.Flag.stack)
 			})
 		}
 	}
