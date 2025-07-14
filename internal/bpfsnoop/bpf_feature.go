@@ -14,7 +14,10 @@ import (
 	"github.com/bpfsnoop/bpfsnoop/internal/bpf"
 )
 
-var hasEndbr bool
+var (
+	hasEndbr    bool
+	requiredLbr bool
+)
 
 type BPFFeatures struct {
 	Run               bool
@@ -60,7 +63,7 @@ func DetectBPFFeatures() error {
 		return errors.New("ringbuf map not supported")
 	}
 
-	if outputLbr {
+	if requiredLbr {
 		krnl := getKernelBTF()
 
 		bpfFuncIDs, err := krnl.AnyTypeByName("bpf_func_id")
@@ -81,7 +84,7 @@ func DetectBPFFeatures() error {
 		}
 
 		if !feat.HasBranchSnapshot {
-			return errors.New("bpf_get_branch_snapshot() helper not supported for --output-lbr")
+			return errors.New("bpf_get_branch_snapshot() helper not supported for output LBR")
 		}
 	}
 

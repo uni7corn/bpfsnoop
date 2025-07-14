@@ -150,14 +150,17 @@ func ParseFlags() (*Flags, error) {
 		return nil, fmt.Errorf("--fgraph-max-depth is larger than limit 500")
 	}
 
+	requiredLbr = outputLbr
 	for _, s := range flags.kfuncs {
 		flags.requiredVmlinux = flags.requiredVmlinux || strings.Contains(s, "(s)")
+		requiredLbr = requiredLbr || strings.Contains(s, "(l)")
 	}
 	for _, s := range flags.ktps {
 		flags.requiredVmlinux = flags.requiredVmlinux || strings.Contains(s, "(s)")
 	}
 	for _, s := range flags.progs {
 		flags.requiredVmlinux = flags.requiredVmlinux || strings.Contains(s, "(s)")
+		requiredLbr = requiredLbr || strings.Contains(s, "(l)")
 	}
 	flags.requiredVmlinux = !flags.noVmlinux &&
 		(flags.requiredVmlinux || outputFuncStack || outputLbr)
@@ -219,7 +222,7 @@ func (f *Flags) Disasm() bool {
 }
 
 func (f *Flags) OutputLbr() bool {
-	return outputLbr
+	return requiredLbr
 }
 
 func (f *Flags) ShowFuncProto() bool {
