@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"slices"
 	"sort"
 	"strings"
 	"syscall"
@@ -20,6 +21,7 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/bpfsnoop/bpfsnoop/internal/assert"
+	"github.com/bpfsnoop/bpfsnoop/internal/bpf"
 )
 
 type fgraphCallee struct {
@@ -37,6 +39,8 @@ type fgraphProto struct {
 
 	maxDepth uint
 
+	traceable map[string]bool // traceable functions
+
 	ips     map[uint64]string
 	callees map[uint64][]fgraphCallee
 }
@@ -50,9 +54,57 @@ func (p *fgraphProto) print(fn string, depth uint) {
 	fmt.Print(fn)
 }
 
+func (p *fgraphProto) checkTraceable(fnName string) (retval bool) {
+	if traceable, ok := p.traceable[fnName]; ok {
+		return traceable
+	}
+
+	defer func() {
+		p.traceable[fnName] = retval
+	}()
+
+	fn := p.findBtfFunc(fnName)
+	if fn == nil {
+		return false // not a BTF function
+	}
+
+	ksym, ok := checkKfuncTraceable(fn, p.ksyms, true)
+	if !ok {
+		return false // not traceable
+	}
+
+	if slices.Contains(noreturnFuncs, fnName) {
+		return false // skip noreturn functions
+	}
+	if slices.Contains(tracingDenyFuncs, fnName) {
+		return false // skip tracing for deny functions
+	}
+
+	spec, err := bpf.LoadTraceable()
+	if err != nil {
+		return false // won't fail expectedly
+	}
+
+	nontraceables, err := detectTraceable(spec, []uintptr{uintptr(ksym.addr)})
+	if err != nil {
+		return false // won't fail expectedly
+	}
+
+	return !slices.Contains(nontraceables, uintptr(ksym.addr))
+}
+
 func (p *fgraphProto) getFuncProto(fn *btf.Func) string {
+	yellow := color.New(color.FgYellow)
+
 	var sb strings.Builder
-	printFuncProto(&sb, fn, color.New(color.FgYellow), false)
+	showFuncProto(&sb, fn, yellow, false)
+	yellow.Fprint(&sb, ";")
+
+	if p.checkTraceable(fn.Name) {
+		yellow.Fprint(&sb, " [traceable]")
+	}
+
+	fmt.Fprintln(&sb)
 	return sb.String()
 }
 
@@ -196,6 +248,7 @@ func ShowFuncGraphProto(flags *Flags) {
 	fp.progs = bprogs
 	fp.engine = engine
 	fp.maxDepth = flags.fgraphDepth
+	fp.traceable = make(map[string]bool, 64)
 	fp.ips = make(map[uint64]string, 64)
 	fp.callees = make(map[uint64][]fgraphCallee, 64)
 
