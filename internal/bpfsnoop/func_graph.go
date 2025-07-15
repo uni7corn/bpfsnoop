@@ -217,7 +217,7 @@ func FindGraphFuncs(ctx context.Context, flags *Flags, kfuncs KFuncs, bprogs *bp
 	}
 
 	for ip, graph := range parser.graphs {
-		if g, ok := denylist[ip]; ok {
+		if g, ok := denylist[ip]; ok && !flags.fgraphDebug {
 			if g.Bprog != nil {
 				_ = g.Bprog.prog.Close() // close the bpf prog if it was denied
 			}

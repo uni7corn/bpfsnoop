@@ -59,6 +59,7 @@ type Flags struct {
 	fgraphExtra   []string
 	fgraphDepth   uint
 	fgraphProto   bool
+	fgraphDebug   bool
 
 	outputFile string
 
@@ -98,6 +99,7 @@ func ParseFlags() (*Flags, error) {
 	f.StringSliceVar(&flags.fgraphExclude, "fgraph-exclude", nil, "exclude functions in function call graph, empty means no exclude, rules are same as -k")
 	f.StringSliceVar(&flags.fgraphExtra, "fgraph-extra", nil, "extra functions in function call graph as depth 1, rules are same as -k")
 	f.BoolVar(&flags.fgraphProto, "fgraph-proto", false, "output function prototype in function call graph, like --show-func-proto")
+	f.BoolVar(&flags.fgraphDebug, "fgraph-debug", false, "debug deadlock caused by fgraph")
 	f.BoolVar(&outputPkt, "output-pkt", false, "output packet's tuple info if tracee has skb/xdp argument")
 	f.Uint32Var(&filterPid, "filter-pid", 0, "filter pid for tracing")
 	f.StringSliceVar(&filterArg, "filter-arg", nil, "filter function's argument with C expression, e.g. 'prog->type == BPF_PROG_TYPE_TRACING'")
@@ -120,6 +122,7 @@ func ParseFlags() (*Flags, error) {
 	f.MarkHidden("trace-insn-debug-cnt")
 	f.MarkHidden("no-vmlinux")
 	f.MarkHidden("duration-threshold")
+	f.MarkHidden("fgraph-debug")
 
 	err := f.Parse(os.Args)
 
