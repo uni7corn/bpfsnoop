@@ -60,6 +60,8 @@ func NewBPFProgs(pflags []ProgFlag, noParseProgs, disasm bool) (*bpfProgs, error
 
 	if !noParseProgs {
 		go progs.parseProgs()
+	} else {
+		progs.ready = true
 	}
 
 	return &progs, nil

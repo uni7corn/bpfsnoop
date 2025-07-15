@@ -4,8 +4,10 @@
 package bpfsnoop
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"slices"
 	"sort"
 	"strings"
@@ -57,13 +59,35 @@ func showFuncProto(w io.Writer, fn *btf.Func, clr *color.Color, listParams bool)
 	clr.Fprint(w, ")")
 }
 
-func printFuncProto(w io.Writer, fn *btf.Func, color *color.Color, listParams, checkTraceable, traceable bool) {
+func printFuncProto(w io.Writer, fn *btf.Func, color *color.Color, listParams bool) {
 	showFuncProto(w, fn, color, listParams)
-	color.Fprint(w, ";")
-	if checkTraceable && traceable {
-		color.Fprint(w, " [traceable]")
+	color.Fprintln(w, ";")
+}
+
+func printKfuncProto(w io.Writer, fn *btf.Func, clr *color.Color, listParams, traceable bool, a2l *Addr2Line, bprogs *bpfProgs, ksyms *Kallsyms) {
+	if a2l != nil {
+		ksym, ok := ksyms.n2s[fn.Name]
+		assert.True(ok, "Failed to find ksym for %s", fn.Name)
+
+		li := getLineInfo(uintptr(ksym.addr), bprogs, a2l, ksyms)
+
+		gray := color.RGB(0x88, 0x88, 0x88)
+		gray.Fprintf(w, "; %s+%#x", li.funcName, li.offset)
+		if li.fileName != "" {
+			gray.Fprintf(w, " %s:%d", li.fileName, li.fileLine)
+		}
+		if li.isInline {
+			gray.Fprint(w, " [inline]")
+		}
+		fmt.Fprintln(w)
 	}
-	color.Fprintln(w)
+
+	showFuncProto(w, fn, clr, listParams)
+	clr.Fprint(w, ";")
+	if traceable {
+		clr.Fprint(w, " [traceable]")
+	}
+	clr.Fprintln(w)
 }
 
 func ShowFuncProto(f *Flags) {
@@ -84,7 +108,7 @@ func ShowFuncProto(f *Flags) {
 			sort.Strings(keys)
 
 			for _, k := range keys {
-				printFuncProto(&sb, progs.tracings[k].fn, yellow, f.listFuncParams, false, true)
+				printFuncProto(&sb, progs.tracings[k].fn, yellow, f.listFuncParams)
 			}
 
 			printNewline = true
@@ -122,10 +146,33 @@ func ShowFuncProto(f *Flags) {
 			return strings.Compare(a.Name, b.Name)
 		})
 
+		var addr2line *Addr2Line
+		var bprogs *bpfProgs
+		if f.listFuncParams {
+			vmlinux, err := FindVmlinux()
+			if errors.Is(err, ErrNotFound) {
+				VerboseLog("Dbgsym vmlinux not found")
+			} else {
+				assert.NoErr(err, "Failed to find vmlinux: %v")
+			}
+
+			log.Printf("Found vmlinux: %s", vmlinux)
+
+			textAddr, err := ReadTextAddrFromVmlinux(vmlinux)
+			assert.NoErr(err, "Failed to read .text address from vmlinux: %v", err)
+
+			kaslr := NewKaslr(kallsyms.Stext(), textAddr)
+			addr2line, err = NewAddr2Line(vmlinux, kaslr, kallsyms.SysBPF(), kallsyms.Stext())
+			assert.NoErr(err, "Failed to create addr2line: %v", err)
+
+			bprogs, err = NewBPFProgs([]ProgFlag{{all: false}}, true, false)
+			assert.NoErr(err, "Failed to prepare bpf progs: %v", err)
+		}
+
 		for _, fn := range fns {
-			traceable, err := detectKfuncTraceable(fn.Name, kallsyms, true, false)
+			traceable, err := detectKfuncTraceable(fn.Name, kallsyms, !hasModeEntry(), false)
 			assert.NoErr(err, "Failed to detect traceable for %s: %v", fn.Name)
-			printFuncProto(&sb, fn, yellow, f.listFuncParams, true, traceable)
+			printKfuncProto(&sb, fn, yellow, f.listFuncParams, traceable, addr2line, bprogs, kallsyms)
 		}
 
 		printNewline = true
@@ -149,7 +196,7 @@ func ShowFuncProto(f *Flags) {
 		slices.Sort(keys)
 
 		for _, k := range keys {
-			printFuncProto(&sb, ktps[k].Func, yellow, f.listFuncParams, false, false)
+			printFuncProto(&sb, ktps[k].Func, yellow, f.listFuncParams)
 		}
 	}
 
