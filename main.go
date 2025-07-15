@@ -34,6 +34,9 @@ func main() {
 	err = bpfsnoop.PrepareKernelBTF()
 	assert.NoErr(err, "Failed to prepare kernel btf: %v")
 
+	err = bpfsnoop.DetectBPFFeatures()
+	assert.NoVerifierErr(err, "Failed to detect bpf features: %v")
+
 	if flags.Disasm() {
 		bpfsnoop.Disasm(flags)
 		return
@@ -59,9 +62,6 @@ func main() {
 
 	progs, err := flags.ParseProgs()
 	assert.NoErr(err, "Failed to parse bpf prog infos: %v")
-
-	err = bpfsnoop.DetectBPFFeatures()
-	assert.NoVerifierErr(err, "Failed to detect bpf features: %v")
 
 	if flags.OutputLbr() {
 		lbrPerfEvents, err := bpfsnoop.OpenLbrPerfEvent()

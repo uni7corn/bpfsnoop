@@ -54,43 +54,45 @@ func (p *fgraphProto) print(fn string, depth uint) {
 	fmt.Print(fn)
 }
 
-func (p *fgraphProto) checkTraceable(fnName string) (retval bool) {
-	if traceable, ok := p.traceable[fnName]; ok {
-		return traceable
-	}
-
-	defer func() {
-		p.traceable[fnName] = retval
-	}()
-
-	fn := p.findBtfFunc(fnName)
-	if fn == nil {
-		return false // not a BTF function
-	}
-
-	ksym, ok := checkKfuncTraceable(fn, p.ksyms, true)
-	if !ok {
-		return false // not traceable
-	}
-
-	if slices.Contains(noreturnFuncs, fnName) {
-		return false // skip noreturn functions
+func detectKfuncTraceable(fnName string, ksyms *Kallsyms, fexit, silent bool) (bool, error) {
+	if fexit && slices.Contains(noreturnFuncs, fnName) {
+		return false, nil // skip noreturn functions
 	}
 	if slices.Contains(tracingDenyFuncs, fnName) {
-		return false // skip tracing for deny functions
+		return false, nil // skip tracing for deny functions
+	}
+
+	fn, err := findBtfOfKfunc(fnName)
+	if err != nil {
+		return false, fmt.Errorf("failed to find BTF function %q: %w", fn.Name, err)
+	}
+
+	ksym, ok := checkKfuncTraceable(fn, ksyms, silent)
+	if !ok {
+		return false, nil
 	}
 
 	spec, err := bpf.LoadTraceable()
 	if err != nil {
-		return false // won't fail expectedly
+		return false, fmt.Errorf("failed to load traceable spec: %w", err)
 	}
 
 	nontraceables, err := detectTraceable(spec, []uintptr{uintptr(ksym.addr)})
 	if err != nil {
-		return false // won't fail expectedly
+		return false, fmt.Errorf("failed to detect traceable functions: %w", err)
 	}
 
-	return !slices.Contains(nontraceables, uintptr(ksym.addr))
+	return !slices.Contains(nontraceables, uintptr(ksym.addr)), nil
+}
+
+func (p *fgraphProto) checkTraceable(fnName string) bool {
+	if traceable, ok := p.traceable[fnName]; ok {
+		return traceable
+	}
+
+	traceable, _ := detectKfuncTraceable(fnName, p.ksyms, true, true)
+	p.traceable[fnName] = traceable
+	return traceable
 }
 
 func (p *fgraphProto) getFuncProto(fn *btf.Func) string {
@@ -108,11 +110,9 @@ func (p *fgraphProto) getFuncProto(fn *btf.Func) string {
 	return sb.String()
 }
 
-func (p *fgraphProto) findBtfFunc(name string) *btf.Func {
-	var bfunc *btf.Func
-
+func findBtfOfKfunc(name string) (bfn *btf.Func, e error) {
 	err := iterateKernelBtfs(true, nil, func(s *btf.Spec) bool {
-		if bfunc != nil {
+		if bfn != nil || e != nil {
 			return true
 		}
 
@@ -120,17 +120,30 @@ func (p *fgraphProto) findBtfFunc(name string) *btf.Func {
 		if errors.Is(err, btf.ErrNotFound) {
 			return false
 		}
-		assert.NoErr(err, "Failed to find type %q in btf spec: %v", name)
+		if err != nil {
+			e = fmt.Errorf("failed to find type %q in btf spec: %w", name, err)
+			return true // continue iterating
+		}
 
 		fn, ok := typ.(*btf.Func)
-		assert.True(ok, "Type %q is not a function type", name)
-		bfunc = fn
+		if !ok {
+			e = fmt.Errorf("type %q is not a function type", name)
+			return true // continue iterating
+		}
 
-		return false
+		bfn = fn
+		return true // stop iterating
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to iterate kernel BTFs: %w", err)
+	}
 
-	assert.NoErr(err, "Failed to iterate kernel BTFs: %v")
+	return
+}
 
+func (p *fgraphProto) findBtfFunc(name string) *btf.Func {
+	bfunc, err := findBtfOfKfunc(name)
+	assert.NoErr(err, "Failed to find btf func for %s: %v", name, err)
 	return bfunc
 }
 

@@ -51,15 +51,19 @@ func showFuncProto(w io.Writer, fn *btf.Func, clr *color.Color, listParams bool)
 			clr.Fprintf(w, "%s", btfx.Repr(p.Type))
 		}
 	}
-	if listParams {
+	if listParams && len(params) > 0 {
 		clr.Fprint(w, "\n")
 	}
 	clr.Fprint(w, ")")
 }
 
-func printFuncProto(w io.Writer, fn *btf.Func, color *color.Color, listParams bool) {
+func printFuncProto(w io.Writer, fn *btf.Func, color *color.Color, listParams, checkTraceable, traceable bool) {
 	showFuncProto(w, fn, color, listParams)
-	color.Fprint(w, ";\n")
+	color.Fprint(w, ";")
+	if checkTraceable && traceable {
+		color.Fprint(w, " [traceable]")
+	}
+	color.Fprintln(w)
 }
 
 func ShowFuncProto(f *Flags) {
@@ -80,7 +84,7 @@ func ShowFuncProto(f *Flags) {
 			sort.Strings(keys)
 
 			for _, k := range keys {
-				printFuncProto(&sb, progs.tracings[k].fn, yellow, f.listFuncParams)
+				printFuncProto(&sb, progs.tracings[k].fn, yellow, f.listFuncParams, false, true)
 			}
 
 			printNewline = true
@@ -119,7 +123,9 @@ func ShowFuncProto(f *Flags) {
 		})
 
 		for _, fn := range fns {
-			printFuncProto(&sb, fn, yellow, f.listFuncParams)
+			traceable, err := detectKfuncTraceable(fn.Name, kallsyms, true, false)
+			assert.NoErr(err, "Failed to detect traceable for %s: %v", fn.Name)
+			printFuncProto(&sb, fn, yellow, f.listFuncParams, true, traceable)
 		}
 
 		printNewline = true
@@ -143,7 +149,7 @@ func ShowFuncProto(f *Flags) {
 		slices.Sort(keys)
 
 		for _, k := range keys {
-			printFuncProto(&sb, ktps[k].Func, yellow, f.listFuncParams)
+			printFuncProto(&sb, ktps[k].Func, yellow, f.listFuncParams, false, false)
 		}
 	}
 
