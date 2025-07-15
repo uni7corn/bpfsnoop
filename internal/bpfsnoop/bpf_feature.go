@@ -63,29 +63,26 @@ func DetectBPFFeatures() error {
 		return errors.New("ringbuf map not supported")
 	}
 
-	if requiredLbr {
-		krnl := getKernelBTF()
+	krnl := getKernelBTF()
+	bpfFuncIDs, err := krnl.AnyTypeByName("bpf_func_id")
+	if err != nil {
+		return fmt.Errorf("failed to find bpf_func_id type: %w", err)
+	}
 
-		bpfFuncIDs, err := krnl.AnyTypeByName("bpf_func_id")
-		if err != nil {
-			return fmt.Errorf("failed to find bpf_func_id type: %w", err)
-		}
+	enum, ok := bpfFuncIDs.(*btf.Enum)
+	if !ok {
+		return fmt.Errorf("bpf_func_id is not an enum")
+	}
 
-		enum, ok := bpfFuncIDs.(*btf.Enum)
-		if !ok {
-			return fmt.Errorf("bpf_func_id is not an enum")
+	for _, val := range enum.Values {
+		if val.Name == "BPF_FUNC_get_branch_snapshot" {
+			feat.HasBranchSnapshot = true
+			break
 		}
+	}
 
-		for _, val := range enum.Values {
-			if val.Name == "BPF_FUNC_get_branch_snapshot" {
-				feat.HasBranchSnapshot = true
-				break
-			}
-		}
-
-		if !feat.HasBranchSnapshot {
-			return errors.New("bpf_get_branch_snapshot() helper not supported for output LBR")
-		}
+	if requiredLbr && !feat.HasBranchSnapshot {
+		return errors.New("bpf_get_branch_snapshot() helper not supported for output LBR")
 	}
 
 	if outputFuncStack && !feat.HasGetStackID {

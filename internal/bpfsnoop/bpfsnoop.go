@@ -66,7 +66,7 @@ func Run(reader *ringbuf.Reader, maps map[string]*ebpf.Map, w io.Writer, helpers
 	lbrs := maps["bpfsnoop_lbrs"]
 
 	runDelta := runDurationThreshold
-	DebugLog("Run duration threshold: %s", runDelta)
+	debugLogIf(runDelta > 0, "Run duration threshold: %s", runDelta)
 
 	var lbrData LbrData
 

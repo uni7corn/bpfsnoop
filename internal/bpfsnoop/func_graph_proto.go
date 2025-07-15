@@ -139,12 +139,9 @@ func (p *fgraphProto) parse(ctx context.Context, ip uint64, bytes, depth uint) {
 	callees, ok := p.callees[ip]
 
 	if !ok {
-		data, err := readKernel(ip, uint32(bytes))
-		assert.NoErr(err, "Failed to read kernel memory at %x: %v", ip, err)
+		insts, err := disasmKfuncAt(ip, bytes, p.ksyms, p.engine)
+		assert.NoErr(err, "Failed to disassemble insns at %x: %v", ip, err)
 
-		data = trimTailingInsns(data)
-
-		insts, err := p.engine.Disasm(data, ip, 0)
 		for _, inst := range insts {
 			if len(inst.Bytes) != 5 || inst.Bytes[0] != 0xe8 {
 				// TODO: long jump instructions (0xe9)

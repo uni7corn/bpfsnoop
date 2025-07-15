@@ -119,14 +119,7 @@ func (p *FuncGraphParser) parse(ip uint64, bytes uint, depth uint, isBPF bool, t
 		return nil // already parsed, skip further processing
 	}
 
-	data, err := readKernel(ip, uint32(bytes))
-	if err != nil {
-		return fmt.Errorf("failed to read %d bytes kernel memory from %#x: %w", bytes, ip, err)
-	}
-
-	data = trimTailingInsns(data)
-
-	insts, err := p.engine.Disasm(data, ip, 0)
+	insts, err := disasmKfuncAt(ip, bytes, p.ksyms, p.engine)
 	if err != nil {
 		return fmt.Errorf("failed to disassemble %d bytes kernel memory from %#x: %w", bytes, ip, err)
 	}

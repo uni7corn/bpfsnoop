@@ -27,13 +27,7 @@ func (i FuncInsns) parseFuncInsns(kfunc *KFunc, engine *gapstone.Engine, ksyms *
 		return fmt.Errorf("func %s insn count %d is larger than limit %d", kfunc.Ksym.name, bytesCnt, readLimit)
 	}
 
-	data, err := readKernel(kaddr, uint32(bytesCnt))
-	if err != nil {
-		return fmt.Errorf("failed to read kernel memory from %#x: %w", kaddr, err)
-	}
-
-	data = trimTailingInsns(data)
-	insns, err := engine.Disasm(data, kaddr, 0)
+	insns, err := disasmKfuncAt(kaddr, bytesCnt, ksyms, engine)
 	if err != nil {
 		return fmt.Errorf("failed to disassemble insns: %w", err)
 	}
