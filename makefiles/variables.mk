@@ -22,9 +22,18 @@ GOBUILD := go build -v -trimpath
 GOBUILD_CGO_CFLAGS := CGO_CFLAGS='-O2 -I$(CURDIR)/lib/capstone/include -I$(CURDIR)/lib/libpcap'
 GOBUILD_CGO_LDFLAGS := CGO_LDFLAGS='-O2 -g -L$(CURDIR)/lib/capstone/build -lcapstone -L$(CURDIR)/lib/libpcap -lpcap -static'
 
+UNAME_ARCH := $(shell uname -m)
+ifeq ($(UNAME_ARCH),x86_64)
+	TARGET_ARCH := x86
+else ifeq ($(UNAME_ARCH),aarch64)
+	TARGET_ARCH := arm64
+else
+	$(error Unsupported architecture: $(UNAME_ARCH).)
+endif
+
 GO_RUN_BPF2GO := go run github.com/cilium/ebpf/cmd/bpf2go -cc clang
 BPF2GO := cd $(DIR_BPF) && $(GO_RUN_BPF2GO) -go-package bpf
-BPF2GO_EXTRA_FLAGS := -g -D__TARGET_ARCH_x86 -I$(CURDIR)/bpf -I$(CURDIR)/bpf/headers -I$(CURDIR)/lib/libbpf/src -Wno-address-of-packed-member -Wall
+BPF2GO_EXTRA_FLAGS := -g -D__TARGET_ARCH_$(TARGET_ARCH) -I$(CURDIR)/bpf -I$(CURDIR)/bpf/headers -I$(CURDIR)/lib/libbpf/src -Wno-address-of-packed-member -Wall
 
 BPFSNOOP_BPF_OBJ := $(DIR_BPF)/bpfsnoop_bpfel.o $(DIR_BPF)/bpfsnoop_bpfeb.o
 BPFSNOOP_BPF_SRC := bpf/bpfsnoop.c $(wildcard bpf/*.h) $(wildcard bpf/headers/*.h)
