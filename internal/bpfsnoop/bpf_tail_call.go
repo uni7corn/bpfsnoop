@@ -125,6 +125,7 @@ func ProbeTailcallIssue(spec *ebpf.CollectionSpec) error {
 		return fmt.Errorf("failed to load tailcall bpf spec: %w", err)
 	}
 
+	tailcallSpec.Programs["entry"].AttachTo = sysNanosleepSymbol
 	tcColl, err := ebpf.NewCollection(tailcallSpec)
 	if err != nil {
 		if errors.Is(err, unix.EINVAL) &&

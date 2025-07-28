@@ -32,6 +32,7 @@ func DetectBPFFeatures() error {
 		return fmt.Errorf("failed to load feat bpf spec: %w", err)
 	}
 
+	spec.Programs["detect"].AttachTo = sysNanosleepSymbol
 	coll, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to create bpf collection: %w", err)

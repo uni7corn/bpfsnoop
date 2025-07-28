@@ -6,7 +6,9 @@ package bpfsnoop
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -27,6 +29,25 @@ const (
 
 	btfIDDeny = "btf_id_deny"
 )
+
+var (
+	sysBPFSymbol       = "__x64_sys_bpf"
+	sysNanosleepSymbol = "__x64_sys_nanosleep"
+)
+
+func init() {
+	switch runtime.GOARCH {
+	case "amd64":
+		break
+
+	case "arm64":
+		sysBPFSymbol = "__arm64_sys_bpf"
+		sysNanosleepSymbol = "__arm64_sys_nanosleep"
+
+	default:
+		log.Fatalf("unsupported architecture %s", runtime.GOARCH)
+	}
+}
 
 func isKernelBuiltinMod(mod string) bool {
 	return mod == "" || strings.HasPrefix(mod, kmodBuiltinPfx) || mod == kmodBpf
@@ -138,7 +159,7 @@ func NewKallsyms() (*Kallsyms, error) {
 			case "_stext":
 				ks.stext = entry.addr
 
-			case "__x64_sys_bpf":
+			case sysBPFSymbol:
 				ks.sysBPF = entry.addr
 			}
 

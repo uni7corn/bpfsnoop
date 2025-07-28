@@ -43,6 +43,7 @@ func detectTraceable(spec *ebpf.CollectionSpec, addrs []uintptr) ([]uintptr, err
 		return nil, fmt.Errorf("failed to set has_endbr: %w", err)
 	}
 
+	spec.Programs["detect"].AttachTo = sysNanosleepSymbol
 	coll, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{
 		Programs: ebpf.ProgramOptions{
 			LogDisabled: true,

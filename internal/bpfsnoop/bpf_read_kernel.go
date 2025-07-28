@@ -42,6 +42,7 @@ func readKernel(addr uint64, size uint32) ([]byte, error) {
 		return nil, fmt.Errorf("failed to set __size: %w", err)
 	}
 
+	spec.Programs["read"].AttachTo = sysNanosleepSymbol
 	coll, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{
 		Programs: ebpf.ProgramOptions{
 			LogDisabled: true,

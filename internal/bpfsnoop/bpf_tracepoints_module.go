@@ -42,6 +42,7 @@ func probeTracepointModuleInfos(spec, tpSpec *ebpf.CollectionSpec, head, start u
 		return nil, fmt.Errorf("failed to set __start: %w", err)
 	}
 
+	spec.Programs["probe"].AttachTo = sysNanosleepSymbol
 	coll, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{
 		Programs: ebpf.ProgramOptions{
 			LogDisabled: true,
