@@ -16,17 +16,31 @@ bool run SEC(".data.run");
 static __noinline bool
 is_traceable(u64 addr)
 {
-    u8 buff[16];
+    u8 buff[16], *ptr;
 
     if (bpf_probe_read_kernel(&buff, 16, (void *) addr))
         return false;
 
-    if (!has_endbr ? buff[0] == 0xE8 : buff[4] == 0xE8) /* callq */
-        return true;
-
+#if defined(bpf_target_x86)
     static const u64 nop5 = 0x0000441F0F;
-    return !has_endbr ? ((((u64) buff[4]) << 32 | (u64)(*(u32 *) buff)) == nop5) :
-                        ((((u64) buff[8]) << 32 | (u64)(*(u32 *) (buff + 4))) == nop5);
+    u64 a, b;
+
+    ptr = has_endbr ? buff + 4 : buff;
+    /* Avoid 'misaligned stack access off 0+-12+0 size 8' */
+    a = *(u32 *) ptr;
+    b = *(u8 *) (ptr + 4);
+    return (b<<32 | a) == nop5 /* nop5 */ || ptr[0] == 0xE8 /* callq */;
+
+#elif defined(bpf_target_arm64)
+    ptr = buff + 4;
+    u32 insn = *(u32 *) ptr;
+
+    return insn == 0xD503201F /* nop */ || ptr[3] == 0x97 /* bl */ ||
+           ptr[3] == 0x94 /* blr */;
+
+#else
+# error "Unsupported architecture"
+#endif
 }
 
 SEC("fentry/__x64_sys_nanosleep")
