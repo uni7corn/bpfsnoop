@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -58,6 +59,10 @@ func guessBytes(kaddr uintptr, ks *Kallsyms, bytes uint) uint {
 }
 
 func trimTailingInsns(b []byte) []byte {
+	if runtime.GOARCH != archAMD64 {
+		return b
+	}
+
 	skipInsns := map[byte]struct{}{
 		0xcc: {}, // int3
 		0x90: {}, // nop
@@ -147,7 +152,8 @@ func parseDisasmKfunc(kfunc string, kmods []string, ksyms *Kallsyms, a2l *Addr2L
 }
 
 func dumpKfunc(kfunc string, kmods []string, bytes uint) {
-	assert.True(runtime.GOARCH == "amd64", "Only support amd64 arch")
+	supportedArchs := []string{archAMD64, archARM64}
+	assert.True(slices.Contains(supportedArchs, runtime.GOARCH), "Unsupported arch %s", runtime.GOARCH)
 
 	VerboseLog("Reading /proc/kallsyms ..")
 	kallsyms, err := NewKallsyms()
@@ -196,6 +202,9 @@ func dumpKfunc(kfunc string, kmods []string, bytes uint) {
 	assert.NoErr(err, "Failed to get bpf progs: %v")
 	defer bpfProgs.Close()
 
+	<-bpfProgs.done
+	assert.NoErr(bpfProgs.err, "Failed to parse bpf progs: %v")
+
 	var sb strings.Builder
 
 	printLineInfo := func(li *branchEndpoint) {
@@ -225,7 +234,7 @@ func dumpKfunc(kfunc string, kmods []string, bytes uint) {
 			break
 		}
 		if err != nil {
-			if b[0] == 0x82 {
+			if runtime.GOARCH == archAMD64 && b[0] == 0x82 {
 				fmt.Fprint(&sb, printInsnInfo(pc, pc-kaddr, b[:1], "(bad)", ""))
 
 				pc++
@@ -253,8 +262,13 @@ func dumpKfunc(kfunc string, kmods []string, bytes uint) {
 		fmt.Fprint(&sb, printInsnInfo(pc, pc-kaddr, inst.Bytes, inst.Mnemonic, opstr))
 
 		var endpoint *branchEndpoint
-		if strings.HasPrefix(opstr, "0x") {
-			n, err := strconv.ParseUint(opstr, 0, 64)
+		if strings.HasPrefix(opstr, "0x") || strings.HasPrefix(opstr, "#0x") {
+			// On amd64, the target address is encoded as a hex number with a
+			// leading "0x".
+			// On arm64, the target address is encoded as a hex number with a
+			// leading "#0x".
+			s := strings.Trim(opstr, "#")
+			n, err := strconv.ParseUint(s, 0, 64)
 			if err == nil {
 				endpoint = getLineInfo(uintptr(n), bpfProgs, addr2line, kallsyms)
 			}
