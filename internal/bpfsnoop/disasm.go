@@ -267,7 +267,7 @@ func dumpKfunc(kfunc string, kmods []string, bytes uint) {
 			// leading "0x".
 			// On arm64, the target address is encoded as a hex number with a
 			// leading "#0x".
-			s := strings.Trim(opstr, "#")
+			s := strings.TrimPrefix(opstr, "#")
 			n, err := strconv.ParseUint(s, 0, 64)
 			if err == nil {
 				endpoint = getLineInfo(uintptr(n), bpfProgs, addr2line, kallsyms)

@@ -82,6 +82,9 @@ func DumpProg(pf []ProgFlag) {
 	assert.NoErr(err, "Failed to get bpf progs: %v")
 	defer bpfProgs.Close()
 
+	<-bpfProgs.done
+	assert.NoErr(bpfProgs.err, "Failed to parse bpf progs: %v")
+
 	prog := progInfo.prog
 	info, err := prog.Info()
 	assert.NoErr(err, "Failed to get prog info: %v")
@@ -167,8 +170,9 @@ func DumpProg(pf []ProgFlag) {
 
 			opstr := inst[0].OpStr
 			var endpoint *branchEndpoint
-			if strings.HasPrefix(opstr, "0x") {
-				n, err := strconv.ParseUint(opstr, 0, 64)
+			if strings.HasPrefix(opstr, "0x") || strings.HasPrefix(opstr, "#0x") {
+				s := strings.TrimPrefix(opstr, "#")
+				n, err := strconv.ParseUint(s, 0, 64)
 				if err == nil {
 					endpoint = getLineInfo(uintptr(n), bpfProgs, addr2line, kallsyms)
 				}

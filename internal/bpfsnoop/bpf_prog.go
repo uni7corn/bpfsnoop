@@ -58,7 +58,7 @@ func NewBPFProgs(pflags []ProgFlag, noParseProgs, disasm bool) (*bpfProgs, error
 		return nil, fmt.Errorf("failed to prepare BPF program infos: %w", err)
 	}
 
-	if !noParseProgs {
+	if doParseProg := !noParseProgs; doParseProg {
 		go progs.parseProgs()
 	} else {
 		progs.ready = true
