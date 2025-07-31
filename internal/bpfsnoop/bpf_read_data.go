@@ -93,9 +93,12 @@ func readKernelData(expr string, helpers *Helpers) error {
 	hist := newHistogram(helpers.Flags.histExpr)
 	defer hist.render(os.Stdout)
 
+	tdigest := newTDigest(helpers.Flags.tdigestExpr)
+	defer tdigest.render(os.Stdout)
+
 	var sb strings.Builder
 	f := findSymbolHelper(0, helpers)
-	err = __outputFuncArgAttrs(&sb, []funcArgumentOutput{arg}, buff, hist, f)
+	err = __outputFuncArgAttrs(&sb, []funcArgumentOutput{arg}, buff, hist, tdigest, f)
 	if err != nil {
 		return fmt.Errorf("failed to output function arg attrs: %w", err)
 	}

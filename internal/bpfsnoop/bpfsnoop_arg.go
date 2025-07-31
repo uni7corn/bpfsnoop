@@ -38,11 +38,15 @@ func dumpOutputArgBuf(data []byte) string {
 	return sb.String()
 }
 
-func __outputFuncArgAttrs(sb *strings.Builder, args []funcArgumentOutput, data []byte, hist *histogram, f btfx.FindSymbol) error {
+func __outputFuncArgAttrs(sb *strings.Builder, args []funcArgumentOutput, data []byte, hist *histogram, tdigest *TDigest, f btfx.FindSymbol) error {
 	gray := color.RGB(0x88, 0x88, 0x88 /* gray */)
-	for i, arg := range args {
-		if i != 0 {
+	shouldPrintComma := false
+	for _, arg := range args {
+		if shouldPrintComma {
 			fmt.Fprint(sb, ", ")
+		}
+		if !arg.isHist && !arg.isTDig {
+			shouldPrintComma = true
 		}
 
 		exception := data[arg.size-1]
@@ -224,6 +228,12 @@ func __outputFuncArgAttrs(sb *strings.Builder, args []funcArgumentOutput, data [
 			hist.add(data[:arg.trueDataSize], size)
 			// histogram will be rendered later
 			continue
+
+		case arg.isTDig:
+			size, _ := btf.Sizeof(arg.t)
+			tdigest.add(data[:arg.trueDataSize], size)
+			// t-digest will be rendered later
+			continue
 		}
 
 		if s != "" {
@@ -263,10 +273,14 @@ func __outputFuncArgAttrs(sb *strings.Builder, args []funcArgumentOutput, data [
 	return nil
 }
 
-func outputFuncArgAttrs(sb *strings.Builder, args []funcArgumentOutput, data []byte, hist *histogram, f btfx.FindSymbol) error {
-	if len(args) != 1 || !args[0].isHist {
+func outputFuncArgAttrs(sb *strings.Builder, args []funcArgumentOutput, data []byte, hist *histogram, tdigest *TDigest, f btfx.FindSymbol) error {
+	histTdigestOnly := true
+	for _, arg := range args {
+		histTdigestOnly = histTdigestOnly && (arg.isHist || arg.isTDig)
+	}
+	if !histTdigestOnly {
 		fmt.Fprint(sb, "Arg attrs: ")
 	}
 
-	return __outputFuncArgAttrs(sb, args, data, hist, f)
+	return __outputFuncArgAttrs(sb, args, data, hist, tdigest, f)
 }

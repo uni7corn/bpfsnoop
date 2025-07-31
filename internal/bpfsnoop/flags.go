@@ -77,6 +77,9 @@ type Flags struct {
 
 	outputHist bool
 	histExpr   string
+
+	outputTDigest bool
+	tdigestExpr   string
 }
 
 func ParseFlags() (*Flags, error) {
@@ -177,6 +180,19 @@ func ParseFlags() (*Flags, error) {
 
 		flags.outputHist = true
 		flags.histExpr = strings.TrimSuffix(strings.TrimPrefix(s, "hist("), ")")
+	}
+
+	// check t-digest
+	for _, s := range outputArg {
+		if !strings.HasPrefix(s, "tdigest(") {
+			continue
+		}
+		if flags.outputTDigest {
+			return nil, fmt.Errorf("only one t-digest output is allowed")
+		}
+
+		flags.outputTDigest = true
+		flags.tdigestExpr = strings.TrimSuffix(strings.TrimPrefix(s, "tdigest("), ")")
 	}
 
 	requiredLbr = outputLbr

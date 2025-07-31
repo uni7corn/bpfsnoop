@@ -115,6 +115,7 @@ const (
 	EvalResultTypeHex
 	EvalResultTypeInt
 	EvalResultTypeHist
+	EvalResultTypeTDigest
 )
 
 type EvalResult struct {
