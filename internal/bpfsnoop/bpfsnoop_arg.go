@@ -38,7 +38,7 @@ func dumpOutputArgBuf(data []byte) string {
 	return sb.String()
 }
 
-func __outputFuncArgAttrs(sb *strings.Builder, args []funcArgumentOutput, data []byte, f btfx.FindSymbol) error {
+func __outputFuncArgAttrs(sb *strings.Builder, args []funcArgumentOutput, data []byte, hist *histogram, f btfx.FindSymbol) error {
 	gray := color.RGB(0x88, 0x88, 0x88 /* gray */)
 	for i, arg := range args {
 		if i != 0 {
@@ -218,6 +218,12 @@ func __outputFuncArgAttrs(sb *strings.Builder, args []funcArgumentOutput, data [
 			}
 
 			s = sb.String()
+
+		case arg.isHist:
+			size, _ := btf.Sizeof(arg.t)
+			hist.add(data[:arg.trueDataSize], size)
+			// histogram will be rendered later
+			continue
 		}
 
 		if s != "" {
@@ -257,7 +263,10 @@ func __outputFuncArgAttrs(sb *strings.Builder, args []funcArgumentOutput, data [
 	return nil
 }
 
-func outputFuncArgAttrs(sb *strings.Builder, args []funcArgumentOutput, data []byte, f btfx.FindSymbol) error {
-	fmt.Fprint(sb, "Arg attrs: ")
-	return __outputFuncArgAttrs(sb, args, data, f)
+func outputFuncArgAttrs(sb *strings.Builder, args []funcArgumentOutput, data []byte, hist *histogram, f btfx.FindSymbol) error {
+	if len(args) != 1 || !args[0].isHist {
+		fmt.Fprint(sb, "Arg attrs: ")
+	}
+
+	return __outputFuncArgAttrs(sb, args, data, hist, f)
 }

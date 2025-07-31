@@ -6,6 +6,7 @@ package bpfsnoop
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/cilium/ebpf"
@@ -89,9 +90,12 @@ func readKernelData(expr string, helpers *Helpers) error {
 		return fmt.Errorf("failed to lookup .data.buff: %w", err)
 	}
 
+	hist := newHistogram(helpers.Flags.histExpr)
+	defer hist.render(os.Stdout)
+
 	var sb strings.Builder
 	f := findSymbolHelper(0, helpers)
-	err = __outputFuncArgAttrs(&sb, []funcArgumentOutput{arg}, buff, f)
+	err = __outputFuncArgAttrs(&sb, []funcArgumentOutput{arg}, buff, hist, f)
 	if err != nil {
 		return fmt.Errorf("failed to output function arg attrs: %w", err)
 	}
