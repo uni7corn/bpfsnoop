@@ -74,6 +74,7 @@ type Flags struct {
 }
 
 func ParseFlags() (*Flags, error) {
+	var showTypes []string
 	var flags Flags
 
 	f := flag.NewFlagSet("bpfsnoop", flag.ExitOnError)
@@ -107,6 +108,7 @@ func ParseFlags() (*Flags, error) {
 	f.StringVar(&filterPkt, "filter-pkt", "", "filter packet with pcap-filter(7) expr if function argument is skb or xdp, e.g. 'icmp and host 1.1.1.1'")
 	f.UintVar(&limitEvents, "limit-events", 0, "limited number events to output, 0 to output all events")
 	f.BoolVar(&flags.showFuncProto, "show-func-proto", false, "show function prototype of -p,-k,-t")
+	f.StringSliceVarP(&showTypes, "show-type-proto", "C", nil, "show struct/union/enum prototype like `pahole -C`")
 	f.UintVar(&debugTraceInsnCnt, "trace-insn-debug-cnt", 0, "trace insn count for debug")
 	f.StringVar(&kernelVmlinuxDir, "kernel-vmlinux", "", "specific kernel vmlinux directory to search vmlinux and modules dbgsym files")
 
@@ -167,6 +169,11 @@ func ParseFlags() (*Flags, error) {
 	}
 	flags.requiredVmlinux = !flags.noVmlinux &&
 		(flags.requiredVmlinux || outputFuncStack || outputLbr)
+
+	if len(showTypes) != 0 {
+		showTypeProto(showTypes)
+		os.Exit(0)
+	}
 
 	return &flags, err
 }
