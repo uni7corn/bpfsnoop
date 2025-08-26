@@ -15,6 +15,7 @@ require (
 	github.com/gopacket/gopacket v1.3.1
 	github.com/jschwinger233/elibpcap v1.0.1
 	github.com/klauspost/compress v1.17.11
+	github.com/lorenzosaino/go-sysctl v0.3.1
 	github.com/spf13/pflag v1.0.5
 	github.com/ulikunitz/xz v0.5.12
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
@@ -23,11 +24,17 @@ require (
 )
 
 require (
+	github.com/BurntSushi/toml v1.1.0 // indirect
 	github.com/cloudflare/cbpfc v0.0.0-20230809125630-31aa294050ff // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	golang.org/x/exp/typeparams v0.0.0-20220613132600-b0d781184e0d // indirect
+	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
+	golang.org/x/mod v0.21.0 // indirect
 	golang.org/x/net v0.33.0 // indirect
+	golang.org/x/tools v0.26.0 // indirect
+	honnef.co/go/tools v0.3.2 // indirect
 )
 
 require (

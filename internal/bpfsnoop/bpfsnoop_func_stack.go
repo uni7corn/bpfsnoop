@@ -13,21 +13,15 @@ import (
 	"github.com/fatih/color"
 )
 
-const (
-	MAX_STACK_DEPTH = 50
-)
-
-type FuncStack struct {
-	IPs [MAX_STACK_DEPTH]uint64
-}
-
 type fnStack struct {
+	ips   []uint64
 	stack []string
 }
 
 func newFnStack() *fnStack {
 	return &fnStack{
-		stack: make([]string, 0, MAX_STACK_DEPTH),
+		ips:   make([]uint64, kernelPerfEventMaxStack),
+		stack: make([]string, 0, kernelPerfEventMaxStack),
 	}
 }
 
@@ -38,8 +32,10 @@ func (s *fnStack) reset() {
 func (s *fnStack) get(event *Event, helpers *Helpers, stacks *ebpf.Map, symbolOnly bool) error {
 	id := uint32(event.StackID)
 
-	var data FuncStack
-	err := stacks.Lookup(id, &data)
+	if len(s.stack) > 0 {
+		clear(s.ips[:len(s.stack)])
+	}
+	err := stacks.Lookup(id, &s.ips)
 	if err != nil {
 		if errors.Is(err, ebpf.ErrKeyNotExist) {
 			return nil
@@ -48,7 +44,7 @@ func (s *fnStack) get(event *Event, helpers *Helpers, stacks *ebpf.Map, symbolOn
 	}
 	_ = stacks.Delete(id)
 
-	ips := data.IPs[:]
+	ips := s.ips[:]
 	if !verbose {
 		ips = ips[3:] // Skip the first 3 entries as they are entries for fentry/fexit and its trampoline.
 	}

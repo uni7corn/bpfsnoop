@@ -23,12 +23,13 @@ volatile const __u64 FUNC_IP = 0;
 
 __u32 ready SEC(".data.ready") = 0;
 
-#define MAX_STACK_DEPTH 50
+/* Must LE sysctl kernel.perf_event_max_stack = 127 */
+#define MAX_STACK_DEPTH 127
 struct {
     __uint(type, BPF_MAP_TYPE_STACK_TRACE);
     __uint(max_entries, 256);
     __uint(key_size, sizeof(u32));
-    __uint(value_size, MAX_STACK_DEPTH * sizeof(u64));
+    __uint(value_size, MAX_STACK_DEPTH * sizeof(u64)); /* Being updated to kernel.perf_event_max_depth in Go */
 } bpfsnoop_stacks SEC(".maps");
 
 static __always_inline bool
