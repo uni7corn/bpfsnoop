@@ -99,7 +99,7 @@ struct {
  * tramp fp.
  */
 static __always_inline bool
-is_tramp_fp(__u64 ip)
+is_fgraph_ip(__u64 ip)
 {
     __u32 *val;
 
@@ -131,7 +131,7 @@ try_get_session_limited(int *depth)
         if (sess)
             return sess;
 
-        if (!is_tramp_fp(buff[1]) && ++(*depth) > max_depth)
+        if (!is_fgraph_ip(buff[1]) && ++(*depth) > max_depth)
             break;
 
         fp = buff[0]; /* next frame pointer */
@@ -163,7 +163,7 @@ int BPF_PROG(bpfsnoop_fgraph_tailcallee)
             return false;
         }
 
-        if (!is_tramp_fp(buff[1]) && ++(data->depth) > data->max_depth) {
+        if (!is_fgraph_ip(buff[1]) && ++(data->depth) > data->max_depth) {
             data->oo_depth = true; /* out of depth */
             return false;
         }
@@ -244,7 +244,8 @@ int BPF_PROG(bpfsnoop_fgraph)
 
     (void) bpf_probe_read_kernel(args, 8*cfg->fn_args.args_nr, ctx);
     if (cfg->fn_args.with_retval)
-        (void) bpf_probe_read_kernel(&retval, sizeof(retval), ctx + 8*cfg->fn_args.args_nr);
+        /* typeof(ctx) is 'unsigned long long *', not 'void *'. */
+        (void) bpf_probe_read_kernel(&retval, sizeof(retval), (void *)ctx + 8*cfg->fn_args.args_nr);
 
     evt = (typeof(evt)) buffer;
     evt->type = cfg->entry ? BPFSNOOP_EVENT_TYPE_GRAPH_ENTRY

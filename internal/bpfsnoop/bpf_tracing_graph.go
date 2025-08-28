@@ -37,7 +37,7 @@ type bpfFgraphConfig struct {
 	Pad2      uint16
 	MyPID     uint32
 	FnArgsNr  uint32
-	WithRet   bool
+	WithRet   uint8
 	Pad       [3]uint8
 	FnArgsBuf uint32
 }
@@ -64,7 +64,7 @@ func (t *bpfTracing) traceGraph(spec *ebpf.CollectionSpec,
 	cfg.Entry = uint8(b2i(entry))
 	cfg.TinBPF = uint8(b2i(tailcallInfo.supportTailcallInBpf2bpf))
 	cfg.FnArgsNr = uint32(len(params))
-	cfg.WithRet = !entry
+	cfg.WithRet = uint8(b2i(!entry))
 	cfg.FnArgsBuf = uint32(fnArgsBufSize)
 	cfg.MyPID = uint32(os.Getpid())
 
