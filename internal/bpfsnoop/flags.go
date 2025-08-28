@@ -168,7 +168,7 @@ func ParseFlags() (*Flags, error) {
 		requiredLbr = requiredLbr || strings.Contains(s, "(l)")
 	}
 	flags.requiredVmlinux = !flags.noVmlinux &&
-		(flags.requiredVmlinux || outputFuncStack || outputLbr)
+		(flags.requiredVmlinux || outputFuncStack || outputLbr || requiredLbr)
 
 	if len(showTypes) != 0 {
 		showTypeProto(showTypes)
