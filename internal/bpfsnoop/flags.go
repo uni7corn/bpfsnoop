@@ -47,6 +47,8 @@ var (
 	debugTraceInsnCnt uint
 
 	kernelVmlinuxDir string
+
+	forceProbeReadKernel bool
 )
 
 type Flags struct {
@@ -116,6 +118,7 @@ func ParseFlags() (*Flags, error) {
 	f.UintVarP(&limitEvents, "limit-events-internal", "E", 0, "limited number events to output, 0 to output all events")
 	f.BoolVarP(&flags.noVmlinux, "no-vmlinux", "N", false, "do not load vmlinux")
 	f.DurationVar(&runDurationThreshold, "duration-threshold", 0, "threshold for run duration, e.g. 1s, 100ms, 0 to disable")
+	f.BoolVarP(&forceProbeReadKernel, "force-probe-read-kernel", "P", false, "force reading kernel memory using bpf_probe_read_kernel() helper")
 
 	f.MarkHidden("debug-log")
 	f.MarkHidden("output-flamegraph")
@@ -125,6 +128,7 @@ func ParseFlags() (*Flags, error) {
 	f.MarkHidden("no-vmlinux")
 	f.MarkHidden("duration-threshold")
 	f.MarkHidden("fgraph-debug")
+	f.MarkHidden("force-probe-read-kernel")
 
 	err := f.Parse(os.Args)
 

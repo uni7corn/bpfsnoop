@@ -101,6 +101,9 @@ func (arg *funcArgument) inject(prog *ebpf.ProgramSpec, krnl, spec *btf.Spec, pa
 	if _, err := krnl.AnyTypeByName("bpf_rdonly_cast"); err == nil {
 		mode = cc.MemoryReadModeCoreRead
 	}
+	if forceProbeReadKernel {
+		mode = cc.MemoryReadModeProbeRead
+	}
 
 	insns, err := cc.CompileFilterExpr(cc.CompileExprOptions{
 		Expr:      arg.expr,

@@ -244,6 +244,9 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, krnl, spec *btf.S
 	if _, err := spec.AnyTypeByName("bpf_rdonly_cast"); err == nil {
 		mode = cc.MemoryReadModeCoreRead
 	}
+	if forceProbeReadKernel {
+		mode = cc.MemoryReadModeProbeRead
+	}
 
 	res, err := cc.CompileEvalExpr(cc.CompileExprOptions{
 		Expr:          arg.expr,
