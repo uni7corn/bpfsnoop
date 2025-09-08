@@ -50,7 +50,14 @@ func ignoreFuncTraceVerifierErr(err error, fnName string) bool {
 	// commit 720e6a4351 ("bpf: Allow struct argument in trampoline based programs")
 	// kernel 6.1.
 	if strings.Contains(s, "type STRUCT is unsupported") {
-		VerboseLog("Cannot trace kfunc %s: %s", fnName, s)
+		VerboseLog("Cannot trace STRUCT-arg kfunc %s: %s", fnName, s)
+		return true
+	}
+
+	// UNION arg is unsupported since
+	// commit ??? ("bpf: Support fentry/fexit for functions with union args")
+	if strings.Contains(s, "type UNION is unsupported") {
+		VerboseLog("Cannot trace UNION-arg kfunc %s: %s", fnName, s)
 		return true
 	}
 
