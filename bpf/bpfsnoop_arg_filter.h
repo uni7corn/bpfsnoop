@@ -11,7 +11,7 @@
 static __noinline bool
 filter_arg(__u64 *args)
 {
-    return args != NULL;
+    return args[0] != 0;
 }
 
 #endif // __BPFSNOOP_ARG_FILTER_H_
