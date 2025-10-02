@@ -335,55 +335,14 @@ func (arg *funcArgumentOutput) match(params []btf.FuncParam) bool {
 	return false
 }
 
-func (arg *argDataOutput) correctArgType(t btf.Type) (btf.Type, error) {
-	ptr, ok := mybtf.UnderlyingType(t).(*btf.Pointer)
-	if !ok {
-		return t, nil
-	}
-
-	stt, ok := ptr.Target.(*btf.Struct)
-	if !ok {
-		return t, nil
-	}
-
-	var err error
-	switch stt.Name {
-	case "__sk_buff":
-		t, err = btfx.GetStructBtfPointer("sk_buff", getKernelBTF())
-		if err != nil {
-			return nil, fmt.Errorf("failed to get sk_buff btf pointer: %w", err)
-		}
-
-	case "xdp_md":
-		t, err = btfx.GetStructBtfPointer("xdp_buff", getKernelBTF())
-		if err != nil {
-			return nil, fmt.Errorf("failed to get xdp_buff btf pointer: %w", err)
-		}
-	}
-
-	return t, nil
-}
-
 func (arg *argDataOutput) genExitLabel() string {
 	label := fmt.Sprintf("%s_%d", outputArgLabelExit, arg.labelCnt)
 	arg.labelCnt++
 	return label
 }
 
-func (arg *argDataOutput) matchParams(params []btf.FuncParam, spec *btf.Spec, checkArgType bool) ([]funcArgumentOutput, int, error) {
+func (arg *argDataOutput) matchParams(params []btf.FuncParam, spec *btf.Spec) ([]funcArgumentOutput, int, error) {
 	args := make([]funcArgumentOutput, 0, 12)
-
-	params = slices.Clone(params)
-	if checkArgType {
-		for i, p := range params {
-			t, err := arg.correctArgType(p.Type)
-			if err != nil {
-				return nil, 0, fmt.Errorf("failed to correct arg type: %w", err)
-			}
-
-			params[i].Type = t
-		}
-	}
 
 	krnl := getKernelBTF()
 	offset := 0

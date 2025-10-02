@@ -81,7 +81,7 @@ func (t *bpfTracing) traceFunc(spec *ebpf.CollectionSpec, reusedMaps map[string]
 	if err := t.injectArgFilter(progSpec, params, fn.Btf, traceeName); err != nil {
 		return err
 	}
-	args, argDataSize, err := t.injectArgOutput(progSpec, params, fn.Btf, false, traceeName)
+	args, argDataSize, err := t.injectArgOutput(progSpec, params, fn.Btf, traceeName)
 	if err != nil {
 		return err
 	}

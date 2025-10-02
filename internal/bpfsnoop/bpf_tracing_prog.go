@@ -5,12 +5,16 @@ package bpfsnoop
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
+	"github.com/Asphaltt/mybtf"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/link"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/bpfsnoop/bpfsnoop/internal/btfx"
 )
 
 type tracingProg struct {
@@ -23,15 +27,63 @@ func (t *tracingProg) Close() {
 	_ = t.p.Close()
 }
 
+func correctArgType(t btf.Type) (btf.Type, error) {
+	ptr, ok := mybtf.UnderlyingType(t).(*btf.Pointer)
+	if !ok {
+		return t, nil
+	}
+
+	stt, ok := ptr.Target.(*btf.Struct)
+	if !ok {
+		return t, nil
+	}
+
+	var err error
+	switch stt.Name {
+	case "__sk_buff":
+		t, err = btfx.GetStructBtfPointer("sk_buff", getKernelBTF())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get sk_buff btf pointer: %w", err)
+		}
+
+	case "xdp_md":
+		t, err = btfx.GetStructBtfPointer("xdp_buff", getKernelBTF())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get xdp_buff btf pointer: %w", err)
+		}
+	}
+
+	return t, nil
+}
+
+func correctArgTypeInParams(params []btf.FuncParam) ([]btf.FuncParam, error) {
+	params = slices.Clone(params)
+	for i, p := range params {
+		t, err := correctArgType(p.Type)
+		if err != nil {
+			return nil, fmt.Errorf("failed to correct arg type: %w", err)
+		}
+
+		params[i].Type = t
+	}
+
+	return params, nil
+}
+
 func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]*ebpf.Map, info *bpfTracingInfo, bprogs *bpfProgs, bothEntryExit, fexit, stack bool) error {
 	krnl := getKernelBTF()
+
+	params := info.fn.Type.(*btf.FuncProto).Params
+	params, err := correctArgTypeInParams(params)
+	if err != nil {
+		return fmt.Errorf("failed to correct arg types in params of %s: %w", info.fn.Name, err)
+	}
 
 	spec = spec.Copy()
 
 	traceeName := info.fn.Name
 	tracingFuncName := TracingProgName()
 	progSpec := spec.Programs[tracingFuncName]
-	params := info.fn.Type.(*btf.FuncProto).Params
 	bprog := bprogs.funcs[info.funcIP]
 	bprog.pktOutput = t.injectPktOutput(info.flag.pkt, progSpec, params, traceeName)
 	if err := t.injectPktFilter(progSpec, params, traceeName); err != nil {
@@ -40,7 +92,7 @@ func (t *bpfTracing) traceProg(spec *ebpf.CollectionSpec, reusedMaps map[string]
 	if err := t.injectArgFilter(progSpec, params, krnl, traceeName); err != nil {
 		return err
 	}
-	args, argDataSize, err := t.injectArgOutput(progSpec, params, krnl, true, traceeName)
+	args, argDataSize, err := t.injectArgOutput(progSpec, params, krnl, traceeName)
 	if err != nil {
 		return err
 	}

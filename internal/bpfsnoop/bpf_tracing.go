@@ -145,12 +145,12 @@ func (t *bpfTracing) injectArgFilter(prog *ebpf.ProgramSpec, params []btf.FuncPa
 	return nil
 }
 
-func (t *bpfTracing) injectArgOutput(prog *ebpf.ProgramSpec, params []btf.FuncParam, spec *btf.Spec, checkArgType bool, fnName string) ([]funcArgumentOutput, int, error) {
+func (t *bpfTracing) injectArgOutput(prog *ebpf.ProgramSpec, params []btf.FuncParam, spec *btf.Spec, fnName string) ([]funcArgumentOutput, int, error) {
 	if len(argOutput.args) == 0 {
 		return nil, 0, nil
 	}
 
-	args, size, err := argOutput.matchParams(params, spec, checkArgType)
+	args, size, err := argOutput.matchParams(params, spec)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to match params: %w", err)
 	}
