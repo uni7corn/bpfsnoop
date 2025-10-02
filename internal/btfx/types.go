@@ -215,7 +215,7 @@ func reprMember(sb *strings.Builder, m *btf.Member, data []byte, find FindSymbol
 		fmt.Fprintf(sb, "%s=", m.Name)
 	}
 	if m.BitfieldSize != 0 {
-		fmt.Fprint(sb, mybtf.DumpBitfield(m.Offset, m.BitfieldSize, data))
+		fmt.Fprint(sb, mybtf.DumpBitfield(0, m.BitfieldSize, data))
 	} else {
 		offset := int(m.Offset.Bytes())
 		val, valNext := GetU64(data, offset), GetU64(data, offset+8)
