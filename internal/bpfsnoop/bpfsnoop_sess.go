@@ -55,6 +55,9 @@ func (s *Session) pushTstamp(ts uint32) {
 }
 
 func (s *Session) popTstamp() {
+	if s.lastidx == 0 {
+		return
+	}
 	s.tstamps = s.tstamps[:s.lastidx]
 	s.lastidx--
 }
