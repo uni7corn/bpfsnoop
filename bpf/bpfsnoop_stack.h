@@ -14,6 +14,9 @@
  * | rip | IP of tracee
  * | rbp | FP of tracee's caller
  * +-----+ FP of trampoline
+ * | ret | retval on stack
+ * | arg | args[...]
+ * +-----+ ctx of current prog
  * | ... |
  * | rip | IP of trampoline
  * | rbp | FP of trampoline
@@ -53,15 +56,21 @@ get_tracing_fp(void)
 	return fp;
 }
 
+static __always_inline u64
+__get_ptr(void *ctx, __u32 args_nr, bool retval)
+{
+	int offset;
+
+	offset = (args_nr & 0xF) * 8; /* each arg is 8 bytes */
+	offset += retval ? 8 : 0; /* retval */
+	return (__u64) ctx + offset;
+}
+
 #if defined(bpf_target_x86)
 static __always_inline u64
-get_tramp_fp(void)
+get_tramp_fp(void *ctx, __u32 args_nr, bool retval)
 {
-	u64 fp, fp_tramp = 0;
-
-	fp = get_tracing_fp();
-	bpf_probe_read_kernel(&fp_tramp, sizeof(fp_tramp), (void *) fp);
-	return fp_tramp;
+	return __get_ptr(ctx, args_nr, retval);
 }
 
 #elif defined(bpf_target_arm64)
@@ -96,7 +105,7 @@ detect_tramp_fp_offset(u64 r10)
 }
 
 static __always_inline u64
-get_tramp_fp(void)
+get_tramp_fp(void *ctx, __u32 args_nr, bool retval)
 {
 	u64 fp = get_tracing_fp();
 

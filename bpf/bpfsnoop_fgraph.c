@@ -108,7 +108,7 @@ is_fgraph_ip(__u64 ip)
 }
 
 static __always_inline struct bpfsnoop_sess *
-try_get_session_limited(int *depth)
+try_get_session_limited(void *ctx, __u32 args_nr, int *depth)
 {
     struct bpfsnoop_sess *sess;
     __u32 max_depth, max_tries;
@@ -120,7 +120,7 @@ try_get_session_limited(int *depth)
     if (max_depth > 10)
         return NULL; /* max depth is too large, avoid 'BPF program is too large' */
 
-    fp = get_tramp_fp(); /* read tramp fp */
+    fp = get_tramp_fp(ctx, args_nr, true); /* read tramp fp */
     (void) bpf_probe_read_kernel(&fp, sizeof(fp), (void *) fp); /* read caller fp */
 
     *depth = 0;
@@ -183,19 +183,19 @@ get_session_from_tailcall(void *ctx)
 }
 
 static __always_inline struct bpfsnoop_sess *
-try_get_session(void *ctx, int *depth)
+try_get_session(void *ctx, __u32 args_nr, int *depth)
 {
     struct bpfsnoop_fgraph_tailcall_data *data;
     __u64 fp;
 
     if (!cfg->tailcall_in_bpf2bpf)
-        return try_get_session_limited(depth);
+        return try_get_session_limited(ctx, args_nr, depth);
 
     data = get_fgraph_tailcall_data();
     if (!data)
         return NULL;
 
-    fp = get_tramp_fp(); /* read tramp fp */
+    fp = get_tramp_fp(ctx, args_nr, true); /* read tramp fp */
     (void) bpf_probe_read_kernel(&fp, sizeof(fp), (void *) fp); /* read caller fp */
 
     __builtin_memset(data, 0, sizeof(*data));
@@ -233,7 +233,7 @@ int BPF_PROG(bpfsnoop_fgraph)
     if (cfg->mypid == (bpf_get_current_pid_tgid() >> 32))
         return BPF_OK;
 
-    sess = try_get_session(ctx, &depth);
+    sess = try_get_session(ctx, cfg->fn_args.args_nr, &depth);
     if (!sess)
         return BPF_OK;
 

@@ -39,11 +39,11 @@ filter(__u64 *args, __u64 session_id)
 }
 
 static __always_inline __u64
-get_tracee_caller_fp(void)
+get_tracee_caller_fp(void *ctx, __u32 args_nr, bool retval)
 {
     u64 fp, fp_caller;
 
-    fp = get_tramp_fp(); /* read tramp fp */
+    fp = get_tramp_fp(ctx, args_nr, retval); /* read tramp fp */
     (void) bpf_probe_read_kernel(&fp_caller, sizeof(fp_caller), (void *) fp); /* fp of tracee caller */
     return fp_caller;
 }
@@ -94,7 +94,7 @@ emit_bpfsnoop_event(void *ctx)
     if (cfg->pid && pid != cfg->pid)
         return BPF_OK;
 
-    fp = get_tracee_caller_fp();
+    fp = get_tracee_caller_fp(ctx, cfg->fn_args.args_nr, cfg->both_entry_exit || cfg->fn_args.with_retval); /* fp of tracee caller */
     if (cfg->both_entry_exit) {
         if (cfg->is_entry) {
             session_id = gen_session_id(fp);
