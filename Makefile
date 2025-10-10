@@ -78,7 +78,7 @@ publish: local_release
 .PHONY: testcc
 testcc:
 	@go clean -testcache
-	GOEXPERIMENT=nocoverageredesign go test -race -timeout 60s -coverpkg=./internal/cc -coverprofile=coverage.txt -covermode atomic ./internal/cc
+	go test -race -timeout 60s -coverpkg=./internal/cc -coverprofile=coverage.txt -covermode atomic ./internal/cc
 	go tool cover -func=coverage.txt
 	@rm -f coverage.txt
 	@go clean -testcache
