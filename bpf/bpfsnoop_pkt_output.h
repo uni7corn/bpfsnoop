@@ -73,6 +73,7 @@ output_skb(void *ptr, struct bpfsnoop_pkt_data *pkt)
     skb = (typeof(skb)) ptr;
     head = BPF_CORE_READ(skb, head);
     iph = (typeof(iph)) (head + BPF_CORE_READ(skb, network_header));
+    iph = skip_tunnel_iph(iph);
 
     output_tuple(pkt, iph);
 }
@@ -114,6 +115,7 @@ output_xdp_buff(void *ptr, struct bpfsnoop_pkt_data *pkt)
     xdp = (typeof(xdp)) ptr;
     data = BPF_CORE_READ(xdp, data);
 
+    data = skip_tunnel(data);
     output_xdp_data(data, pkt);
 }
 
@@ -126,6 +128,7 @@ output_xdp_frame(void *ptr, struct bpfsnoop_pkt_data *pkt)
     xdp = (typeof(xdp)) ptr;
     data = BPF_CORE_READ(xdp, data);
 
+    data = skip_tunnel(data);
     output_xdp_data(data, pkt);
 }
 

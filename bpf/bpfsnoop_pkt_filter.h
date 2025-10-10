@@ -9,6 +9,8 @@
 #include "bpf_helpers.h"
 #include "bpf_core_read.h"
 
+#include "bpfsnoop_pkt.h"
+
 enum {
     FILTER_PKT_SKB = 0,
     FILTER_PKT_XDP_BUFF,
@@ -39,6 +41,7 @@ filter_skb(struct sk_buff *skb)
                            : BPF_CORE_READ(skb, network_header));
     data_end = head + BPF_CORE_READ(skb, tail);
 
+    data = mac_len ? skip_tunnel(data) : skip_tunnel_iph(data);
     return mac_len ? filter_pcap_l2(skb, skb, skb, data, data_end)
                    : filter_pcap_l3(skb, skb, skb, data, data_end);
 }
@@ -49,6 +52,7 @@ filter_xdp_buff(struct xdp_buff *xdp)
     void *data = (void *) BPF_CORE_READ(xdp, data);
     void *data_end = (void *) BPF_CORE_READ(xdp, data_end);
 
+    data = skip_tunnel(data);
     return filter_pcap_l2(xdp, xdp, xdp, data, data_end);
 }
 
@@ -58,6 +62,7 @@ filter_xdp_frame(struct xdp_frame *xdp)
     void *data = (void *) BPF_CORE_READ(xdp, data);
     void *data_end = data + BPF_CORE_READ(xdp, len);
 
+    data = skip_tunnel(data);
     return filter_pcap_l2(xdp, xdp, xdp, data, data_end);
 }
 

@@ -27,6 +27,7 @@ var (
 	filterArg         []string
 	filterPkt         string
 	outputArg         []string
+	skipTunnel        bool
 
 	outputFlameGraph string
 
@@ -113,6 +114,7 @@ func ParseFlags() (*Flags, error) {
 	f.StringSliceVarP(&showTypes, "show-type-proto", "C", nil, "show struct/union/enum prototype like `pahole -C`")
 	f.UintVar(&debugTraceInsnCnt, "trace-insn-debug-cnt", 0, "trace insn count for debug")
 	f.StringVar(&kernelVmlinuxDir, "kernel-vmlinux", "", "specific kernel vmlinux directory to search vmlinux and modules dbgsym files")
+	f.BoolVar(&skipTunnel, "skip-tunnel", false, "skip tunnel (vxlan) header when parsing packet, applied for both --filter-pkt and --output-pkt")
 
 	f.BoolVarP(&flags.listFuncParams, "show-func-proto-internal", "S", false, "show function prototype of -p,-k,-t")
 	f.UintVarP(&limitEvents, "limit-events-internal", "E", 0, "limited number events to output, 0 to output all events")

@@ -48,6 +48,9 @@ func setBpfsnoopConfig(spec *ebpf.CollectionSpec, funcIP uint64, fnArgsNr, fnArg
 	if err := spec.Variables["FUNC_IP"].Set(funcIP); err != nil {
 		return fmt.Errorf("failed to set FUNC_IP: %w", err)
 	}
+	if err := spec.Variables["SKIP_TUNNEL"].Set(uint32(b2i(skipTunnel))); err != nil {
+		return fmt.Errorf("failed to set SKIP_TUNNEL: %w", err)
+	}
 
 	return nil
 }
