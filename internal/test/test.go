@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Asphaltt/mybtf"
 	"github.com/cilium/ebpf/btf"
 )
 
@@ -158,6 +159,7 @@ func AssertNotNil(t *testing.T, got any) {
 
 func AssertEqualBtf(t *testing.T, got, want btf.Type) {
 	t.Helper()
+	got, want = mybtf.UnderlyingType(got), mybtf.UnderlyingType(want)
 	g, w := fmt.Sprintf("%v", got), fmt.Sprintf("%v", want)
 	if g != w {
 		t.Errorf("got %v, want %v", g, w)

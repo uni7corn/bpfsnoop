@@ -557,7 +557,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 
 			err := postCheckFuncCall(res, val, 0, 0, "deref")
 			test.AssertNoErr(t, err)
-			test.AssertEqual(t, res.Btf, val.btf.(*btf.Pointer).Target)
+			test.AssertEqualBtf(t, res.Btf, val.btf.(*btf.Pointer).Target)
 			test.AssertEqual(t, res.Size, int(4)) // int size
 		})
 	})
@@ -588,7 +588,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 
 			err := postCheckFuncCall(res, val, 0, 8, "buf")
 			test.AssertNoErr(t, err)
-			test.AssertEqual(t, res.Btf, val.btf)
+			test.AssertEqualBtf(t, res.Btf, val.btf)
 			test.AssertEqual(t, res.Size, int(8))
 		})
 	})
@@ -619,7 +619,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 
 			err := postCheckFuncCall(res, val, 0, -1, "str")
 			test.AssertNoErr(t, err)
-			test.AssertEqual(t, res.Btf, val.btf)
+			test.AssertEqualBtf(t, res.Btf, val.btf)
 			test.AssertEqual(t, res.Size, int(64))
 		})
 
@@ -683,7 +683,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 
 			err := postCheckFuncCall(res, val, 0, 64, "pkt")
 			test.AssertNoErr(t, err)
-			test.AssertEqual(t, res.Btf, val.btf)
+			test.AssertEqualBtf(t, res.Btf, val.btf)
 			test.AssertEqual(t, res.Size, int(64))
 		})
 	})
@@ -729,7 +729,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 
 			err := postCheckFuncCall(res, val, 0, 8, "slice")
 			test.AssertNoErr(t, err)
-			test.AssertEqual(t, res.Btf, val.btf.(*btf.Pointer).Target)
+			test.AssertEqualBtf(t, res.Btf, val.btf.(*btf.Pointer).Target)
 			test.AssertEqual(t, res.Size, int(8*4))
 		})
 
@@ -777,7 +777,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 
 			err := postCheckFuncCall(res, val, 0, 1, "u8")
 			test.AssertNoErr(t, err)
-			test.AssertEqual(t, res.Btf, val.btf)
+			test.AssertEqualBtf(t, res.Btf, val.btf)
 			test.AssertEqual(t, res.Size, int(1))
 			test.AssertEqual(t, res.Int, "u8")
 		})
