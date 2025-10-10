@@ -164,6 +164,19 @@ func NewKallsyms() (*Kallsyms, error) {
 
 			case sysBPFSymbol:
 				ks.sysBPF = entry.addr
+
+			case bpfRawTpStart, bpfRawTpStop:
+				if entry.name == bpfRawTpStart {
+					err = setAddr(fields[0], &ks.bpfRawTpStart)
+				} else {
+					err = setAddr(fields[0], &ks.bpfRawTpStop)
+				}
+
+			case bpfTraceModules:
+				err = setAddr(fields[0], &ks.bpfTraceModules)
+			}
+			if err != nil {
+				return nil, err
 			}
 
 			if _, exists := kmods[entry.mod]; !exists && !isKernelBuiltinMod(entry.mod) {
@@ -179,15 +192,12 @@ func NewKallsyms() (*Kallsyms, error) {
 				} else {
 					err = setAddr(fields[0], &ks.bpfRawTpStop)
 				}
-				if err != nil {
-					return nil, err
-				}
 
 			case bpfTraceModules:
 				err = setAddr(fields[0], &ks.bpfTraceModules)
-				if err != nil {
-					return nil, err
-				}
+			}
+			if err != nil {
+				return nil, err
 			}
 		} else if fields[1] == "R" || fields[1] == "r" {
 			switch fields[2] {
