@@ -17,14 +17,14 @@ func findStartIndex(prog *ebpf.ProgramSpec, stub string) (int, bool) {
 	return -1, false
 }
 
-func findReturnIndex(prog *ebpf.ProgramSpec, start int) (int, bool) {
-	retOpCode := asm.Return().OpCode
-	for i := start; i < len(prog.Instructions); i++ {
-		if prog.Instructions[i].OpCode == retOpCode {
-			return i, true
+func findEndIndex(prog *ebpf.ProgramSpec, start int) int {
+	idx := start + 1
+	for ; idx < len(prog.Instructions); idx++ {
+		if prog.Instructions[idx].Symbol() != "" {
+			break
 		}
 	}
-	return -1, false
+	return idx - 1
 }
 
 func injectInsns(prog *ebpf.ProgramSpec, stub string, insns asm.Instructions) {
@@ -33,16 +33,13 @@ func injectInsns(prog *ebpf.ProgramSpec, stub string, insns asm.Instructions) {
 		return
 	}
 
-	retIdx, ok := findReturnIndex(prog, injIdx)
-	if !ok {
-		return
-	}
+	endIdx := findEndIndex(prog, injIdx)
 
 	if len(insns) != 0 {
 		insns[0] = insns[0].WithMetadata(prog.Instructions[injIdx].Metadata)
 	}
 	prog.Instructions = append(prog.Instructions[:injIdx],
-		append(insns, prog.Instructions[retIdx+1:]...)...)
+		append(insns, prog.Instructions[endIdx+1:]...)...)
 }
 
 func __clearSubprog(prog *ebpf.ProgramSpec, stub string, isFilter bool) {
