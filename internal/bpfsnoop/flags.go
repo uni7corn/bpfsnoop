@@ -78,6 +78,7 @@ type Flags struct {
 
 func ParseFlags() (*Flags, error) {
 	var showTypes []string
+	var readDatum []string
 	var flags Flags
 
 	f := flag.NewFlagSet("bpfsnoop", flag.ExitOnError)
@@ -115,6 +116,7 @@ func ParseFlags() (*Flags, error) {
 	f.UintVar(&debugTraceInsnCnt, "trace-insn-debug-cnt", 0, "trace insn count for debug")
 	f.StringVar(&kernelVmlinuxDir, "kernel-vmlinux", "", "specific kernel vmlinux directory to search vmlinux and modules dbgsym files")
 	f.BoolVar(&skipTunnel, "skip-tunnel", false, "skip tunnel (vxlan) header when parsing packet, applied for both --filter-pkt and --output-pkt")
+	f.StringArrayVar(&readDatum, "read", nil, "read kernel memory using C expressions")
 
 	f.BoolVarP(&flags.listFuncParams, "show-func-proto-internal", "S", false, "show function prototype of -p,-k,-t")
 	f.UintVarP(&limitEvents, "limit-events-internal", "E", 0, "limited number events to output, 0 to output all events")
@@ -178,6 +180,11 @@ func ParseFlags() (*Flags, error) {
 
 	if len(showTypes) != 0 {
 		showTypeProto(showTypes)
+		os.Exit(0)
+	}
+
+	if len(readDatum) != 0 {
+		readKernelDatum(readDatum)
 		os.Exit(0)
 	}
 

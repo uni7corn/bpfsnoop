@@ -24,6 +24,13 @@ const (
 	MemoryReadModeDirectRead
 )
 
+type MemoryReadFlag int
+
+const (
+	MemoryReadFlagProbe MemoryReadFlag = 1 << iota
+	MemoryReadFlagForce
+)
+
 type CompileExprOptions struct {
 	Expr          string
 	Params        []btf.FuncParam
@@ -33,6 +40,7 @@ type CompileExprOptions struct {
 	UsedRegisters []asm.Register
 
 	MemoryReadMode MemoryReadMode
+	MemoryReadFlag MemoryReadFlag
 }
 
 func CompileFilterExpr(opts CompileExprOptions) (asm.Instructions, error) {
@@ -177,7 +185,7 @@ func CompileEvalExpr(opts CompileExprOptions) (EvalResult, error) {
 	if err != nil {
 		return res, fmt.Errorf("failed to evaluate expression: %w", err)
 	}
-	if val.typ == evalValueTypeNum {
+	if val.typ == evalValueTypeNum && (opts.MemoryReadFlag&MemoryReadFlagForce) == 0 {
 		return res, fmt.Errorf("disallow constant value (%d) expression: '%s'", val.num, opts.Expr)
 	}
 

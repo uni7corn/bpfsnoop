@@ -30,6 +30,8 @@ type accessResult struct {
 
 	lastIdx int
 	offsets []accessOffset
+
+	uptr uint64
 }
 
 // isMemberBitfield reports whether the member is a bitfield attribute.
@@ -231,9 +233,21 @@ func (c *compiler) accessMemory(expr *cc.Expr) (accessResult, error) {
 		return res, nil
 
 	case cc.Cast:
-		res, err := c.accessMemory(expr.Left)
-		if err != nil {
-			return accessResult{}, fmt.Errorf("failed to access memory for cast: %w", err)
+		var (
+			res accessResult
+			err error
+		)
+		if expr.Left.Op == cc.Number {
+			n, err := parseUnsigned(expr.Left.Text)
+			if err != nil {
+				return accessResult{}, fmt.Errorf("failed to parse number for cast: %w", err)
+			}
+			res.uptr = n
+		} else {
+			res, err = c.accessMemory(expr.Left)
+			if err != nil {
+				return accessResult{}, fmt.Errorf("failed to access memory for cast: %w", err)
+			}
 		}
 
 		res.btf, err = c.cc2btf(expr)
@@ -241,7 +255,9 @@ func (c *compiler) accessMemory(expr *cc.Expr) (accessResult, error) {
 			return accessResult{}, fmt.Errorf("failed to cast type %s: %w", expr.Type, err)
 		}
 
-		if res.lastIdx >= 0 {
+		if len(res.offsets) == 0 {
+			res.raw = res.btf
+		} else {
 			res.offsets[res.lastIdx].btf = res.btf
 		}
 		res.mem = nil
@@ -411,7 +427,15 @@ func (c *compiler) access(expr *cc.Expr) (evalValue, error) {
 	eval.mem = res.mem
 	eval.reg = reg
 
-	c.emitLoadArg(res.idx, reg)
+	if res.uptr == 0 {
+		c.emitLoadArg(res.idx, reg)
+	} else {
+		c.emit(asm.Instruction{
+			OpCode:   asm.Mov.Op(asm.ImmSource),
+			Dst:      reg,
+			Constant: int64(res.uptr),
+		})
+	}
 	if err := c.offset2insns(res.offsets, reg); err != nil {
 		return eval, fmt.Errorf("failed to convert offsets to instructions: %w", err)
 	}

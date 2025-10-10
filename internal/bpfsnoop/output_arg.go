@@ -239,7 +239,7 @@ func (arg *funcArgumentOutput) genDefaultInsns(res *cc.EvalResult, offset, size 
 	return offset, nil
 }
 
-func (arg *funcArgumentOutput) compile(params []btf.FuncParam, krnl, spec *btf.Spec, offset int, labelExit string) (int, error) {
+func (arg *funcArgumentOutput) compile(params []btf.FuncParam, krnl, spec *btf.Spec, offset, flags int, labelExit string) (int, error) {
 	mode := cc.MemoryReadModeProbeRead
 	if _, err := spec.AnyTypeByName("bpf_rdonly_cast"); err == nil {
 		mode = cc.MemoryReadModeCoreRead
@@ -258,6 +258,7 @@ func (arg *funcArgumentOutput) compile(params []btf.FuncParam, krnl, spec *btf.S
 		UsedRegisters: []asm.Register{outputArgRegBuff, outputArgRegArgs},
 
 		MemoryReadMode: mode,
+		MemoryReadFlag: cc.MemoryReadFlag(flags),
 	})
 	if err != nil {
 		return 0, fmt.Errorf("failed to compile expr '%s': %w", arg.expr, err)
@@ -353,7 +354,7 @@ func (arg *argDataOutput) matchParams(params []btf.FuncParam, spec *btf.Spec) ([
 
 		a := a
 		var err error
-		offset, err = a.compile(params, krnl, spec, offset, arg.genExitLabel())
+		offset, err = a.compile(params, krnl, spec, offset, 0, arg.genExitLabel())
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to compile expr '%s': %w", a.expr, err)
 		}

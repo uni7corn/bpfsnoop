@@ -30,6 +30,7 @@ func readKernel(addr uint64, size uint32) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load read bpf spec: %w", err)
 	}
+	delete(spec.Programs, "read_data") // not used here
 
 	buff := make([]byte, readSize)
 	spec.Maps[".data.buff"].ValueSize = readSize

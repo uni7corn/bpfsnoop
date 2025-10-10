@@ -38,11 +38,9 @@ func dumpOutputArgBuf(data []byte) string {
 	return sb.String()
 }
 
-func outputFuncArgAttrs(sb *strings.Builder, info *funcInfo, data []byte, f btfx.FindSymbol) error {
-	fmt.Fprint(sb, "Arg attrs: ")
-
+func __outputFuncArgAttrs(sb *strings.Builder, args []funcArgumentOutput, data []byte, f btfx.FindSymbol) error {
 	gray := color.RGB(0x88, 0x88, 0x88 /* gray */)
-	for i, arg := range info.args {
+	for i, arg := range args {
 		if i != 0 {
 			fmt.Fprint(sb, ", ")
 		}
@@ -257,4 +255,9 @@ func outputFuncArgAttrs(sb *strings.Builder, info *funcInfo, data []byte, f btfx
 	fmt.Fprintln(sb)
 
 	return nil
+}
+
+func outputFuncArgAttrs(sb *strings.Builder, args []funcArgumentOutput, data []byte, f btfx.FindSymbol) error {
+	fmt.Fprint(sb, "Arg attrs: ")
+	return __outputFuncArgAttrs(sb, args, data, f)
 }

@@ -367,6 +367,28 @@ func (c *compiler) cast(expr *cc.Expr, val evalValue) (evalValue, error) {
 	return val, nil
 }
 
+func (c *compiler) castNumber(expr *cc.Expr, val evalValue) (evalValue, error) {
+	val, err := c.cast(expr, val)
+	if err != nil {
+		return evalValue{}, fmt.Errorf("failed to cast value: %w", err)
+	}
+
+	val.reg, err = c.regalloc.Alloc()
+	if err != nil {
+		return evalValue{}, fmt.Errorf("failed to allocate register for cast: %w", err)
+	}
+
+	c.emit(
+		asm.Instruction{
+			OpCode:   asm.Mov.Op(asm.ImmSource),
+			Dst:      val.reg,
+			Constant: val.num,
+		},
+	)
+
+	return val, nil
+}
+
 func (c *compiler) cond(cond, left, right evalValue) (evalValue, error) {
 	if cond.typ == evalValueTypeRegBtf && !canCalculate(cond.btf) {
 		c.regalloc.Free(cond.reg)
@@ -1184,6 +1206,11 @@ func (c *compiler) eval(expr *cc.Expr) (evalValue, error) {
 		val, err := c.eval(expr.Left)
 		if err != nil {
 			return evalValue{}, fmt.Errorf("failed to evaluate cast operand: %w", err)
+		}
+
+		if val.typ == evalValueTypeNum {
+			val.typ = evalValueTypeRegBtf
+			return c.castNumber(expr, val)
 		}
 
 		return c.cast(expr, val)

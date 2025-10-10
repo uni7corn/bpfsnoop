@@ -22,4 +22,26 @@ int BPF_PROG(read, struct pt_regs *regs)
     return BPF_OK;
 }
 
+static __noinline int
+read_stub(__u8 *b)
+{
+    return b[0];
+}
+
+SEC("fentry/__x64_sys_nanosleep")
+int BPF_PROG(read_data, struct pt_regs *regs)
+{
+    int ret;
+    __u8 *b;
+
+    if (run)
+        return BPF_OK;
+    run = true;
+
+    b = buff;
+    barrier_var(b);
+    ret = read_stub(b);
+    return ret;
+}
+
 char __license[] SEC("license") = "GPL";
