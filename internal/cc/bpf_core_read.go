@@ -46,6 +46,22 @@ func bpfKfuncCall(id btf.TypeID) asm.Instruction {
 	}
 }
 
+func (c *compiler) coreReadByProbeRead(reg asm.Register, lastIdx bool) {
+	immReg := asm.R1
+	resReg := immReg
+	if lastIdx && reg != immReg {
+		resReg = reg
+	}
+	c.emit(
+		asm.Mov.Reg(asm.R3, immReg),  // r3 = r1
+		asm.Mov.Imm(asm.R2, 8),       // r2 = 8
+		asm.Mov.Reg(asm.R1, asm.RFP), // r1 = rfp
+		asm.Add.Imm(asm.R1, -8),      // r1 -= 8
+		asm.FnProbeReadKernel.Call(),
+		asm.LoadMem(resReg, asm.RFP, -8, asm.DWord), // immReg = *(u64 *)(rfp - 8)
+	)
+}
+
 func (c *compiler) coreReadOffsets(offsets []accessOffset, reg asm.Register) error {
 	regsNr := 5
 	if c.rdonlyCastFastcall {
@@ -76,7 +92,8 @@ func (c *compiler) coreReadOffsets(offsets []accessOffset, reg asm.Register) err
 			return fmt.Errorf("failed to check if %v can be bpf_rdonly_cast: %w", offset.prev, err)
 		}
 		if !canCast {
-			return fmt.Errorf("type %v cannot be bpf_rdonly_cast", offset.prev)
+			c.coreReadByProbeRead(reg, i == lastIdx)
+			continue
 		}
 
 		size, err := sizeof(offset.btf)
@@ -85,18 +102,7 @@ func (c *compiler) coreReadOffsets(offsets []accessOffset, reg asm.Register) err
 		}
 
 		if !canReadByRdonlyCast(offset.btf) || offset.inArray {
-			resReg := immReg
-			if i == lastIdx && reg != immReg {
-				resReg = reg
-			}
-			c.emit(
-				asm.Mov.Reg(asm.R3, immReg),  // r3 = r1
-				asm.Mov.Imm(asm.R2, 8),       // r2 = 8
-				asm.Mov.Reg(asm.R1, asm.RFP), // r1 = rfp
-				asm.Add.Imm(asm.R1, -8),      // r1 -= 8
-				asm.FnProbeReadKernel.Call(),
-				asm.LoadMem(resReg, asm.RFP, -8, asm.DWord), // immReg = *(u64 *)(rfp - 8)
-			)
+			c.coreReadByProbeRead(reg, i == lastIdx)
 			continue
 		}
 

@@ -12,6 +12,10 @@ import (
 	"rsc.io/c2go/cc"
 )
 
+const (
+	bpfRdonlyCastKfuncID = 41126 // bpf_rdonly_cast
+)
+
 func TestCanRdonlyCast(t *testing.T) {
 	t.Run("int", func(t *testing.T) {
 		intTyp, err := testBtf.AnyTypeByName("int")
@@ -110,18 +114,31 @@ func TestCoreReadOffsets(t *testing.T) {
 		test.AssertStrPrefix(t, err.Error(), "failed to check if")
 	})
 
-	t.Run("can't cast", func(t *testing.T) {
+	t.Run("probe read", func(t *testing.T) {
 		defer c.reset()
 
-		u64 := getU64Btf(t)
+		expr, err := cc.ParseExpr("*(unsigned long *)(skb->head + 144)")
+		test.AssertNoErr(t, err)
 
-		offsets := []accessOffset{
-			{prev: u64, address: false, offset: 4},
-		}
+		res, err := c.accessMemory(expr)
+		test.AssertNoErr(t, err)
 
-		err := c.coreReadOffsets(offsets, reg)
-		test.AssertHaveErr(t, err)
-		test.AssertStrPrefix(t, err.Error(), `type Typedef:"__u64"[Int:"long long unsigned int"] cannot be bpf_rdonly_cast`)
+		err = c.coreReadOffsets(res.offsets, reg)
+		test.AssertNoErr(t, err)
+		test.AssertEqualSlice(t, c.insns, asm.Instructions{
+			asm.Mov.Reg(asm.R1, reg),
+			asm.Mov.Imm(asm.R2, 1875),
+			bpfKfuncCall(bpfRdonlyCastKfuncID),
+			asm.LoadMem(asm.R1, asm.R0, 200, asm.DWord),
+			asm.JEq.Imm(asm.R1, 0, c.labelExit),
+			asm.Add.Imm(asm.R1, 144),
+			asm.Mov.Reg(asm.R3, asm.R1),
+			asm.Mov.Imm(asm.R2, 8),
+			asm.Mov.Reg(asm.R1, asm.RFP),
+			asm.Add.Imm(asm.R1, -8),
+			asm.FnProbeReadKernel.Call(),
+			asm.LoadMem(reg, asm.RFP, -8, asm.DWord),
+		})
 	})
 
 	t.Run("skb->cb[2]", func(t *testing.T) {
