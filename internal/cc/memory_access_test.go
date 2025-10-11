@@ -423,6 +423,24 @@ func TestAccessMemory(t *testing.T) {
 			test.AssertStrPrefix(t, err.Error(), "failed to access memory for cast")
 		})
 
+		t.Run("(int *)0x1ULL", func(t *testing.T) {
+			expr, err := cc.ParseExpr("(int *)0x1ULL")
+			test.AssertNoErr(t, err)
+
+			_, err = c.accessMemory(expr)
+			test.AssertHaveErr(t, err)
+			test.AssertStrPrefix(t, err.Error(), "failed to parse number for cast")
+		})
+
+		t.Run("(int *)0xFFFFEDCB", func(t *testing.T) {
+			expr, err := cc.ParseExpr("(int *)0xFFFFEDCB")
+			test.AssertNoErr(t, err)
+
+			res, err := c.accessMemory(expr)
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, res.uptr, 0xFFFFEDCB)
+		})
+
 		t.Run("(struct not_found *)(skb->head)", func(t *testing.T) {
 			expr, err := cc.ParseExpr("(struct not_found *)(skb->head)")
 			test.AssertNoErr(t, err)
@@ -920,6 +938,43 @@ func TestAccess(t *testing.T) {
 			asm.FnProbeReadKernel.Call(),
 			asm.LoadMem(asm.R8, asm.RFP, -8, asm.DWord),
 			asm.And.Imm(asm.R8, 0x7),
+		})
+	})
+
+	t.Run("((struct sk_buff *)0xFFFFEDCB)->dev->ifindex", func(t *testing.T) {
+		expr, err := cc.ParseExpr("((struct sk_buff *)0xFFFFEDCB)->dev->ifindex")
+		test.AssertNoErr(t, err)
+
+		defer c.reset()
+
+		eval, err := c.access(expr)
+		test.AssertNoErr(t, err)
+		test.AssertEqual(t, eval.typ, evalValueTypeRegBtf)
+		test.AssertEqual(t, eval.reg, asm.R8)
+		test.AssertTrue(t, reflect.DeepEqual(eval.btf, &btf.Int{Size: 4, Name: "int", Encoding: btf.Signed}))
+		test.AssertFalse(t, isMemberBitfield(eval.mem))
+		test.AssertEqualSlice(t, c.insns, asm.Instructions{
+			asm.Instruction{
+				OpCode:   asm.Mov.Op(asm.ImmSource),
+				Dst:      asm.R8,
+				Constant: int64(0xFFFFEDCB),
+			},
+			asm.Mov.Reg(asm.R3, asm.R8),
+			asm.Add.Imm(asm.R3, 16),
+			asm.Mov.Imm(asm.R2, 8),
+			asm.Mov.Reg(asm.R1, asm.RFP),
+			asm.Add.Imm(asm.R1, -8),
+			asm.FnProbeReadKernel.Call(),
+			asm.LoadMem(asm.R3, asm.RFP, -8, asm.DWord),
+			asm.JEq.Imm(asm.R3, 0, c.labelExit),
+			asm.Add.Imm(asm.R3, 224),
+			asm.Mov.Imm(asm.R2, 8),
+			asm.Mov.Reg(asm.R1, asm.RFP),
+			asm.Add.Imm(asm.R1, -8),
+			asm.FnProbeReadKernel.Call(),
+			asm.LoadMem(asm.R8, asm.RFP, -8, asm.DWord),
+			asm.LSh.Imm(asm.R8, 32),
+			asm.RSh.Imm(asm.R8, 32),
 		})
 	})
 }

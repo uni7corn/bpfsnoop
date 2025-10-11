@@ -1108,6 +1108,50 @@ func TestCast(t *testing.T) {
 	})
 }
 
+func TestCastNumber(t *testing.T) {
+	c := prepareCompiler(t)
+
+	t.Run("invalid cast", func(t *testing.T) {
+		expr, err := cc.ParseExpr("(struct not_found *)0xFFFFEDBC")
+		test.AssertNoErr(t, err)
+
+		_, err = c.castNumber(expr, evalValue{})
+		test.AssertHaveErr(t, err)
+		test.AssertErrorPrefix(t, err, "failed to cast value: failed to convert cc type to btf type")
+	})
+
+	t.Run("no reg", func(t *testing.T) {
+		defer c.reset()
+
+		expr, err := cc.ParseExpr("(int)0xFFFFEDBC")
+		test.AssertNoErr(t, err)
+
+		for i := range c.regalloc.registers[:] {
+			c.regalloc.registers[i] = true
+		}
+
+		_, err = c.castNumber(expr, evalValue{})
+		test.AssertHaveErr(t, err)
+		test.AssertErrorPrefix(t, err, "failed to allocate register for cast")
+	})
+
+	t.Run("cast number", func(t *testing.T) {
+		defer c.reset()
+
+		expr, err := cc.ParseExpr("(struct sk_buff *)0xFFFFEDBC")
+		test.AssertNoErr(t, err)
+
+		val, err := c.castNumber(expr, evalValue{
+			num: 0xFFFFEDBC,
+		})
+		test.AssertNoErr(t, err)
+		test.AssertNotNil(t, val.btf)
+		test.AssertEqualBtf(t, val.btf, getSkbBtf(t))
+		test.AssertEqual(t, len(c.insns), 1)
+		test.AssertEqual(t, c.insns[0].Constant, 0xFFFFEDBC)
+	})
+}
+
 func TestCond(t *testing.T) {
 	c := prepareCompiler(t)
 
@@ -3892,6 +3936,18 @@ func TestEval(t *testing.T) {
 			test.AssertHaveErr(t, err)
 			test.AssertTrue(t, errors.Is(err, ErrVarNotFound))
 			test.AssertStrPrefix(t, err.Error(), "failed to evaluate cast operand")
+		})
+
+		t.Run("(struct sk_buff *)0xFFFFEDBC", func(t *testing.T) {
+			defer c.reset()
+
+			expr, err := cc.ParseExpr("(struct sk_buff *)0xFFFFEDBC")
+			test.AssertNoErr(t, err)
+
+			val, err := c.eval(expr)
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, val.num, 0xFFFFEDBC)
+			test.AssertEqual(t, val.typ, evalValueTypeRegBtf)
 		})
 
 		t.Run("(int)skb->head", func(t *testing.T) {
