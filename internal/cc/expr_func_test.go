@@ -492,6 +492,37 @@ func TestCompileFuncCall(t *testing.T) {
 		})
 	})
 
+	t.Run("hist,tdigest", func(t *testing.T) {
+		t.Run("invalid args", func(t *testing.T) {
+			expr, err := cc.ParseExpr("hist(skb->cb, 14, 20)")
+			test.AssertNoErr(t, err)
+
+			_, err = compileFuncCall(expr)
+			test.AssertHaveErr(t, err)
+			test.AssertErrorPrefix(t, err, "hist() must have 1 argument")
+		})
+
+		t.Run("hist(skb->len)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("hist(skb->len)")
+			test.AssertNoErr(t, err)
+
+			val, err := compileFuncCall(expr)
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, val.typ, EvalResultTypeHist)
+			test.AssertEqual(t, val.dataSize, 8)
+		})
+
+		t.Run("tdigest(skb->len)", func(t *testing.T) {
+			expr, err := cc.ParseExpr("tdigest(skb->len)")
+			test.AssertNoErr(t, err)
+
+			val, err := compileFuncCall(expr)
+			test.AssertNoErr(t, err)
+			test.AssertEqual(t, val.typ, EvalResultTypeTDigest)
+			test.AssertEqual(t, val.dataSize, 8)
+		})
+	})
+
 	t.Run("unsupported func call", func(t *testing.T) {
 		expr, err := cc.ParseExpr("unsupported(skb->cb)")
 		test.AssertNoErr(t, err)
@@ -780,6 +811,35 @@ func TestPostCheckFuncCall(t *testing.T) {
 			test.AssertEqualBtf(t, res.Btf, val.btf)
 			test.AssertEqual(t, res.Size, int(1))
 			test.AssertEqual(t, res.Int, "u8")
+		})
+	})
+
+	t.Run("hist,tdigest", func(t *testing.T) {
+		t.Run("invalid btf type", func(t *testing.T) {
+			res := &EvalResult{
+				Type: EvalResultTypeHist,
+			}
+			val := evalValue{
+				btf: &btf.Void{},
+			}
+
+			err := postCheckFuncCall(res, val, 0, 0, "hist")
+			test.AssertHaveErr(t, err)
+			test.AssertErrorPrefix(t, err, "disallow non-int type Void for hist()")
+		})
+
+		t.Run("u32", func(t *testing.T) {
+			res := &EvalResult{
+				Type: EvalResultTypeHist,
+			}
+			val := evalValue{
+				btf: getU32Btf(t),
+			}
+
+			err := postCheckFuncCall(res, val, 0, 0, "hist")
+			test.AssertNoErr(t, err)
+			test.AssertEqualBtf(t, res.Btf, val.btf)
+			test.AssertEqual(t, res.Size, int(4))
 		})
 	})
 
