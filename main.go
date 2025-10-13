@@ -173,9 +173,9 @@ func main() {
 	tstarted := time.Now()
 	tracings, err := bpfsnoop.NewBPFTracing(bpfSpec, reusedMaps, bpfProgs, kfuncs, insns, graphs)
 	assert.NoVerifierErr(err, "Failed to trace: %v")
-	bpfsnoop.DebugLog("Tracing %d tracees cost %s", len(tracings.Progs()), time.Since(tstarted))
+	bpfsnoop.DebugLog("Tracing %d tracees costs %s", len(tracings.Progs()), time.Since(tstarted))
 	var tended time.Time
-	defer func() { bpfsnoop.DebugLog("Untracing %d tracees cost %s", len(tracings.Progs()), time.Since(tended)) }()
+	defer func() { bpfsnoop.DebugLog("Untracing %d tracees costs %s", len(tracings.Progs()), time.Since(tended)) }()
 	defer tracings.Close()
 	defer func() { tended = time.Now() }()
 	assert.True(tracings.HaveTracing(), "No tracing target")
