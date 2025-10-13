@@ -62,7 +62,7 @@ trigger: curl -s http://127.0.0.1:8081 --output /dev/null
 name: cc::slice
 tag: cc,slice
 test: -k dev_xdp_install --output-arg 'slice(prog->aux->used_maps, 1)'
-match: (struct bpf_map *)'slice(prog->aux->used_maps, 1)'=[0xffff
+match: (struct bpf_map *)'slice(prog->aux->used_maps, 1)'=[0xff
 trigger: ./xdpcrc -d lo
 
 ---
