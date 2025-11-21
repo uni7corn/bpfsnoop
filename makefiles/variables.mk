@@ -15,6 +15,10 @@ CMD_TAR ?= tar
 CMD_GIT ?= git
 CMD_GIT_MODULES ?= $(CMD_GIT) submodule
 
+GCC_LIB_DIR := /usr/lib/gcc/x86_64-linux-gnu/$(shell gcc -dumpversion | cut -d. -f1)
+
+CPU_CORES := $(shell grep -E '^processor' /proc/cpuinfo | wc -l)
+
 DIR_BIN := ./bin
 DIR_BPF := ./internal/bpf
 

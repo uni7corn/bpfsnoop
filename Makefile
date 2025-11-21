@@ -11,15 +11,27 @@ $(GIT_MODULES_DIR):
 # Build libcapstone for static linking
 $(LIBCAPSTONE_OBJ): $(GIT_MODULES_DIR)
 	cd lib/capstone && \
-		CC=$(CMD_CC) CXX=$(CMD_CXX) cmake -B build -DCMAKE_BUILD_TYPE=Release -DCAPSTONE_ARCHITECTURE_DEFAULT=1 -DCAPSTONE_BUILD_CSTOOL=0 -DCMAKE_C_FLAGS="-Qunused-arguments" && \
-		cmake --build build
+		CC=$(CMD_CC) CXX=$(CMD_CXX) cmake -B build \
+			-DCMAKE_BUILD_TYPE=Release \
+			-DCAPSTONE_ARCHITECTURE_DEFAULT=1 \
+			-DCAPSTONE_BUILD_CSTOOL=0 \
+			-DCMAKE_C_FLAGS="-Qunused-arguments" \
+			-DCMAKE_EXE_LINKER_FLAGS="-L$(GCC_LIB_DIR)" && \
+		cmake --build build -j $(CPU_CORES)
 
 # Build libpcap for static linking
 $(LIBPCAP_OBJ): $(GIT_MODULES_DIR)
 	cd lib/libpcap && \
 		./autogen.sh && \
-		CC=$(CMD_CC) CXX=$(CMD_CXX) ./configure --disable-rdma --disable-shared --disable-usb --disable-netmap --disable-bluetooth --disable-dbus --without-libnl && \
-		make CFLAGS="-Qunused-arguments"
+		CC=$(CMD_CC) CXX=$(CMD_CXX) ./configure \
+			--disable-rdma \
+			--disable-shared \
+			--disable-usb \
+			--disable-netmap \
+			--disable-bluetooth \
+			--disable-dbus \
+			--without-libnl && \
+		make CFLAGS="-Qunused-arguments" -j $(CPU_CORES)
 
 $(LIBBPF_OBJ): $(GIT_MODULES_DIR)
 
