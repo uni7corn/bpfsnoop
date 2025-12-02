@@ -15,7 +15,8 @@ CMD_TAR ?= tar
 CMD_GIT ?= git
 CMD_GIT_MODULES ?= $(CMD_GIT) submodule
 
-GCC_LIB_DIR := /usr/lib/gcc/x86_64-linux-gnu/$(shell gcc -dumpversion | cut -d. -f1)
+UNAME_ARCH := $(shell uname -m)
+GCC_LIB_DIR := /usr/lib/gcc/$(UNAME_ARCH)-linux-gnu/$(shell gcc -dumpversion | cut -d. -f1)
 
 CPU_CORES := $(shell grep -E '^processor' /proc/cpuinfo | wc -l)
 
@@ -26,7 +27,6 @@ GOBUILD := go build -v -trimpath
 GOBUILD_CGO_CFLAGS := CGO_CFLAGS='-O2 -I$(CURDIR)/lib/capstone/include -I$(CURDIR)/lib/libpcap'
 GOBUILD_CGO_LDFLAGS := CGO_LDFLAGS='-O2 -g -L$(CURDIR)/lib/capstone/build -lcapstone -L$(CURDIR)/lib/libpcap -lpcap -static'
 
-UNAME_ARCH := $(shell uname -m)
 ifeq ($(UNAME_ARCH),x86_64)
 	TARGET_ARCH := x86
 else ifeq ($(UNAME_ARCH),aarch64)
