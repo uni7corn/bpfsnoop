@@ -43,3 +43,5 @@ require (
 	github.com/ianlancetaylor/demangle v0.0.0-20240912202439-0a2b6291aafd // indirect
 	golang.org/x/sys v0.37.0
 )
+
+replace github.com/cilium/ebpf => github.com/bpfsnoop/ebpf v0.20.0-rb

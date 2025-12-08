@@ -81,57 +81,47 @@ func Run(reader *ringbuf.Reader, maps map[string]*ebpf.Map, w io.Writer, helpers
 
 	var sb strings.Builder
 
-	var record ringbuf.Record
-	record.RawSample = make([]byte, 4096)
-
 	fgraphMaxDepth := helpers.Flags.fgraphDepth
-	unlimited := limitEvents == 0
-	for i := int64(limitEvents); unlimited || i > 0; {
-		err := reader.ReadInto(&record)
-		if err != nil {
-			if errors.Is(err, ringbuf.ErrClosed) {
-				return nil
-			}
+	outputEvent := false
 
-			return fmt.Errorf("failed to read ringbuf: %w", err)
-		}
-
+	var record ringbuf.Record
+	record.Handle = func(data []byte) error {
 		currts := time.Now()
 
-		typ := *(*uint16)(unsafe.Pointer(&record.RawSample[0]))
+		typ := *(*uint16)(unsafe.Pointer(&data[0]))
 		if typ == eventTypeInsn {
-			event := (*InsnEvent)(unsafe.Pointer(&record.RawSample[0]))
+			event := (*InsnEvent)(unsafe.Pointer(&data[0]))
 			outputInsnEvent(&sb, sessions, helpers.Insns, event)
 			sb.Reset()
-			continue
+			return nil
 		}
 
 		if typ == eventTypeGraphEntry || typ == eventTypeGraphExit {
-			event := (*GraphEvent)(unsafe.Pointer(&record.RawSample[0]))
+			event := (*GraphEvent)(unsafe.Pointer(&data[0]))
 			graph, ok := helpers.Graphs[event.FuncIP]
 			if !ok {
-				continue
+				return nil
 			}
 
 			isExit := typ == eventTypeGraphExit
 			fnInfo := getFuncInfo(uintptr(event.FuncIP), helpers, graph)
-			data := record.RawSample[sizeOfGraphEvent : sizeOfGraphEvent+int(event.Length)]
+			data := data[sizeOfGraphEvent : sizeOfGraphEvent+int(event.Length)]
 			outputFuncInfo(&sb, fnInfo, helpers, graph.ArgsEnSz, graph.ArgsExSz, isExit, true, data)
 			s := sb.String()
 			sb.Reset()
 
 			outputGraphEvent(&sb, sessions, helpers.Graphs, event, s, !isExit)
 			sb.Reset()
-			continue
+			return nil
 		}
 
-		if len(record.RawSample) < sizeOfEvent {
-			continue
+		if len(data) < sizeOfEvent {
+			return nil
 		}
 
-		event := (*Event)(unsafe.Pointer(&record.RawSample[0]))
+		event := (*Event)(unsafe.Pointer(&data[0]))
 		fnInfo := getFuncInfo(event.FuncIP, helpers, nil)
-		data := record.RawSample[sizeOfEvent:]
+		data = data[sizeOfEvent:]
 
 		var sess *Session
 		var duration time.Duration
@@ -145,10 +135,10 @@ func Run(reader *ringbuf.Reader, maps map[string]*ebpf.Map, w io.Writer, helpers
 					sess = s
 					duration = time.Duration(event.KernNs - s.started)
 					if duration < runDelta {
-						continue
+						return nil
 					}
 				} else {
-					continue // skip if session not found
+					return nil // skip if session not found
 				}
 			}
 		}
@@ -188,14 +178,14 @@ func Run(reader *ringbuf.Reader, maps map[string]*ebpf.Map, w io.Writer, helpers
 		}
 
 		if fnInfo.lbrMode {
-			err = lbrStack.outputStack(&sb, helpers, &lbrData, lbrs, event)
+			err := lbrStack.outputStack(&sb, helpers, &lbrData, lbrs, event)
 			if err != nil {
 				return fmt.Errorf("failed to output LBR stack: %w", err)
 			}
 		}
 
 		if fnInfo.stckMode && event.StackID >= 0 {
-			err = fnStack.output(&sb, helpers, stacks, fg, event)
+			err := fnStack.output(&sb, helpers, stacks, fg, event)
 			if err != nil {
 				return fmt.Errorf("failed to output function stack: %w", err)
 			}
@@ -208,16 +198,36 @@ func Run(reader *ringbuf.Reader, maps map[string]*ebpf.Map, w io.Writer, helpers
 					fmt.Fprint(w, output)
 				}
 				fmt.Fprintln(w)
-				i--
+				outputEvent = true
 			}
 		} else {
 			fmt.Fprintln(w, sb.String())
-			i--
+			outputEvent = true
 		}
 
 		sb.Reset()
 		lbrStack.reset()
 		fnStack.reset()
+
+		return nil
+	}
+
+	unlimited := limitEvents == 0
+	for i := int64(limitEvents); unlimited || i > 0; {
+		outputEvent = false
+
+		err := reader.ReadInto(&record)
+		if err != nil {
+			if errors.Is(err, ringbuf.ErrClosed) {
+				return nil
+			}
+
+			return fmt.Errorf("failed to read ringbuf: %w", err)
+		}
+
+		if outputEvent {
+			i--
+		}
 	}
 
 	return ErrFinished
