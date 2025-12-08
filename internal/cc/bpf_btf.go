@@ -33,14 +33,12 @@ func getPointerTypeID(spec *btf.Spec, t btf.Type, isStruct, isUnion bool) (btf.T
 		typeName = t.(*btf.Union).Name
 	}
 
-	iter := spec.Iterate()
-	for iter.Next() {
-		typ := iter.Type
-		if s, ok := typ.(*btf.Struct); ok && s.Name == typeName {
-			return spec.TypeID(typ)
+	for val := range spec.All() {
+		if s, ok := val.(*btf.Struct); ok && s.Name == typeName {
+			return spec.TypeID(val)
 		}
-		if u, ok := typ.(*btf.Union); ok && u.Name == typeName {
-			return spec.TypeID(typ)
+		if u, ok := val.(*btf.Union); ok && u.Name == typeName {
+			return spec.TypeID(val)
 		}
 	}
 

@@ -176,9 +176,8 @@ func findKernelFuncs(funcs, kmods []string, ksyms *Kallsyms, maxArgs int, findMa
 
 	kfuncs := make(KFuncs, len(matchFuncs))
 	err = iterateKernelBtfs(kfuncAllKmods, kmods, func(spec *btf.Spec) bool {
-		iter := spec.Iterate()
-		for iter.Next() {
-			if fn, ok := iter.Type.(*btf.Func); ok {
+		for val := range spec.All() {
+			if fn, ok := val.(*btf.Func); ok {
 				kf, ok := matchKernelFunc(matchFuncs, fn, maxArgs, ksyms, findManyArgs, silent)
 				if ok {
 					kf.Btf = spec

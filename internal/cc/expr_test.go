@@ -32,9 +32,8 @@ func init() {
 
 	testBtf = spec
 
-	iter := spec.Iterate()
-	for iter.Next() {
-		if ptr, ok := iter.Type.(*btf.Pointer); ok {
+	for val := range spec.All() {
+		if ptr, ok := val.(*btf.Pointer); ok {
 			if s, ok := ptr.Target.(*btf.Struct); ok && s.Name == "sk_buff" {
 				skb = ptr
 				break
