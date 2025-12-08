@@ -6,7 +6,7 @@
 #include "bpf_tracing.h"
 #include "bpf_core_read.h"
 
-struct bpf_features {
+struct __features {
     bool run;
     bool has_ringbuf;
     bool has_branch_snapshot;
