@@ -1,0 +1,10 @@
+# Copyright 2026 Leon Hwang.
+# SPDX-License-Identifier: Apache-2.0
+
+# These tests are for reading data from the kernel.
+
+# bpf_prog_active
+name: read::bpf_prog_active
+tag: read
+test: --read "*(int *)0x$(grep bpf_prog_active /proc/kallsyms | awk '{print $1}')"
+match: (int)'*(int *)0x
