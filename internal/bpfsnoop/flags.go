@@ -216,7 +216,7 @@ func ParseFlags() (*Flags, error) {
 	}
 
 	if len(readDatum) != 0 {
-		readKernelDatum(readDatum)
+		readKernelDatum(readDatum, &flags)
 		os.Exit(0)
 	}
 

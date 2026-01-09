@@ -114,7 +114,7 @@ func readKernelData(expr string, helpers *Helpers) error {
 	return nil
 }
 
-func readKernelDatum(exprs []string) {
+func readKernelDatum(exprs []string, flags *Flags) {
 	ksyms, err := NewKallsyms()
 	assert.NoErr(err, "Failed to read kallsyms: %v")
 
@@ -124,6 +124,7 @@ func readKernelDatum(exprs []string) {
 	var helpers Helpers
 	helpers.Ksyms = ksyms
 	helpers.Progs = progs
+	helpers.Flags = flags
 
 	for i, expr := range exprs {
 		if i != 0 {
