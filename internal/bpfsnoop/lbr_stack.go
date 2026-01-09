@@ -94,7 +94,7 @@ type branchRecord struct {
 
 func newBranchRecord(entry branchEntry) *branchRecord {
 	r := &branchRecord{
-		entries: make([]branchEntry, 0, 32),
+		entries: make([]branchEntry, 0, lbrNr),
 		last:    -1,
 	}
 	r.addEntry(entry)
@@ -128,7 +128,7 @@ type lbrStack struct {
 
 func newLBRStack() *lbrStack {
 	return &lbrStack{
-		stack: make([]*branchRecord, 0, 32),
+		stack: make([]*branchRecord, 0, lbrNr),
 	}
 }
 
@@ -193,7 +193,7 @@ func (s *lbrStack) getRightFmt() (int, int) {
 }
 
 func (s *lbrStack) output(w io.Writer) {
-	idx := 31
+	idx := int(lbrNr - 1)
 	ln, li := s.getLeftFmt()
 	rn, ri := s.getRightFmt()
 

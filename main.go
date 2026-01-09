@@ -60,6 +60,10 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	defer stop()
 
+	bpfsnoop.VerboseLog("Reading /proc/kallsyms ..")
+	kallsyms, err := bpfsnoop.NewKallsyms()
+	assert.NoErr(err, "Failed to read /proc/kallsyms: %v")
+
 	progs, err := flags.ParseProgs()
 	assert.NoErr(err, "Failed to parse bpf prog infos: %v")
 
@@ -71,11 +75,10 @@ func main() {
 		}
 		assert.NoErr(err, "Failed to open LBR perf event: %v")
 		defer lbrPerfEvents.Close()
-	}
 
-	bpfsnoop.VerboseLog("Reading /proc/kallsyms ..")
-	kallsyms, err := bpfsnoop.NewKallsyms()
-	assert.NoErr(err, "Failed to read /proc/kallsyms: %v")
+		err = bpfsnoop.ReadLbrNr(kallsyms)
+		assert.NoErr(err, "Failed to read LBR depth: %v")
+	}
 
 	bpfSpec, err := bpf.LoadBpfsnoop()
 	assert.NoErr(err, "Failed to load bpf spec: %v")

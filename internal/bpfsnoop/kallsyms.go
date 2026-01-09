@@ -26,6 +26,7 @@ const (
 	bpfRawTpStop  = "__stop__bpf_raw_tp"
 
 	bpfTraceModules = "bpf_trace_modules"
+	x86PMU          = "x86_pmu"
 
 	btfIDDeny = "btf_id_deny"
 
@@ -99,6 +100,7 @@ type Kallsyms struct {
 	bpfTraceModules uint64
 
 	btfIDDeny uint64 // address of btf_id_deny, if exists
+	x86PMU    uint64 // address of x86_pmu, if exists
 }
 
 // NewKallsyms reads /proc/kallsyms and returns a Kallsyms instance.
@@ -195,6 +197,9 @@ func NewKallsyms() (*Kallsyms, error) {
 
 			case bpfTraceModules:
 				err = setAddr(fields[0], &ks.bpfTraceModules)
+
+			case x86PMU:
+				err = setAddr(fields[0], &ks.x86PMU)
 			}
 			if err != nil {
 				return nil, err
