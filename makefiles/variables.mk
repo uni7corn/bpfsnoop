@@ -18,7 +18,8 @@ CMD_GIT_MODULES ?= $(CMD_GIT) submodule
 UNAME_ARCH := $(shell uname -m)
 GCC_LIB_DIR := /usr/lib/gcc/$(UNAME_ARCH)-linux-gnu/$(shell gcc -dumpversion | cut -d. -f1)
 
-CPU_CORES := $(shell grep -E '^processor' /proc/cpuinfo | wc -l)
+CPU_CORES := $(shell (command -v nproc >/dev/null 2>&1 && nproc) \
+		|| grep -E '^processor' /proc/cpuinfo | wc -l)
 
 DIR_BIN := ./bin
 DIR_BPF := ./internal/bpf
