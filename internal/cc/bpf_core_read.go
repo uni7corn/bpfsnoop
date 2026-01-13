@@ -11,7 +11,7 @@ import (
 	"github.com/cilium/ebpf/btf"
 )
 
-func canRdonlyCast(spec *btf.Spec, t btf.Type) (bool, btf.TypeID, error) {
+func canRdonlyCast(spec btfSpecer, t btf.Type) (bool, btf.TypeID, error) {
 	t = mybtf.UnderlyingType(t)
 	ptr, ok := t.(*btf.Pointer)
 	if !ok {

@@ -4,53 +4,64 @@
 package cc
 
 import (
-	"encoding/binary"
 	"errors"
-	"sync"
+	"iter"
 	"testing"
-	"unsafe"
 
 	"github.com/bpfsnoop/bpfsnoop/internal/test"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/btf"
 )
 
-// immutableTypes is a set of types which musn't be changed.
-type immutableTypes struct {
-	// All types contained by the spec, not including types from the base in
-	// case the spec was parsed from split BTF.
-	types []btf.Type
-
-	// Type IDs indexed by type.
-	typeIDs map[btf.Type]btf.TypeID
-
-	// The ID of the first type in types.
-	firstTypeID btf.TypeID
-
-	// Types indexed by essential name.
-	// Includes all struct flavors and types with the same name.
-	namedTypes map[string][]btf.TypeID
-
-	// Byte order of the types. This affects things like struct member order
-	// when using bitfields.
-	byteOrder binary.ByteOrder
-}
-
-// mutableTypes is a set of types which may be changed.
-type mutableTypes struct {
-	imm           immutableTypes
-	mu            sync.RWMutex            // protects copies below
-	copies        map[btf.Type]btf.Type   // map[orig]copy
-	copiedTypeIDs map[btf.Type]btf.TypeID // map[copy]origID
-}
-
 // Spec allows querying a set of Types and loading the set into the
 // kernel.
 type Spec struct {
-	*mutableTypes
+	*btf.Spec
+	t *testing.T
 
-	// String table from ELF.
-	strings uintptr
+	anyTypeByName func(name string) (btf.Type, error)
+	typeID        func(t btf.Type) (btf.TypeID, error)
+}
+
+func (s *Spec) notFoundErr(name string) (btf.Type, error) {
+	return nil, btf.ErrNotFound
+}
+
+func (s *Spec) err(name string) (btf.Type, error) {
+	return nil, errors.New("btf spec is nil")
+}
+
+func (s *Spec) notFunc(name string) (btf.Type, error) {
+	return getSkbBtf(s.t), nil
+}
+
+func (s *Spec) AnyTypeByName(name string) (btf.Type, error) {
+	if s.anyTypeByName != nil {
+		return s.anyTypeByName(name)
+	}
+	return s.Spec.AnyTypeByName(name)
+}
+
+func (s *Spec) getTypeIDErr(t btf.Type) (btf.TypeID, error) {
+	return 0, btf.ErrNotFound
+}
+
+func (s *Spec) TypeID(t btf.Type) (btf.TypeID, error) {
+	if s.typeID != nil {
+		return s.typeID(t)
+	}
+	return s.Spec.TypeID(t)
+}
+
+func (s *Spec) All() iter.Seq2[btf.Type, error] {
+	return s.Spec.All()
+}
+
+func newSpec(t *testing.T, s *btf.Spec) *Spec {
+	return &Spec{
+		t:    t,
+		Spec: s,
+	}
 }
 
 func TestNewCompiler(t *testing.T) {
@@ -87,51 +98,41 @@ func TestNewCompiler(t *testing.T) {
 		_, err := testBtf.AnyTypeByName(kfuncBpfRdonlyCast)
 		test.AssertNoErr(t, err)
 
-		spec := (*Spec)(unsafe.Pointer(testBtf))
-		ids := spec.mutableTypes.imm.namedTypes[kfuncBpfRdonlyCast]
-		delete(spec.mutableTypes.imm.namedTypes, kfuncBpfRdonlyCast)
-		defer func() { spec.mutableTypes.imm.namedTypes[kfuncBpfRdonlyCast] = ids }()
+		spec := newSpec(t, testBtf)
+		spec.anyTypeByName = spec.notFoundErr
+
+		opts.Kernel = spec
+		defer func() { opts.Kernel = testBtf }()
 
 		c, err := newCompiler(opts)
 		test.AssertNoErr(t, err)
 		test.AssertFalse(t, c.rdonlyCastFastcall)
 	})
 
-	t.Run("bpf_rdonly_cast invalid type ID", func(t *testing.T) {
+	t.Run("bpf_rdonly_cast find kfunc failure", func(t *testing.T) {
 		_, err := testBtf.AnyTypeByName(kfuncBpfRdonlyCast)
 		test.AssertNoErr(t, err)
 
-		spec := (*Spec)(unsafe.Pointer(testBtf))
-		ids := spec.mutableTypes.imm.namedTypes[kfuncBpfRdonlyCast]
-		ids = append(ids, 0xFFFFFFFF)
-		spec.mutableTypes.imm.namedTypes[kfuncBpfRdonlyCast] = ids
-		defer func() { spec.mutableTypes.imm.namedTypes[kfuncBpfRdonlyCast] = ids[:len(ids)-1] }()
+		spec := newSpec(t, testBtf)
+		spec.anyTypeByName = spec.err
+
+		opts.Kernel = spec
+		defer func() { opts.Kernel = testBtf }()
 
 		_, err = newCompiler(opts)
 		test.AssertHaveErr(t, err)
-		test.AssertErrContains(t, err, "no type with ID")
+		test.AssertErrorPrefix(t, err, "failed to find kfunc")
 	})
 
 	t.Run("bpf_rdonly_cast not a function", func(t *testing.T) {
 		_, err := testBtf.AnyTypeByName(kfuncBpfRdonlyCast)
 		test.AssertNoErr(t, err)
 
-		u64 := getU64Btf(t)
-		test.AssertNoErr(t, err)
-		u64ID, err := testBtf.TypeID(u64)
-		test.AssertNoErr(t, err)
-		u64Ptr := &btf.Struct{
-			Name: "bpf_rdonly_cast",
-		}
+		spec := newSpec(t, testBtf)
+		spec.anyTypeByName = spec.notFunc
 
-		spec := (*Spec)(unsafe.Pointer(testBtf))
-		ids := spec.mutableTypes.imm.namedTypes[kfuncBpfRdonlyCast]
-		spec.mutableTypes.imm.namedTypes[kfuncBpfRdonlyCast] = []btf.TypeID{u64ID}
-		spec.mutableTypes.imm.types[u64ID] = u64Ptr
-		defer func() {
-			spec.mutableTypes.imm.namedTypes[kfuncBpfRdonlyCast] = ids
-			spec.mutableTypes.imm.types[u64ID] = u64
-		}()
+		opts.Kernel = spec
+		defer func() { opts.Kernel = testBtf }()
 
 		_, err = newCompiler(opts)
 		test.AssertHaveErr(t, err)
@@ -139,13 +140,14 @@ func TestNewCompiler(t *testing.T) {
 	})
 
 	t.Run("bpf_rdonly_cast type ID not found", func(t *testing.T) {
-		rdonlyCast, err := testBtf.AnyTypeByName(kfuncBpfRdonlyCast)
+		_, err := testBtf.AnyTypeByName(kfuncBpfRdonlyCast)
 		test.AssertNoErr(t, err)
 
-		spec := (*Spec)(unsafe.Pointer(testBtf))
-		id := spec.mutableTypes.copiedTypeIDs[rdonlyCast]
-		delete(spec.mutableTypes.copiedTypeIDs, rdonlyCast)
-		defer func() { spec.mutableTypes.copiedTypeIDs[rdonlyCast] = id }()
+		spec := newSpec(t, testBtf)
+		spec.typeID = spec.getTypeIDErr
+
+		opts.Kernel = spec
+		defer func() { opts.Kernel = testBtf }()
 
 		_, err = newCompiler(opts)
 		test.AssertHaveErr(t, err)

@@ -34,7 +34,7 @@ const (
 type CompileExprOptions struct {
 	Expr          string
 	Params        []btf.FuncParam
-	Spec, Kernel  *btf.Spec
+	Spec, Kernel  btfSpecer
 	LabelExit     string
 	ReservedStack int
 	UsedRegisters []asm.Register

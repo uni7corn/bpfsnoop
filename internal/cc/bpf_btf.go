@@ -21,7 +21,7 @@ func canCalculate(t btf.Type) bool {
 	}
 }
 
-func getPointerTypeID(spec *btf.Spec, t btf.Type, isStruct, isUnion bool) (btf.TypeID, error) {
+func getPointerTypeID(spec btfSpecer, t btf.Type, isStruct, isUnion bool) (btf.TypeID, error) {
 	if id, err := spec.TypeID(t); err == nil {
 		return id, nil
 	}

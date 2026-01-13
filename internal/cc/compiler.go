@@ -6,6 +6,7 @@ package cc
 import (
 	"errors"
 	"fmt"
+	"iter"
 	"slices"
 
 	"github.com/cilium/ebpf/asm"
@@ -17,6 +18,12 @@ const (
 	kfuncFastcall      = "bpf_fastcall"
 )
 
+type btfSpecer interface {
+	AnyTypeByName(name string) (btf.Type, error)
+	TypeID(t btf.Type) (btf.TypeID, error)
+	All() iter.Seq2[btf.Type, error]
+}
+
 type compiler struct {
 	regalloc RegisterAllocator
 	insns    asm.Instructions
@@ -24,8 +31,8 @@ type compiler struct {
 	vars []string
 	btfs []btf.Type
 
-	btfSpec  *btf.Spec
-	krnlSpec *btf.Spec
+	btfSpec  btfSpecer
+	krnlSpec btfSpecer
 
 	labelExit     string
 	labelExitUsed bool
