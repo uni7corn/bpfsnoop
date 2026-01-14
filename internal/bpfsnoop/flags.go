@@ -12,6 +12,8 @@ import (
 	"time"
 
 	flag "github.com/spf13/pflag"
+
+	"github.com/bpfsnoop/bpfsnoop/internal/assert"
 )
 
 const (
@@ -83,6 +85,7 @@ type Flags struct {
 }
 
 func ParseFlags() (*Flags, error) {
+	var findVmlinux bool
 	var showTypes []string
 	var readDatum []string
 	var flags Flags
@@ -129,6 +132,7 @@ func ParseFlags() (*Flags, error) {
 	f.BoolVarP(&flags.noVmlinux, "no-vmlinux", "N", false, "do not load vmlinux")
 	f.DurationVar(&runDurationThreshold, "duration-threshold", 0, "threshold for run duration, e.g. 1s, 100ms, 0 to disable")
 	f.BoolVarP(&forceProbeReadKernel, "force-probe-read-kernel", "P", false, "force reading kernel memory using bpf_probe_read_kernel() helper")
+	f.BoolVar(&findVmlinux, "find-vmlinux", false, "find vmlinux file in standard locations and print the path")
 
 	f.MarkHidden("debug-log")
 	f.MarkHidden("output-flamegraph")
@@ -139,6 +143,7 @@ func ParseFlags() (*Flags, error) {
 	f.MarkHidden("duration-threshold")
 	f.MarkHidden("fgraph-debug")
 	f.MarkHidden("force-probe-read-kernel")
+	f.MarkHidden("find-vmlinux")
 
 	err := f.Parse(os.Args)
 
@@ -156,6 +161,13 @@ func ParseFlags() (*Flags, error) {
 		} else {
 			kernelVmlinuxDir = filepath.Clean(kernelVmlinuxDir)
 		}
+	}
+
+	if findVmlinux {
+		vmlinuxPath, err := FindVmlinux()
+		assert.NoErr(err, "Failed to find vmlinux file: %v")
+		fmt.Println(vmlinuxPath)
+		os.Exit(0)
 	}
 
 	if e := flags.checkMode(); e != nil {
