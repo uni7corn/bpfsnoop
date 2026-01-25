@@ -82,13 +82,16 @@ func (c *compiler) compile(expr string) error {
 		return fmt.Errorf("top op '%s' of expression must be one of %v", e.Op, supportedOps)
 	}
 
-	val, err := c.eval(e)
+	val, err := c.evaluate(e)
 	if err != nil {
 		return fmt.Errorf("failed to evaluate expression: %w", err)
 	}
-	if val.typ == evalValueTypeNum {
+	if val.isConstant() {
 		return fmt.Errorf("disallow constant value (%d) expression: '%s'", val.num, expr)
 	}
+
+	// The val.kind must be Materialized here, because the val.kind of the
+	// above ops must be one of [Constant, Materialized].
 
 	if c.labelExitUsed {
 		c.insns[len(c.insns)-1] = c.insns[len(c.insns)-1].WithSymbol(c.labelExit)
@@ -183,12 +186,20 @@ func CompileEvalExpr(opts CompileExprOptions) (EvalResult, error) {
 		fnName = e.Left.Text
 	}
 
-	val, err := c.eval(evaluatingExpr)
+	val, err := c.evaluate(evaluatingExpr)
 	if err != nil {
 		return res, fmt.Errorf("failed to evaluate expression: %w", err)
 	}
-	if val.typ == evalValueTypeNum && (opts.MemoryReadFlag&MemoryReadFlagForce) == 0 {
+	if val.isConstant() && (opts.MemoryReadFlag&MemoryReadFlagForce) == 0 {
 		return res, fmt.Errorf("disallow constant value (%d) expression: '%s'", val.num, opts.Expr)
+	}
+
+	// Materialize if needed
+	if !val.isConstant() {
+		val, err = c.materialize(val)
+		if err != nil {
+			return res, fmt.Errorf("failed to materialize expression: %w", err)
+		}
 	}
 
 	if err := postCheckFuncCall(&res, val, dataOffset, dataSize, fnName); err != nil {
@@ -200,14 +211,6 @@ func CompileEvalExpr(opts CompileExprOptions) (EvalResult, error) {
 	res.LabelUsed = c.labelExitUsed
 
 	return res, nil
-}
-
-func (c *compiler) emit(insns ...asm.Instruction) {
-	c.insns = append(c.insns, insns...)
-}
-
-func (c *compiler) emitLoadArg(index int, dst asm.Register) {
-	c.emit(asm.LoadMem(dst, argsReg, int16(index*8), asm.DWord))
 }
 
 func (c *compiler) pushUsedCallerSavedRegsN(n int) {

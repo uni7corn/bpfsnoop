@@ -57,6 +57,13 @@ func AssertEmptySlice[T any](t *testing.T, got []T) {
 	}
 }
 
+func AssertSliceLen[T any](t *testing.T, got []T, exp int) {
+	t.Helper()
+	if len(got) != exp {
+		t.Errorf("got '%v', want length '%d'", len(got), exp)
+	}
+}
+
 func AssertStrPrefix(t *testing.T, got, prefix string) {
 	t.Helper()
 	if !strings.HasPrefix(got, prefix) {
@@ -146,7 +153,10 @@ func AssertPanic(t *testing.T, f func()) {
 func AssertNil(t *testing.T, got any) {
 	t.Helper()
 	if got != nil {
-		t.Errorf("got %v, want nil", got)
+		val := reflect.ValueOf(got)
+		if !val.IsNil() {
+			t.Errorf("got %v, want nil", got)
+		}
 	}
 }
 
@@ -163,5 +173,12 @@ func AssertEqualBtf(t *testing.T, got, want btf.Type) {
 	g, w := fmt.Sprintf("%v", got), fmt.Sprintf("%v", want)
 	if g != w {
 		t.Errorf("got %v, want %v", g, w)
+	}
+}
+
+func AssertDeepEqual(t *testing.T, got, want any) {
+	t.Helper()
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
 	}
 }

@@ -329,7 +329,7 @@ func compileFuncCall(expr *cc.Expr) (funcCallValue, error) {
 	return val, err
 }
 
-func postCheckFuncCall(res *EvalResult, val evalValue, dataOffset, dataSize int64, fnName string) error {
+func postCheckFuncCall(res *EvalResult, val exprValue, dataOffset, dataSize int64, fnName string) error {
 	if res.Type != EvalResultTypeDefault && isMemberBitfield(val.mem) {
 		return fmt.Errorf("disallow member bitfield for %s()", fnName)
 	}

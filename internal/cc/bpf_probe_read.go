@@ -5,18 +5,8 @@ package cc
 
 import "github.com/cilium/ebpf/asm"
 
-func (c *compiler) probeReadOffsets(offsets []accessOffset, reg asm.Register) {
-	allAddress := offsets[0].address
-	for i := range offsets {
-		allAddress = allAddress && offsets[i].address
-	}
-	if allAddress {
-		for i := range offsets {
-			c.emit(asm.Add.Imm(reg, int32(offsets[i].offset)))
-		}
-		return
-	}
-
+// emitProbeRead emits offset chain using bpf_probe_read_kernel.
+func (c *compiler) emitProbeRead(offsets []pendingOffset, reg asm.Register) {
 	c.pushUsedCallerSavedRegs()
 	defer c.popUsedCallerSavedRegs()
 
@@ -29,13 +19,16 @@ func (c *compiler) probeReadOffsets(offsets []accessOffset, reg asm.Register) {
 		if offset.offset != 0 {
 			c.emit(asm.Add.Imm(asm.R3, int32(offset.offset)))
 		}
-		if offset.address {
+
+		if !offset.deref {
+			// Address-only offset
 			if i == lastIndex && reg != asm.R3 {
 				c.emit(asm.Mov.Reg(reg, asm.R3))
 			}
 			continue
 		}
 
+		// Dereference - emit probe_read
 		c.emit(
 			asm.Mov.Imm(asm.R2, 8),       // r2 = 8; always read 8 bytes
 			asm.Mov.Reg(asm.R1, asm.RFP), // r1 = r10

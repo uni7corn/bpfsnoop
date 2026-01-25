@@ -11,27 +11,53 @@ import (
 	"github.com/bpfsnoop/bpfsnoop/internal/test"
 )
 
-func TestDirectReadOffsets(t *testing.T) {
+func prepareCompilerDirectRead(t *testing.T) *compiler {
+	t.Helper()
+	c := prepareCompiler(t)
+	c.memMode = MemoryReadModeDirectRead
+	return c
+}
+
+func resetCompilerDirectRead(c *compiler) {
+	c.reset()
+	c.memMode = MemoryReadModeDirectRead
+}
+
+func TestEmitDirectRead(t *testing.T) {
 	c := prepareCompiler(t)
 
-	const reg = asm.R8
-	c.directReadOffsets([]accessOffset{
-		{
-			offset:  4,
-			address: true,
-		},
-		{
-			offset: 8,
-		},
-		{
-			offset: 12,
-		},
-	}, reg)
+	t.Run("addr only", func(t *testing.T) {
+		defer c.reset()
 
-	test.AssertEqualSlice(t, c.insns, asm.Instructions{
-		asm.Add.Imm(reg, 4),
-		asm.LoadMem(reg, reg, 8, asm.DWord),
-		asm.JEq.Imm(reg, 0, c.labelExit),
-		asm.LoadMem(reg, reg, 12, asm.DWord),
+		offsets := []pendingOffset{
+			{offset: 16, deref: true}, // skb->dev
+			{offset: 1464},            // skb->dev.dev
+			{offset: 0},               // skb->dev.dev.kobj
+			{offset: 24},              // dev->dev.dev.kobj.parent
+		}
+
+		c.emitDirectRead(offsets, r8)
+		test.AssertEqualSlice(t, c.insns, asm.Instructions{
+			asm.LoadMem(r8, r8, 16, dword),
+			asm.JEq.Imm(r8, 0, c.labelExit),
+			asm.Add.Imm(r8, 1464),
+			asm.Add.Imm(r8, 24),
+		})
+	})
+
+	t.Run("offsets", func(t *testing.T) {
+		defer c.reset()
+
+		val := prepareExprVal(t, c, "skb->dev->dev.kobj.parent->name")
+		offsets := val.offsets
+
+		c.emitDirectRead(offsets, r8)
+		test.AssertEqualSlice(t, c.insns, asm.Instructions{
+			asm.LoadMem(r8, r8, 16, dword),
+			asm.JEq.Imm(r8, 0, c.labelExit),
+			asm.LoadMem(r8, r8, 1488, dword),
+			asm.JEq.Imm(r8, 0, c.labelExit),
+			asm.LoadMem(r8, r8, 0, dword),
+		})
 	})
 }

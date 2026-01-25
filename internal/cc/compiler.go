@@ -106,3 +106,19 @@ func (c *compiler) findType(name string) (btf.Type, error) {
 
 	return c.krnlSpec.AnyTypeByName(name)
 }
+
+func (c *compiler) emit(insns ...asm.Instruction) {
+	c.insns = append(c.insns, insns...)
+}
+
+func (c *compiler) emitLoadArg(index int, dst asm.Register) {
+	c.emit(asm.LoadMem(dst, argsReg, int16(index*8), asm.DWord))
+}
+
+func (c *compiler) emitReg2bool(reg asm.Register) {
+	c.emit(
+		asm.Mov.Imm(reg, 1),
+		Ja(1),
+		asm.Xor.Reg(reg, reg),
+	)
+}

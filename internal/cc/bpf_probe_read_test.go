@@ -10,56 +10,63 @@ import (
 	"github.com/cilium/ebpf/asm"
 )
 
-func TestProbeReadOffsets(t *testing.T) {
+func TestEmitProbeRead(t *testing.T) {
 	c := prepareCompiler(t)
 
-	t.Run("one offset with address", func(t *testing.T) {
+	t.Run("addr only", func(t *testing.T) {
 		defer c.reset()
-		c.probeReadOffsets([]accessOffset{{offset: 4, address: true}}, asm.R8)
+
+		offsets := []pendingOffset{
+			{offset: 16, deref: true}, // skb->dev
+			{offset: 1464},            // skb->dev.dev
+			{offset: 0},               // skb->dev.dev.kobj
+			{offset: 24},              // dev->dev.dev.kobj.parent
+		}
+
+		c.emitProbeRead(offsets, r8)
 		test.AssertEqualSlice(t, c.insns, asm.Instructions{
-			asm.Add.Imm(asm.R8, 4),
+			asm.Mov.Reg(r3, r8),
+			asm.Add.Imm(r3, 16),
+			asm.Mov.Imm(r2, 8),
+			asm.Mov.Reg(r1, rfp),
+			asm.Add.Imm(r1, -8),
+			asm.FnProbeReadKernel.Call(),
+			asm.LoadMem(r3, rfp, -8, dword),
+			asm.JEq.Imm(r3, 0, c.labelExit),
+			asm.Add.Imm(r3, 1464),
+			asm.Add.Imm(r3, 24),
+			asm.Mov.Reg(r8, r3),
 		})
 	})
 
-	t.Run("one offset", func(t *testing.T) {
+	t.Run("offsets", func(t *testing.T) {
 		defer c.reset()
-		c.probeReadOffsets([]accessOffset{{offset: 4}}, asm.R8)
-		test.AssertEqualSlice(t, c.insns, asm.Instructions{
-			asm.Mov.Reg(asm.R3, asm.R8),
-			asm.Add.Imm(asm.R3, 4),
-			asm.Mov.Imm(asm.R2, 8),
-			asm.Mov.Reg(asm.R1, asm.RFP),
-			asm.Add.Imm(asm.R1, -8),
-			asm.FnProbeReadKernel.Call(),
-			asm.LoadMem(asm.R8, asm.RFP, -8, asm.DWord),
-		})
-	})
 
-	t.Run("multiple offsets", func(t *testing.T) {
-		defer c.reset()
-		c.probeReadOffsets([]accessOffset{
-			{offset: 4},
-			{offset: 8},
-			{offset: 12, address: true},
-		}, asm.R8)
+		val := prepareExprVal(t, c, "skb->dev->dev.kobj.parent->name")
+		offsets := val.offsets
+
+		c.emitProbeRead(offsets, r8)
 		test.AssertEqualSlice(t, c.insns, asm.Instructions{
-			asm.Mov.Reg(asm.R3, asm.R8),
-			asm.Add.Imm(asm.R3, 4),
-			asm.Mov.Imm(asm.R2, 8),
-			asm.Mov.Reg(asm.R1, asm.RFP),
-			asm.Add.Imm(asm.R1, -8),
+			asm.Mov.Reg(r3, r8),
+			asm.Add.Imm(r3, 16),
+			asm.Mov.Imm(r2, 8),
+			asm.Mov.Reg(r1, rfp),
+			asm.Add.Imm(r1, -8),
 			asm.FnProbeReadKernel.Call(),
-			asm.LoadMem(asm.R3, asm.RFP, -8, asm.DWord),
-			asm.JEq.Imm(asm.R3, 0, c.labelExit),
-			asm.Add.Imm(asm.R3, 8),
-			asm.Mov.Imm(asm.R2, 8),
-			asm.Mov.Reg(asm.R1, asm.RFP),
-			asm.Add.Imm(asm.R1, -8),
+			asm.LoadMem(r3, rfp, -8, dword),
+			asm.JEq.Imm(r3, 0, c.labelExit),
+			asm.Add.Imm(r3, 1488),
+			asm.Mov.Imm(r2, 8),
+			asm.Mov.Reg(r1, rfp),
+			asm.Add.Imm(r1, -8),
 			asm.FnProbeReadKernel.Call(),
-			asm.LoadMem(asm.R3, asm.RFP, -8, asm.DWord),
-			asm.JEq.Imm(asm.R3, 0, c.labelExit),
-			asm.Add.Imm(asm.R3, 12),
-			asm.Mov.Reg(asm.R8, asm.R3),
+			asm.LoadMem(r3, rfp, -8, dword),
+			asm.JEq.Imm(r3, 0, c.labelExit),
+			asm.Mov.Imm(r2, 8),
+			asm.Mov.Reg(r1, rfp),
+			asm.Add.Imm(r1, -8),
+			asm.FnProbeReadKernel.Call(),
+			asm.LoadMem(r8, rfp, -8, dword),
 		})
 	})
 }

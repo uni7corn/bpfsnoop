@@ -64,6 +64,14 @@ func newSpec(t *testing.T, s *btf.Spec) *Spec {
 	}
 }
 
+func (c *compiler) setBtfIDErr(t *testing.T) {
+	c.memMode = MemoryReadModeCoreRead
+
+	spec := newSpec(t, testBtf)
+	spec.typeID = spec.getTypeIDErr
+	c.btfSpec = spec
+}
+
 func TestNewCompiler(t *testing.T) {
 	const reg = asm.R8
 

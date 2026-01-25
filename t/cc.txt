@@ -112,3 +112,13 @@ tag: cc,struct
 test: -k '__sys_bpf' --filter-arg 'cmd == 5'
 match: is_kernel=0x0
 trigger: ./xdpcrc -d lo
+
+---
+
+# output tcp ports
+name: cc::output-tcp-ports
+tag: cc,struct,tp
+test: -t netif_receive_skb --filter-pkt 'host 127.0.0.1 and tcp and port 8081' --output-arg 'port(&((struct tcphdr *)(skb->head + skb->transport_header))->source)' --output-arg 'port(&((struct tcphdr *)(skb->head + skb->transport_header))->dest)'
+match: (short unsigned int *)'port(&((struct tcphdr *)(skb->head + skb->transport_header))->source)'=8081
+prerequisite: python3 -m http.server 8081
+trigger: curl -s http://127.0.0.1:8081 --output /dev/null

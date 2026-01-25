@@ -538,7 +538,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 		res := &EvalResult{
 			Type: EvalResultTypeDeref,
 		}
-		val := evalValue{
+		val := exprValue{
 			mem: &btf.Member{Offset: 0, BitfieldSize: 1},
 		}
 
@@ -552,7 +552,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 			res := &EvalResult{
 				Type: EvalResultTypeDeref,
 			}
-			val := evalValue{
+			val := exprValue{
 				btf: &btf.Void{},
 			}
 
@@ -565,7 +565,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 			res := &EvalResult{
 				Type: EvalResultTypeDeref,
 			}
-			val := evalValue{
+			val := exprValue{
 				btf: &btf.Pointer{
 					Target: &btf.Void{},
 				},
@@ -580,7 +580,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 			res := &EvalResult{
 				Type: EvalResultTypeDeref,
 			}
-			val := evalValue{
+			val := exprValue{
 				btf: &btf.Pointer{
 					Target: getU32Btf(t),
 				},
@@ -598,7 +598,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 			res := &EvalResult{
 				Type: EvalResultTypeBuf,
 			}
-			val := evalValue{
+			val := exprValue{
 				btf: &btf.Void{},
 			}
 
@@ -611,7 +611,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 			res := &EvalResult{
 				Type: EvalResultTypeBuf,
 			}
-			val := evalValue{
+			val := exprValue{
 				btf: &btf.Pointer{
 					Target: getU8Btf(t),
 				},
@@ -629,7 +629,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 			res := &EvalResult{
 				Type: EvalResultTypeString,
 			}
-			val := evalValue{
+			val := exprValue{
 				btf: &btf.Void{},
 			}
 
@@ -642,7 +642,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 			res := &EvalResult{
 				Type: EvalResultTypeString,
 			}
-			val := evalValue{
+			val := exprValue{
 				btf: &btf.Pointer{
 					Target: getU8Btf(t),
 				},
@@ -658,7 +658,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 			res := &EvalResult{
 				Type: EvalResultTypeString,
 			}
-			val := evalValue{
+			val := exprValue{
 				btf: &btf.Array{
 					Type:   &btf.Void{},
 					Nelems: 8,
@@ -674,7 +674,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 			res := &EvalResult{
 				Type: EvalResultTypeString,
 			}
-			val := evalValue{
+			val := exprValue{
 				btf: &btf.Array{
 					Type:   getU8Btf(t),
 					Nelems: 8,
@@ -693,7 +693,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 			res := &EvalResult{
 				Type: EvalResultTypePkt,
 			}
-			val := evalValue{
+			val := exprValue{
 				btf: &btf.Void{},
 			}
 
@@ -706,7 +706,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 			res := &EvalResult{
 				Type: EvalResultTypePkt,
 			}
-			val := evalValue{
+			val := exprValue{
 				btf: &btf.Pointer{
 					Target: getU8Btf(t),
 				},
@@ -724,7 +724,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 			res := &EvalResult{
 				Type: EvalResultTypeSlice,
 			}
-			val := evalValue{
+			val := exprValue{
 				btf: &btf.Void{},
 			}
 
@@ -737,7 +737,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 			res := &EvalResult{
 				Type: EvalResultTypeSlice,
 			}
-			val := evalValue{
+			val := exprValue{
 				btf: &btf.Pointer{
 					Target: &btf.Void{},
 				},
@@ -752,7 +752,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 			res := &EvalResult{
 				Type: EvalResultTypeSlice,
 			}
-			val := evalValue{
+			val := exprValue{
 				btf: &btf.Pointer{
 					Target: getU32Btf(t),
 				},
@@ -768,7 +768,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 			res := &EvalResult{
 				Type: EvalResultTypeSlice,
 			}
-			val := evalValue{
+			val := exprValue{
 				btf: &btf.Array{
 					Type:   getU32Btf(t),
 					Nelems: 8,
@@ -787,7 +787,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 			res := &EvalResult{
 				Type: EvalResultTypeInt,
 			}
-			val := evalValue{
+			val := exprValue{
 				btf: &btf.Void{},
 			}
 
@@ -800,7 +800,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 			res := &EvalResult{
 				Type: EvalResultTypeInt,
 			}
-			val := evalValue{
+			val := exprValue{
 				btf: &btf.Pointer{
 					Target: getU8Btf(t),
 				},
@@ -819,7 +819,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 			res := &EvalResult{
 				Type: EvalResultTypeHist,
 			}
-			val := evalValue{
+			val := exprValue{
 				btf: &btf.Void{},
 			}
 
@@ -832,7 +832,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 			res := &EvalResult{
 				Type: EvalResultTypeHist,
 			}
-			val := evalValue{
+			val := exprValue{
 				btf: getU32Btf(t),
 			}
 
@@ -847,7 +847,7 @@ func TestPostCheckFuncCall(t *testing.T) {
 		res := &EvalResult{
 			Type: EvalResultTypeDefault,
 		}
-		val := evalValue{
+		val := exprValue{
 			btf: &btf.Void{},
 		}
 

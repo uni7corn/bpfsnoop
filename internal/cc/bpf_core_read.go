@@ -62,7 +62,8 @@ func (c *compiler) coreReadByProbeRead(reg asm.Register, lastIdx bool) {
 	)
 }
 
-func (c *compiler) coreReadOffsets(offsets []accessOffset, reg asm.Register) error {
+// emitCoreRead emits offset chain using CO-RE (bpf_rdonly_cast).
+func (c *compiler) emitCoreRead(offsets []pendingOffset, reg asm.Register) error {
 	regsNr := 5
 	if c.rdonlyCastFastcall {
 		regsNr = 2
@@ -77,7 +78,8 @@ func (c *compiler) coreReadOffsets(offsets []accessOffset, reg asm.Register) err
 
 	lastIdx := len(offsets) - 1
 	for i, offset := range offsets {
-		if offset.address {
+		if !offset.deref {
+			// Address-only
 			if offset.offset != 0 {
 				c.emit(asm.Add.Imm(immReg, int32(offset.offset)))
 			}
@@ -87,9 +89,9 @@ func (c *compiler) coreReadOffsets(offsets []accessOffset, reg asm.Register) err
 			continue
 		}
 
-		canCast, typID, err := canRdonlyCast(c.btfSpec, offset.prev)
+		canCast, typID, err := canRdonlyCast(c.btfSpec, offset.prevBtf)
 		if err != nil {
-			return fmt.Errorf("failed to check if %v can be bpf_rdonly_cast: %w", offset.prev, err)
+			return fmt.Errorf("failed to check if %v can be bpf_rdonly_cast: %w", offset.prevBtf, err)
 		}
 		if !canCast {
 			c.coreReadByProbeRead(reg, i == lastIdx)
@@ -98,28 +100,25 @@ func (c *compiler) coreReadOffsets(offsets []accessOffset, reg asm.Register) err
 
 		size, err := sizeof(offset.btf)
 		if err != nil {
-			return fmt.Errorf("failed to get size of btf type %v: %w", offset.btf, err)
+			return fmt.Errorf("failed to get size of %v: %w", offset.btf, err)
 		}
 
-		if !canReadByRdonlyCast(offset.btf) || offset.inArray {
+		if !canReadByRdonlyCast(offset.btf) {
 			c.coreReadByProbeRead(reg, i == lastIdx)
 			continue
 		}
 
+		// bpf_rdonly_cast(r1, btf_id)
+		c.emit(asm.Mov.Imm(asm.R2, int32(typID)))
+		c.emit(bpfKfuncCall(c.rdonlyCastTypeID))
+		// r0 is the result of bpf_rdonly_cast
+
 		if i != lastIdx {
-			c.emit(
-				asm.Mov.Imm(asm.R2, int32(typID)), // r2 = type ID
-				bpfKfuncCall(c.rdonlyCastTypeID),  // bpf_rdonly_cast(r1, r2)
-				asm.LoadMem(immReg, asm.R0, int16(offset.offset), size),
-				asm.JEq.Imm(immReg, 0, c.labelExit),
-			)
 			c.labelExitUsed = true
-		} else {
-			c.emit(
-				asm.Mov.Imm(asm.R2, int32(typID)), // r2 = type ID
-				bpfKfuncCall(c.rdonlyCastTypeID),  // bpf_rdonly_cast(r1, r2)
-				asm.LoadMem(reg, asm.R0, int16(offset.offset), size),
-			)
+			c.emit(asm.LoadMem(immReg, asm.R0, int16(offset.offset), size))
+			c.emit(asm.JEq.Imm(immReg, 0, c.labelExit))
+		} else if reg != immReg {
+			c.emit(asm.LoadMem(reg, asm.R0, int16(offset.offset), size))
 		}
 	}
 

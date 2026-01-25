@@ -10,6 +10,7 @@ import (
 	"log"
 	"testing"
 
+	"github.com/Asphaltt/mybtf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/btf"
 
@@ -62,20 +63,6 @@ func getBpfProgBtf(t *testing.T) *btf.Pointer {
 	t.Helper()
 	test.AssertNoErr(t, err)
 	return &btf.Pointer{Target: bpfProg}
-}
-
-func getBpfMapBtf(t *testing.T) *btf.Pointer {
-	bpfMap, err := testBtf.AnyTypeByName("bpf_map")
-	t.Helper()
-	test.AssertNoErr(t, err)
-	return &btf.Pointer{Target: bpfMap}
-}
-
-func getBpfProgAuxBtf(t *testing.T) *btf.Pointer {
-	bpfProgAux, err := testBtf.AnyTypeByName("bpf_prog_aux")
-	t.Helper()
-	test.AssertNoErr(t, err)
-	return &btf.Pointer{Target: bpfProgAux}
 }
 
 func getBpfProgTypeBtf(t *testing.T) *btf.Enum {
@@ -164,12 +151,22 @@ func getBpfAttrBtf(t *testing.T) *btf.Pointer {
 	}
 }
 
+func getBpfptrtBtf(t *testing.T) *btf.Struct {
+	bpfptrt, err := testBtf.AnyTypeByName("bpfptr_t")
+	t.Helper()
+	test.AssertNoErr(t, err)
+	typ := mybtf.UnderlyingType(bpfptrt)
+	strct, ok := typ.(*btf.Struct)
+	test.AssertTrue(t, ok)
+	return strct
+}
+
 func prepareCompiler(t *testing.T) *compiler {
 	c := &compiler{
 		labelExit:        "__label_exit",
 		reservedStack:    8,
-		vars:             []string{"skb", "prog", "ops", "attr"},
-		btfs:             []btf.Type{getSkbBtf(t), getBpfProgBtf(t), getFakeOpsBtf(), getBpfAttrBtf(t)},
+		vars:             []string{"skb", "prog", "ops", "attr", "uattr", "n"},
+		btfs:             []btf.Type{getSkbBtf(t), getBpfProgBtf(t), getFakeOpsBtf(), getBpfAttrBtf(t), getBpfptrtBtf(t), getU32Btf(t)},
 		btfSpec:          testBtf,
 		krnlSpec:         testBtf,
 		rdonlyCastTypeID: 41126,
@@ -185,6 +182,12 @@ func (c *compiler) reset() {
 	c.regalloc.registers = [10]bool{}
 	c.regalloc.registers[asm.R9] = true
 	c.reservedStack = 8
+}
+
+func (c *compiler) markRegisterAllUsed() {
+	for i := asm.R0; i <= asm.R9; i++ {
+		c.regalloc.registers[i] = true
+	}
 }
 
 func TestCompileFilterExpr(t *testing.T) {
@@ -377,7 +380,7 @@ func TestCompileEvalExpr(t *testing.T) {
 		test.AssertErrorPrefix(t, err, "failed to compile function call: unknown function call: xxx")
 	})
 
-	t.Run("eval failed", func(t *testing.T) {
+	t.Run("evaluate failed", func(t *testing.T) {
 		_, err := CompileEvalExpr(CompileExprOptions{
 			Expr:      "not_found->xxx == 0",
 			LabelExit: "__label_exit",
@@ -409,6 +412,25 @@ func TestCompileEvalExpr(t *testing.T) {
 		})
 		test.AssertHaveErr(t, err)
 		test.AssertStrPrefix(t, err.Error(), "disallow constant value")
+	})
+
+	t.Run("materialize val failure", func(t *testing.T) {
+		_, err := CompileEvalExpr(CompileExprOptions{
+			Expr:           "unk",
+			LabelExit:      "__label_exit",
+			Spec:           testBtf,
+			Kernel:         testBtf,
+			ReservedStack:  9,
+			MemoryReadMode: MemoryReadModeCoreRead,
+			Params: []btf.FuncParam{
+				{
+					Name: "skb",
+					Type: getSkbBtf(t),
+				},
+			},
+		})
+		test.AssertHaveErr(t, err)
+		test.AssertErrorPrefix(t, err, "failed to materialize expression")
 	})
 
 	t.Run("failed to post check func call", func(t *testing.T) {
