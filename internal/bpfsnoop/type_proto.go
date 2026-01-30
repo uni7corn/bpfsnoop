@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/Asphaltt/mybtf"
 	"github.com/cilium/ebpf/btf"
+	"github.com/fatih/color"
 
 	"github.com/bpfsnoop/bpfsnoop/internal/assert"
 	"github.com/bpfsnoop/bpfsnoop/internal/btfx"
@@ -187,6 +189,11 @@ func showEnumProto(w io.Writer, e *btf.Enum) {
 	}
 }
 
+func showFnProto(fn *btf.Func) {
+	yellow := color.New(color.FgYellow)
+	showFuncProto(os.Stdout, fn, yellow, false)
+}
+
 func showTypeProto(structs []string) {
 	var sb strings.Builder
 
@@ -207,6 +214,8 @@ func showTypeProto(structs []string) {
 			showUnionProto(&sb, v, 0, 0)
 		case *btf.Enum:
 			showEnumProto(&sb, v)
+		case *btf.Func:
+			showFnProto(v)
 		default:
 			log.Fatalf("Unsupported type %s for %q", typ, s)
 		}
