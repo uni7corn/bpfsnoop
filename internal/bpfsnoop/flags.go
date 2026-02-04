@@ -27,6 +27,7 @@ var (
 	disasmIntelSyntax bool
 	modes             []string
 	filterArg         []string
+	filterBr          []string
 	filterPkt         string
 	outputArg         []string
 	skipTunnel        bool
@@ -119,6 +120,7 @@ func ParseFlags() (*Flags, error) {
 	f.StringSliceVar(&filterArg, "filter-arg", nil, "filter function's argument with C expression, e.g. 'prog->type == BPF_PROG_TYPE_TRACING'")
 	f.StringArrayVar /* use StringArray to accept comma in value */ (&outputArg, "output-arg", nil, "output function's argument with C expression, e.g. 'prog->type'")
 	f.StringVar(&filterPkt, "filter-pkt", "", "filter packet with pcap-filter(7) expr if function argument is skb or xdp, e.g. 'icmp and host 1.1.1.1'")
+	f.StringSliceVar(&filterBr, "filter-br", []string{"any"}, "filter branch types: any, any_call, any_return, ind_call, abort_tx, in_tx, no_tx, cond, call_stack, ind_jump, call")
 	f.UintVar(&limitEvents, "limit-events", 0, "limited number events to output, 0 to output all events")
 	f.BoolVar(&flags.showFuncProto, "show-func-proto", false, "show function prototype of -p,-k,-t")
 	f.StringSliceVarP(&showTypes, "show-type-proto", "C", nil, "show struct/union/enum prototype like `pahole -C`")
@@ -290,6 +292,10 @@ func (f *Flags) Disasm() bool {
 
 func (f *Flags) OutputLbr() bool {
 	return requiredLbr
+}
+
+func (f *Flags) BranchTypes() []string {
+	return filterBr
 }
 
 func (f *Flags) ShowFuncProto() bool {

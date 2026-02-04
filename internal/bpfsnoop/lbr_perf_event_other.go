@@ -9,6 +9,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func openLbrPerfEvent(cpu int) (int, error) {
+func openLbrPerfEvent(cpu int, branchTypes []string) (int, error) {
 	return 0, unix.EOPNOTSUPP
 }

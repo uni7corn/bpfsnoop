@@ -14,7 +14,7 @@ type LbrPerfEvent struct {
 	fds []int
 }
 
-func OpenLbrPerfEvent() (*LbrPerfEvent, error) {
+func OpenLbrPerfEvent(branchTypes []string) (*LbrPerfEvent, error) {
 	var p LbrPerfEvent
 	var err error
 
@@ -31,7 +31,7 @@ func OpenLbrPerfEvent() (*LbrPerfEvent, error) {
 
 	p.fds = make([]int, 0, numCPU)
 	for i := 0; i < numCPU; i++ {
-		fd, err := openLbrPerfEvent(i)
+		fd, err := openLbrPerfEvent(i, branchTypes)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open LBR perf event: %w", err)
 		}

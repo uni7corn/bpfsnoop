@@ -68,7 +68,7 @@ func main() {
 	assert.NoErr(err, "Failed to parse bpf prog infos: %v")
 
 	if flags.OutputLbr() {
-		lbrPerfEvents, err := bpfsnoop.OpenLbrPerfEvent()
+		lbrPerfEvents, err := bpfsnoop.OpenLbrPerfEvent(flags.BranchTypes())
 		if err != nil &&
 			(errors.Is(err, unix.ENOENT) || errors.Is(err, unix.EOPNOTSUPP)) {
 			log.Fatalln("LBR is not supported on current system")
