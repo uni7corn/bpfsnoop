@@ -139,6 +139,28 @@ func NewKallsyms() (*Kallsyms, error) {
 			return nil
 		}
 
+		// When CONFIG_KEXEC_CORE=y, .data becomes executable after Linux v6.14
+		// due to commit cb33ff9e063c ("x86/kexec: Move relocate_kernel to kernel
+		// .data section"). Hence, we must accept both [Tt] and [Dd] symbols.
+		matchData := func(name string) error {
+			switch name {
+			case bpfRawTpStart:
+				return setAddr(fields[0], &ks.bpfRawTpStart)
+
+			case bpfRawTpStop:
+				return setAddr(fields[0], &ks.bpfRawTpStop)
+
+			case bpfTraceModules:
+				return setAddr(fields[0], &ks.bpfTraceModules)
+
+			case x86PMU:
+				return setAddr(fields[0], &ks.x86PMU)
+
+			default:
+				return nil
+			}
+		}
+
 		if fields[1] == "t" || fields[1] == "T" {
 			var entry KsymEntry
 			entry.addr, err = strconv.ParseUint(fields[0], 16, 64)
@@ -167,15 +189,8 @@ func NewKallsyms() (*Kallsyms, error) {
 			case sysBPFSymbol:
 				ks.sysBPF = entry.addr
 
-			case bpfRawTpStart, bpfRawTpStop:
-				if entry.name == bpfRawTpStart {
-					err = setAddr(fields[0], &ks.bpfRawTpStart)
-				} else {
-					err = setAddr(fields[0], &ks.bpfRawTpStop)
-				}
-
-			case bpfTraceModules:
-				err = setAddr(fields[0], &ks.bpfTraceModules)
+			default:
+				err = matchData(entry.name)
 			}
 			if err != nil {
 				return nil, err
@@ -186,21 +201,7 @@ func NewKallsyms() (*Kallsyms, error) {
 				ks.mods = append(ks.mods, entry.mod)
 			}
 		} else if fields[1] == "D" || fields[1] == "d" {
-			name := fields[2]
-			switch name {
-			case bpfRawTpStart, bpfRawTpStop:
-				if name == bpfRawTpStart {
-					err = setAddr(fields[0], &ks.bpfRawTpStart)
-				} else {
-					err = setAddr(fields[0], &ks.bpfRawTpStop)
-				}
-
-			case bpfTraceModules:
-				err = setAddr(fields[0], &ks.bpfTraceModules)
-
-			case x86PMU:
-				err = setAddr(fields[0], &ks.x86PMU)
-			}
+			err = matchData(fields[2])
 			if err != nil {
 				return nil, err
 			}
