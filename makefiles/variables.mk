@@ -90,9 +90,16 @@ BPFSNOOP_SRC := $(shell find internal -type f -name '*.go') main.go
 BPFSNOOP_CSM := $(BPFSNOOP_OBJ).sha256sum
 RELEASE_NOTES ?= release_notes.txt
 
-LIBCAPSTONE_OBJ := lib/capstone/build/libcapstone.a
+# Do our best to detect changes in submodules and rebuild them...
+LIBCAPSTONE_DIR := lib/capstone
+LIBCAPSTONE_SRC := $(LIBCAPSTONE_DIR) \
+	$(shell find $(LIBCAPSTONE_DIR) -type f -name '*.[ch]' 2>/dev/null)
+LIBCAPSTONE_OBJ := $(LIBCAPSTONE_DIR)/build/libcapstone.a
 
-LIBPCAP_OBJ := lib/libpcap/libpcap.a
+LIBPCAP_DIR := lib/libpcap
+LIBPCAP_SRC := $(LIBPCAP_DIR) \
+	$(shell find $(LIBPCAP_DIR) -type f -name '*.[ch]' 2>/dev/null)
+LIBPCAP_OBJ := $(LIBPCAP_DIR)/libpcap.a
 
 LIBBPF_OBJ := lib/libbpf/src
 

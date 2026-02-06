@@ -8,9 +8,11 @@ include makefiles/variables.mk
 $(GIT_MODULES_DIR):
 	@$(CMD_GIT_MODULES) update --init --force --recursive
 
+$(LIBCAPSTONE_SRC) $(LIBPCAP_SRC): $(GIT_MODULES_DIR)
+
 # Build libcapstone for static linking
-$(LIBCAPSTONE_OBJ): $(GIT_MODULES_DIR)
-	cd lib/capstone && \
+$(LIBCAPSTONE_OBJ): $(LIBCAPSTONE_SRC)
+	cd $(LIBCAPSTONE_DIR) && \
 		CC=$(CMD_CC) CXX=$(CMD_CXX) cmake -B build \
 			-DCMAKE_BUILD_TYPE=Release \
 			-DCAPSTONE_ARCHITECTURE_DEFAULT=1 \
@@ -20,8 +22,8 @@ $(LIBCAPSTONE_OBJ): $(GIT_MODULES_DIR)
 		cmake --build build -j $(CPU_CORES)
 
 # Build libpcap for static linking
-$(LIBPCAP_OBJ): $(GIT_MODULES_DIR)
-	cd lib/libpcap && \
+$(LIBPCAP_OBJ): $(LIBPCAP_SRC)
+	cd $(LIBPCAP_DIR) && \
 		./autogen.sh && \
 		CC=$(CMD_CC) CXX=$(CMD_CXX) ./configure \
 			--disable-rdma \
