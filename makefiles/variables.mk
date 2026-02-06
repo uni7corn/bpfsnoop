@@ -112,6 +112,7 @@ LOCALTEST_OBJ := localtest
 LOCALTEST_SRC := $(shell find ./cmd/localtest/ -type f -name '*.go')
 
 XDPCRC_DIR := ./cmd/xdpcrc
-XDPCRC_BPF_OBJ := $(XDPCRC_DIR)/xdp_bpfel.o $(DIR_BPF)/xdp_bpfeb.o
+XDPCRC_BPF_OBJ := $(XDPCRC_DIR)/xdp_bpfel.o $(XDPCRC_DIR)/xdp_bpfeb.o
+XDPCRC_BPF_OBJ += $(XDPCRC_BPF_OBJ:%.o=%.go)
 XDPCRC_OBJ := xdpcrc
-XDPCRC_SRC := $(wildcard $(XDPCRC_DIR)/cmd/xdpcrc/*.go) $(wildcard $(XDPCRC_DIR)/cmd/xdpcrc/*.c)
+XDPCRC_SRC := $(wildcard $(XDPCRC_DIR)/*.go $(XDPCRC_DIR)/*.c)

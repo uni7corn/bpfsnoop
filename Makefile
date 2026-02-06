@@ -78,10 +78,16 @@ local_release: $(BPFSNOOP_OBJ)
 
 .PHONY: clean
 clean:
-	rm -f $(BPF_OBJS) $(XDPCRC_BPF_OBJ)
+	rm -f $(BPF_OBJS) $(XDPCRC_BPF_OBJ) $(VMLINUX_OBJ)
+	rm -f $(patsubst %.o,%.go,$(BPF_OBJS))
 	rm -f $(BPFSNOOP_OBJ) $(XDPCRC_OBJ) $(LOCALTEST_OBJ)
 	rm -rf $(DIR_BIN)/*
 	@touch $(DIR_BIN)/.gitkeep
+
+.PHONY: distclean
+distclean: clean
+	cd $(LIBCAPSTONE_DIR) && cmake --build build --target clean || true
+	cd $(LIBPCAP_DIR) && make clean || true
 
 .PHONY: publish
 publish: local_release
@@ -101,7 +107,7 @@ testcc:
 $(LOCALTEST_OBJ): $(LOCALTEST_SRC)
 	$(GOBUILD) -o $(LOCALTEST_OBJ) ./cmd/localtest
 
-$(XDPCRC_OBJ): $(XDPCRC_SRC)
+$(XDPCRC_OBJ): $(XDPCRC_SRC) $(VMLINUX_OBJ)
 	cd ./cmd/xdpcrc && \
 		$(GO_RUN_BPF2GO) -go-package main xdp ./xdp.c -- $(BPF2GO_EXTRA_FLAGS)
 	$(GOBUILD) -o $(XDPCRC_OBJ) $(XDPCRC_DIR)
