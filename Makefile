@@ -41,34 +41,15 @@ $(VMLINUX_OBJ): $(VMLINUX_SRC)
 	$(CMD_BPFTOOL) btf dump file $< format c > $@ || \
 		{ code=$$?; rm $@; exit $$code; }
 
-$(FEAT_BPF_OBJ): $(FEAT_BPF_SRC) $(VMLINUX_OBJ) $(LIBBPF_OBJ)
-	$(BPF2GO) Feat $(CURDIR)/bpf/feature.c -- $(BPF2GO_EXTRA_FLAGS)
+# It is required to define a pattern rule to prevent bpf2go from being called twice
+# when building with `make -j'.
+$(DIR_BPF)/%_bpfel.go $(DIR_BPF)/%_bpfeb.go: $(VMLINUX_OBJ)
+	cd $(DIR_BPF) && \
+		$(GO_RUN_BPF2GO) -go-package bpf -makebase $(CURDIR) \
+			$(MAP_OBJ_TO_STEM__$*) $(CURDIR)/bpf/$(MAP_OBJ_TO_SRC__$*).c \
+			-- $(BPF2GO_EXTRA_FLAGS)
 
-$(TRACEABLE_BPF_OBJ): $(TRACEABLE_BPF_SRC) $(VMLINUX_OBJ) $(LIBBPF_OBJ)
-	$(BPF2GO) Traceable $(CURDIR)/bpf/traceable.c -- $(BPF2GO_EXTRA_FLAGS)
-
-$(TRACEPOINT_BPF_OBJ): $(TRACEPOINT_BPF_SRC) $(VMLINUX_OBJ) $(LIBBPF_OBJ)
-	$(BPF2GO) Tracepoint $(CURDIR)/bpf/tracepoint.c -- $(BPF2GO_EXTRA_FLAGS)
-
-$(TRACEPOINT_MODULE_BPF_OBJ): $(TRACEPOINT_MODULE_BPF_SRC) $(VMLINUX_OBJ) $(LIBBPF_OBJ)
-	$(BPF2GO) Tracepoint_module $(CURDIR)/bpf/tracepoint_module.c -- $(BPF2GO_EXTRA_FLAGS)
-
-$(READ_BPF_OBJ): $(READ_BPF_SRC) $(VMLINUX_OBJ) $(LIBBPF_OBJ)
-	$(BPF2GO) Read $(CURDIR)/bpf/read.c -- $(BPF2GO_EXTRA_FLAGS)
-
-$(TAILCALL_BPF_OBJ): $(TAILCALL_BPF_SRC) $(VMLINUX_OBJ) $(LIBBPF_OBJ)
-	$(BPF2GO) Tailcall $(CURDIR)/bpf/tailcall.c -- $(BPF2GO_EXTRA_FLAGS)
-
-$(INSN_BPF_OBJ): $(INSN_BPF_SRC) $(VMLINUX_OBJ) $(LIBBPF_OBJ)
-	$(BPF2GO) Insn $(CURDIR)/bpf/bpfsnoop_insn.c -- $(BPF2GO_EXTRA_FLAGS)
-
-$(GRAPH_BPF_OBJ): $(GRAPH_BPF_SRC) $(VMLINUX_OBJ) $(LIBBPF_OBJ)
-	$(BPF2GO) Graph $(CURDIR)/bpf/bpfsnoop_fgraph.c -- $(BPF2GO_EXTRA_FLAGS)
-
-$(BPFSNOOP_BPF_OBJ): $(BPFSNOOP_BPF_SRC) $(VMLINUX_OBJ) $(LIBBPF_OBJ)
-	$(BPF2GO) Bpfsnoop $(CURDIR)/bpf/bpfsnoop.c -- $(BPF2GO_EXTRA_FLAGS)
-
-$(BPFSNOOP_OBJ): $(BPF_OBJS) $(BPFSNOOP_SRC) $(LIBCAPSTONE_OBJ) $(LIBPCAP_OBJ)
+$(BPFSNOOP_OBJ): $(BPF_OBJBPF_OBJ) $(BPF_GO_SRC) $(BPFSNOOP_SRC) $(LIBCAPSTONE_OBJ) $(LIBPCAP_OBJ)
 	$(GOBUILD_CGO_CFLAGS) $(GOBUILD_CGO_LDFLAGS) $(GOBUILD)
 
 .PHONY: local_release
@@ -78,8 +59,8 @@ local_release: $(BPFSNOOP_OBJ)
 
 .PHONY: clean
 clean:
-	rm -f $(BPF_OBJS) $(XDPCRC_BPF_OBJ) $(VMLINUX_OBJ)
-	rm -f $(patsubst %.o,%.go,$(BPF_OBJS))
+	rm -f $(BPF_OBJ) $(XDPCRC_BPF_OBJ) $(VMLINUX_OBJ)
+	rm -f $(BPF_GO_SRC) $(BPF_GO_DEP)
 	rm -f $(BPFSNOOP_OBJ) $(XDPCRC_OBJ) $(LOCALTEST_OBJ)
 	rm -rf $(DIR_BIN)/*
 	@touch $(DIR_BIN)/.gitkeep
