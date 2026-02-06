@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-CMD_BPFTOOL ?= bpftool
+CMD_BPFTOOL ?=
 CMD_CC ?= clang
 CMD_CD ?= cd
 CMD_CHECKSUM ?= sha256sum
@@ -14,6 +14,14 @@ CMD_MV ?= mv
 CMD_TAR ?= tar
 CMD_GIT ?= git
 CMD_GIT_MODULES ?= $(CMD_GIT) submodule
+
+ifeq ($(CMD_BPFTOOL),)
+	# Debian-based distros install bpftool to /usr/sbin/ which is only in root user's PATH
+	CMD_BPFTOOL := $(shell PATH="$$PATH:/usr/local/sbin:/usr/sbin:/sbin" which bpftool)
+	ifeq ($(CMD_BPFTOOL),)
+		CMD_BPFTOOL := bpftool
+	endif
+endif
 
 UNAME_ARCH := $(shell uname -m)
 GCC_LIB_DIR := /usr/lib/gcc/$(UNAME_ARCH)-linux-gnu/$(shell gcc -dumpversion | cut -d. -f1)
