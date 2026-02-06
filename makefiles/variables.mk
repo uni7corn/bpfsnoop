@@ -88,7 +88,8 @@ LIBPCAP_OBJ := lib/libpcap/libpcap.a
 
 LIBBPF_OBJ := lib/libbpf/src
 
-VMLINUX_OBJ := $(CURDIR)/bpf/headers/vmlinux.h
+VMLINUX_OBJ := bpf/headers/vmlinux.h
+VMLINUX_SRC := /sys/kernel/btf/vmlinux
 
 GIT_MODULES_DIR := .git/modules
 

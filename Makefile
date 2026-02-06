@@ -35,8 +35,9 @@ $(LIBPCAP_OBJ): $(GIT_MODULES_DIR)
 
 $(LIBBPF_OBJ): $(GIT_MODULES_DIR)
 
-$(VMLINUX_OBJ):
-	$(CMD_BPFTOOL) btf dump file /sys/kernel/btf/vmlinux format c > $(VMLINUX_OBJ)
+$(VMLINUX_OBJ): $(VMLINUX_SRC)
+	$(CMD_BPFTOOL) btf dump file $< format c > $@ || \
+		{ code=$$?; rm $@; exit $$code; }
 
 $(FEAT_BPF_OBJ): $(FEAT_BPF_SRC) $(VMLINUX_OBJ) $(LIBBPF_OBJ)
 	$(BPF2GO) Feat $(CURDIR)/bpf/feature.c -- $(BPF2GO_EXTRA_FLAGS)
