@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/Asphaltt/addr2line v0.1.2
 	github.com/Asphaltt/mybtf v0.0.0-20250708022622-be6f548674b2
-	github.com/bpfsnoop/gapstone v0.0.0-20250326151126-f4ba393504da
+	github.com/bpfsnoop/gapstone v0.0.0-20260226134052-b57d31fae271
 	github.com/caio/go-tdigest/v4 v4.0.1
 	github.com/cilium/ebpf v0.20.0
 	github.com/fatih/color v1.18.0
