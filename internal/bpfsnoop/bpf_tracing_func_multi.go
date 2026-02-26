@@ -39,6 +39,7 @@ func skipKprobeMultiSymbol(sym string) bool {
 type kfuncMultiGroupInfo struct {
 	flt string
 	fns []string
+	k   []*KFunc
 	fn  *KFunc
 }
 
@@ -112,6 +113,7 @@ func (t *bpfTracing) traceFuncsMulti(errg *errgroup.Group, reusedMaps map[string
 				groups[idx] = g
 			}
 			g.fns = append(g.fns, kf.Ksym.name)
+			g.k = append(g.k, kf)
 		}
 	}
 
@@ -209,6 +211,14 @@ func (t *bpfTracing) traceKfuncMultiMode(reusedMaps map[string]*ebpf.Map, g *kfu
 		}
 		fn.Args = args
 		fn.Data = argDataSize
+
+		for _, f := range g.k {
+			f.Pkt = fn.Pkt
+			f.Args = fn.Args
+			f.Data = fn.Data
+			f.Flag = fn.Flag
+			f.Flag.funcName = f.Ksym.name
+		}
 	}
 
 	withRet := sessionMode || isExit
