@@ -13,10 +13,9 @@
 #include "bpfsnoop_tracing.h"
 
 static __always_inline bool
-bpfsnoop_session_enter(void *ctx, __u64 key, __u64 sid, bool pass, __u64 *session_id, bool is_session)
+bpfsnoop_session_enter(void *ctx, __u64 pid_tgid, __u64 func_ip, __u64 sid, bool pass,
+                       __u64 *session_id, bool is_session)
 {
-    struct bpfsnoop_sess sess_init = {};
-
     if (!pass)
         return false;
 
@@ -24,8 +23,7 @@ bpfsnoop_session_enter(void *ctx, __u64 key, __u64 sid, bool pass, __u64 *sessio
         __u64 *cookie = bpfsnoop_session_cookie(ctx);
         *cookie = sid;
     } else {
-        sess_init.session_id = sid;
-        add_session(key, &sess_init);
+        add_session(pid_tgid, func_ip, sid);
     }
 
     *session_id = sid;
@@ -33,7 +31,7 @@ bpfsnoop_session_enter(void *ctx, __u64 key, __u64 sid, bool pass, __u64 *sessio
 }
 
 static __always_inline bool
-bpfsnoop_session_exit(void *ctx, __u64 key, __u64 *session_id, bool is_session)
+bpfsnoop_session_exit(void *ctx, __u64 pid_tgid, __u64 func_ip, __u64 *session_id, bool is_session)
 {
     if (is_session) {
         __u64 *cookie = bpfsnoop_session_cookie(ctx);
@@ -44,12 +42,12 @@ bpfsnoop_session_exit(void *ctx, __u64 key, __u64 *session_id, bool is_session)
 
         *session_id = sid - 1;
     } else {
-        struct bpfsnoop_sess *sess = get_and_del_session(key);
+        __u64 sid = get_and_del_session(pid_tgid, func_ip);
 
-        if (!sess)
+        if (!sid)
             return false;
 
-        *session_id = sess->session_id - 1;
+        *session_id = sid - 1;
     }
 
     return true;

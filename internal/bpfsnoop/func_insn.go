@@ -14,6 +14,7 @@ type FuncInsn struct {
 	Func string
 	Off  uint64
 	IP   uint64
+	FnIP uint64
 	Insn gapstone.Instruction
 	Desc string
 }
@@ -47,6 +48,7 @@ func (i FuncInsns) parseFuncInsns(kfunc *KFunc, engine *gapstone.Engine, ksyms *
 			Func: kfunc.Ksym.name,
 			Off:  offset,
 			IP:   uint64(insn.Address),
+			FnIP: uint64(kaddr),
 			Insn: insn,
 			Desc: printInsnInfo(uint64(insn.Address), offset, insn.Bytes, insn.Mnemonic, insn.OpStr),
 		}

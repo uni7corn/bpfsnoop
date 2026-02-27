@@ -31,6 +31,9 @@ func (t *bpfTracing) traceInsn(spec *ebpf.CollectionSpec, reusedMaps map[string]
 	if err := spec.Variables["INSN_IP"].Set(insn.IP); err != nil {
 		return fmt.Errorf("failed to set INSN_IP: %w", err)
 	}
+	if err := spec.Variables["FUNC_IP"].Set(insn.FnIP); err != nil {
+		return fmt.Errorf("failed to set FUNC_IP: %w", err)
+	}
 
 	coll, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{
 		MapReplacements: map[string]*ebpf.Map{

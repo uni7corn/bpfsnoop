@@ -59,6 +59,7 @@ emit_bpfsnoop_event(void *ctx)
     __u64 fp, session_id = 0;
     enum bpfsnoop_mode mode;
     __u64 args[MAX_FN_ARGS];
+    __u64 pid_tgid, func_ip;
     bool can_output_lbr;
     __u64 retval = 0;
     __u16 event_type;
@@ -87,7 +88,9 @@ emit_bpfsnoop_event(void *ctx)
                                      mode == BPFSNOOP_MODE_SESSION_EXIT))
         (void) bpf_probe_read_kernel(&retval, sizeof(retval), ctx + 8*cfg->fn_args.args_nr);
 
-    pid = bpf_get_current_pid_tgid() >> 32;
+    func_ip = FUNC_IP;
+    pid_tgid = bpf_get_current_pid_tgid();
+    pid = pid_tgid >> 32;
     if (pid == PID)
         return BPF_OK;
     if (cfg->pid && pid != cfg->pid)
@@ -100,7 +103,7 @@ emit_bpfsnoop_event(void *ctx)
     switch (mode) {
     case BPFSNOOP_MODE_SESSION_ENTRY:
         session_id = gen_session_id(fp);
-        if (!bpfsnoop_session_enter(ctx, fp, session_id, filter(args, session_id),
+        if (!bpfsnoop_session_enter(ctx, pid_tgid, func_ip, session_id, filter(args, session_id),
                                     &session_id, cfg->flags.is_session))
             return BPF_OK;
 
@@ -108,7 +111,7 @@ emit_bpfsnoop_event(void *ctx)
         break;
 
     case BPFSNOOP_MODE_SESSION_EXIT:
-        if (!bpfsnoop_session_exit(ctx, fp, &session_id, cfg->flags.is_session))
+        if (!bpfsnoop_session_exit(ctx, pid_tgid, func_ip, &session_id, cfg->flags.is_session))
             return BPF_OK;
 
         event_type = BPFSNOOP_EVENT_TYPE_FUNC_EXIT;
@@ -125,7 +128,7 @@ emit_bpfsnoop_event(void *ctx)
         break;
     }
 
-    return output_event(ctx, event_type, session_id, FUNC_IP, cpu, pid,
+    return output_event(ctx, event_type, session_id, func_ip, cpu, pid,
                         lbr, can_output_lbr, args, retval, cfg->flags.output_pkt,
                         cfg->flags.output_arg);
 }
