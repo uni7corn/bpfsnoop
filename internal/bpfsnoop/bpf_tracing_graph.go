@@ -9,8 +9,8 @@ import (
 	"os"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/link"
-	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 
@@ -26,13 +26,11 @@ const (
 type tracingGraph struct {
 	l link.Link
 	p *ebpf.Program
-	m *ebpf.Map
 }
 
 func (t *tracingGraph) Close() {
 	_ = t.l.Close()
 	_ = t.p.Close()
-	_ = t.m.Close()
 }
 
 type bpfFgraphConfig struct {
@@ -94,17 +92,11 @@ func (t *bpfTracing) traceGraph(spec *ebpf.CollectionSpec,
 		attachType = ebpf.AttachTraceFSession
 	}
 
-	tailcallProgName := "bpfsnoop_fgraph_tailcallee"
-	tailcallProgSpec := spec.Programs[tailcallProgName]
-
 	if bp != nil {
 		progSpec.AttachTarget = bp
-		tailcallProgSpec.AttachTarget = bp
 	}
 	progSpec.AttachTo = traceeName
 	progSpec.AttachType = attachType
-	tailcallProgSpec.AttachTo = traceeName
-	tailcallProgSpec.AttachType = attachType
 
 	coll, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{
 		MapReplacements: reusedMaps,
@@ -116,13 +108,6 @@ func (t *bpfTracing) traceGraph(spec *ebpf.CollectionSpec,
 		return fmt.Errorf("failed to create bpf collection for tracing graph target '%s': %w", traceeName, err)
 	}
 	defer coll.Close()
-
-	tailcallProg := coll.Programs[tailcallProgName]
-	progArrayMapName := "bpfsnoop_fgraph_tailcall_prog_array"
-	progArray := coll.Maps[progArrayMapName]
-	if err := progArray.Put(uint32(0), tailcallProg); err != nil {
-		return fmt.Errorf("failed to put tailcall prog into prog array: %w", err)
-	}
 
 	prog := coll.Programs[tracingProgName]
 	l, err := link.AttachTracing(link.TracingOptions{
@@ -140,16 +125,12 @@ func (t *bpfTracing) traceGraph(spec *ebpf.CollectionSpec,
 	verboseLogIf(attachType == ebpf.AttachTraceFExit, "Tracing(fexit) func graph %s at %#x", traceeName, graph.IP)
 	verboseLogIf(attachType == ebpf.AttachTraceFSession, "Tracing(fsession) func graph %s at %#x", traceeName, graph.IP)
 
-	delete(coll.Maps, progArrayMapName)
 	delete(coll.Programs, tracingProgName)
 	t.llock.Lock()
 	t.progs = append(t.progs, prog)
 	t.grphs = append(t.grphs, tracingGraph{
 		l: l,
 		p: prog,
-		// Keep prog_array map alive in order to avoid clearing it while closing
-		// it because its usercnt decrements to 0 but its refcnt is still non-0.
-		m: progArray,
 	})
 	t.llock.Unlock()
 
@@ -183,6 +164,30 @@ func (t *bpfTracing) traceGraphProg(spec *ebpf.CollectionSpec, reusedMaps map[st
 	return nil
 }
 
+func setupFgraphStack(spec *ebpf.CollectionSpec) error {
+	maxStack, err := readKernelPerfEventMaxStack()
+	if err != nil {
+		return fmt.Errorf("failed to read kernel perf event max stack: %w", err)
+	}
+
+	m, ok := spec.Maps["bpfsnoop_fgraph_stack"]
+	if !ok {
+		return fmt.Errorf("map spec %s not found", "bpfsnoop_fgraph_stack")
+	}
+	m.ValueSize = uint32(maxStack) * 8
+	arr, ok := m.Value.(*btf.Array)
+	if !ok {
+		return fmt.Errorf("unexpected map value type for %s: %T", "bpfsnoop_fgraph_stack", m.Value)
+	}
+	arr.Nelems = uint32(maxStack)
+
+	if err := spec.Variables["STACK_DEPTH"].Set(uint32(maxStack)); err != nil {
+		return fmt.Errorf("failed to set fgraph stack depth: %w", err)
+	}
+
+	return nil
+}
+
 func (t *bpfTracing) traceGraphs(reusedMaps map[string]*ebpf.Map, graphs FuncGraphs) error {
 	if len(graphs) == 0 {
 		return nil
@@ -191,6 +196,10 @@ func (t *bpfTracing) traceGraphs(reusedMaps map[string]*ebpf.Map, graphs FuncGra
 	spec, err := bpf.LoadGraph()
 	if err != nil {
 		return fmt.Errorf("failed to load graph bpf spec: %w", err)
+	}
+
+	if err := setupFgraphStack(spec); err != nil {
+		return fmt.Errorf("failed to setup fgraph stack: %w", err)
 	}
 
 	if err := PatchBPFSessionInsns(spec); err != nil {
@@ -215,6 +224,10 @@ func (t *bpfTracing) traceGraphs(reusedMaps map[string]*ebpf.Map, graphs FuncGra
 
 	for _, graph := range graphs {
 		graph := graph
+		if graph.Root {
+			// roots are traced by regular fentry/fexit programs.
+			continue
+		}
 		if hasFsession {
 			if graph.Kfunc != nil {
 				errg.Go(func() error {
@@ -258,34 +271,36 @@ func (t *bpfTracing) traceGraphs(reusedMaps map[string]*ebpf.Map, graphs FuncGra
 }
 
 func (t *bpfTracing) populateFgraphTraceeIPs(ips *ebpf.Map, graphs FuncGraphs) error {
-	traceeIPs := make(map[uint64]struct{}, len(graphs))
+	traceeIPs := make(map[uint64]uint64, len(graphs))
 	for _, graph := range graphs {
-		if !graph.traced {
-			continue
-		}
-
-		var traceeIP uint64
+		var funcIP uint64
 		if graph.Kfunc != nil {
-			traceeIP = graph.Kfunc.Ksym.addr
+			funcIP = graph.Kfunc.Ksym.addr
 		} else if graph.Bprog != nil {
-			traceeIP = uint64(graph.Bprog.kaddrRange.start)
+			funcIP = uint64(graph.Bprog.kaddrRange.start)
 		} else {
 			continue
 		}
 
-		// Get the IP of calling trampoline.
-		traceeIP += insnCallqSize
+		// Stack unwinding reports the return address immediately after the
+		// trampoline call. Keep roots in the map as well, since they are traced
+		// by the regular fentry/fexit path rather than the graph programs.
+		traceeIP := funcIP + insnCallqSize
 		if hasEndbr {
 			traceeIP += insnEndbrSize
 		}
-		traceeIPs[traceeIP] = struct{}{}
+		traceeIPs[traceeIP] = funcIP
 	}
 
 	// update_batch is supported since kernel 5.6
 	// commit aa2e93b ("bpf: Add generic support for update and delete batch ops")
 
-	keys := maps.Keys(traceeIPs)
-	vals := make([]uint32, len(keys))
+	keys := make([]uint64, 0, len(traceeIPs))
+	vals := make([]uint64, 0, len(traceeIPs))
+	for traceeIP, funcIP := range traceeIPs {
+		keys = append(keys, traceeIP)
+		vals = append(vals, funcIP)
+	}
 	if _, err := ips.BatchUpdate(keys, vals, nil); err != nil {
 		return fmt.Errorf("failed to update fgraph tracee IPs map: %w", err)
 	}

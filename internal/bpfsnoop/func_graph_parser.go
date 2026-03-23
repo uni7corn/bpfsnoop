@@ -351,6 +351,7 @@ func (p *FuncGraphParser) add(ip uint64, depth uint) error {
 
 	g.MaxDepth = uint(p.maxDepth)
 	g.IP = ip
+	g.Root = depth == 0
 
 	if prog, ok := p.progs.funcs[uintptr(ip)]; ok {
 		if !p.progs.canTrace(prog.prog, prog.progID) {

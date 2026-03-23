@@ -104,6 +104,7 @@ type FuncGraph struct {
 	Func     string
 	IP       uint64
 	MaxDepth uint
+	Root     bool
 	Kfunc    *KFunc
 	Bprog    *bpfProgFuncInfo
 	ArgsEnSz int
@@ -193,14 +194,16 @@ func FindGraphFuncs(ctx context.Context, flags *Flags, kfuncs KFuncs, bprogs *bp
 
 	for _, kf := range kfs {
 		addr := kf.Ksym.addr
-		bytes := guessBytes(uintptr(addr), ksyms, 0)
-		parser.addParse(addr, bytes, 0, false, kf.Ksym.name)
+		if err := parser.add(addr, 0); err != nil {
+			return nil, fmt.Errorf("failed to add root kfunc %s: %w", kf.Ksym.name, err)
+		}
 	}
 
 	for _, bp := range bps {
 		addr := bp.funcIP
-		bytes := bp.jitedLen
-		parser.addParse(uint64(addr), uint(bytes), 0, true, bp.funcName+"[bpf]")
+		if err := parser.add(uint64(addr), 0); err != nil {
+			return nil, fmt.Errorf("failed to add root bpf prog %s: %w", bp.funcName, err)
+		}
 	}
 
 	for _, kf := range extraKfuncs {
