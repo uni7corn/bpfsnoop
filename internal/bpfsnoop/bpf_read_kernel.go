@@ -130,15 +130,15 @@ type Memory struct {
 
 type Variable struct {
 	name   string
-	offset uint64
-	size   uint64
+	offset uint32
+	size   uint32
 	t      *btf.Var
 
 	mm *Memory
 }
 
 func (v *Variable) clone(n int) []byte {
-	return slices.Clone(v.mm.b[v.offset : v.offset+uint64(n)])
+	return slices.Clone(v.mm.b[v.offset : v.offset+uint32(n)])
 }
 
 func cloneVar(v *ebpf.Variable, n int) []byte {

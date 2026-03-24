@@ -40,7 +40,7 @@ func newBPFLinks() (*bpfLinks, error) {
 		links.links[info.Program] = bpfLinkInfo{
 			progID:     info.Program,
 			attachType: ebpf.AttachType(tracing.AttachType),
-			attachProg: ebpf.ProgramID(tracing.TargetObjId),
+			attachProg: ebpf.ProgramID(tracing.TargetObjectId),
 			isTracing:  true,
 		}
 	}

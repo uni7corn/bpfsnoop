@@ -7,15 +7,15 @@ require (
 	github.com/Asphaltt/mybtf v0.0.0-20250708022622-be6f548674b2
 	github.com/bpfsnoop/gapstone v0.0.0-20260226134052-b57d31fae271
 	github.com/caio/go-tdigest/v4 v4.0.1
-	github.com/cilium/ebpf v0.20.0
+	github.com/cilium/ebpf v0.21.0
 	github.com/fatih/color v1.18.0
 	github.com/gobwas/glob v0.2.3
 	github.com/goccy/go-json v0.10.5
 	github.com/gopacket/gopacket v1.3.1
 	github.com/jschwinger233/elibpcap v1.0.1
-	github.com/klauspost/compress v1.17.11
+	github.com/klauspost/compress v1.18.0
 	github.com/lorenzosaino/go-sysctl v0.3.1
-	github.com/spf13/pflag v1.0.5
+	github.com/spf13/pflag v1.0.7
 	github.com/ulikunitz/xz v0.5.12
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	golang.org/x/sync v0.17.0
@@ -42,4 +42,4 @@ require (
 	golang.org/x/sys v0.37.0
 )
 
-replace github.com/cilium/ebpf => github.com/bpfsnoop/ebpf v0.20.0-rb.0.20260130060452-2694cba928f0
+replace github.com/cilium/ebpf => github.com/bpfsnoop/ebpf v0.21.0-next
