@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/bpfsnoop/gapstone"
@@ -135,7 +136,7 @@ func getCalleeIPFromInsn(inst gapstone.Instruction) (uint64, error) {
 
 		// Get the callee IP from the instruction operand.
 		var err error
-		calleeIP, err = strconv.ParseUint(inst.OpStr[1:], 0, 64)
+		calleeIP, err = strconv.ParseUint(strings.TrimPrefix(inst.OpStr, "#"), 0, 64)
 		if err != nil {
 			return 0, fmt.Errorf("failed to parse ARM64 instruction operand: %w", err)
 		}
