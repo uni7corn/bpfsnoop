@@ -29,7 +29,11 @@ is_traceable(u64 addr)
     /* Avoid 'misaligned stack access off 0+-12+0 size 8' */
     a = *(u32 *) ptr;
     b = *(u8 *) (ptr + 4);
-    return (b<<32 | a) == nop5 /* nop5 */ || ptr[0] == 0xE8 /* callq */;
+    return (b<<32 | a) == nop5 /* nop5 */ || ptr[0] == 0xE8 /* callq */ ||
+           /* 373f2f44c300 ("bpf,x86: adjust the "jmp" mode for bpf trampoline")
+            * since 6.19 kernel.
+            */
+           ptr[0] == 0xE9 /* jmp */;
 
 #elif defined(bpf_target_arm64)
     ptr = buff + 4;
