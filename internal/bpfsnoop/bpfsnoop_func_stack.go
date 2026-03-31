@@ -45,15 +45,21 @@ func (s *fnStack) get(event *Event, helpers *Helpers, stacks *ebpf.Map, symbolOn
 	_ = stacks.Delete(id)
 
 	ips := s.ips[:]
-	if !verbose {
-		ips = ips[3:] // Skip the first 3 entries as they are entries for fentry/fexit and its trampoline.
-	}
+	skipEntries := true
 	for _, ip := range ips {
 		if ip == 0 {
 			continue
 		}
 
 		li := getLineInfo(uintptr(ip), helpers.Progs, helpers.Addr2line, helpers.Ksyms)
+
+		if skipEntries && !verbose {
+			if strings.HasPrefix(li.funcName, "bpf_trampoline_") /* tracing */ ||
+				strings.HasPrefix(li.funcName, "bpf_trace_run") /* tracepoint */ {
+				skipEntries = false
+			}
+			continue
+		}
 
 		if symbolOnly {
 			s.stack = append(s.stack, li.funcName)
