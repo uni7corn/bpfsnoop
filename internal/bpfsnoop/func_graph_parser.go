@@ -24,6 +24,7 @@ var (
 	insnJmpqPrefix  = byte(0xe9) // jmpq instruction prefix
 
 	insnCallqSize = uint64(5) // size of the callq instruction in bytes
+	insnSize      = uint64(4) // size of a typical instruction in bytes
 )
 
 var ne = binary.NativeEndian // use native endianness for kernel addresses
@@ -34,6 +35,7 @@ func init() {
 		insnCallqPrefix = 0x97 // bl instruction prefix for ARM64
 		insnJmpqPrefix = 0x17  // b instruction prefix for ARM64
 		insnCallqSize = 4      // size of the call instruction in bytes for ARM64
+		insnSize = 4           // size of a typical instruction in bytes for ARM64
 	}
 }
 

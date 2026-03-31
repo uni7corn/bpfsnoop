@@ -289,6 +289,9 @@ func (t *bpfTracing) populateFgraphTraceeIPs(ips *ebpf.Map, graphs FuncGraphs) e
 		if hasEndbr {
 			traceeIP += insnEndbrSize
 		}
+		if onArm64 {
+			traceeIP += insnSize
+		}
 		traceeIPs[traceeIP] = funcIP
 	}
 
