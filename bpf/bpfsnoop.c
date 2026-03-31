@@ -39,6 +39,9 @@ get_tracee_caller_fp(void *ctx, __u32 args_nr, bool retval)
 {
     u64 fp, fp_caller;
 
+    if (cfg->flags.is_tp)
+        return FUNC_IP;
+
     fp = get_tramp_fp(ctx, args_nr, retval); /* read tramp fp */
     (void) bpf_probe_read_kernel(&fp_caller, sizeof(fp_caller), (void *) fp); /* fp of tracee caller */
     return fp_caller;
