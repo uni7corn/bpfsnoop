@@ -26,7 +26,7 @@ func b2i(b bool) int {
 	return 0
 }
 
-func detectTraceable(spec *ebpf.CollectionSpec, addrs []uintptr) ([]uintptr, error) {
+func detectTraceable(spec *ebpf.CollectionSpec, addrs []uintptr) ([]bool, []uint64, error) {
 	spec = spec.Copy()
 
 	var addresses [AddrCap]uint64
@@ -34,23 +34,22 @@ func detectTraceable(spec *ebpf.CollectionSpec, addrs []uintptr) ([]uintptr, err
 		addresses[i] = uint64(addr)
 	}
 	if err := spec.Variables["addrs"].Set(addresses); err != nil {
-		return nil, fmt.Errorf("failed to set addrs: %w", err)
+		return nil, nil, fmt.Errorf("failed to set addrs: %w", err)
 	}
 	if err := spec.Variables["nr_addrs"].Set(uint32(len(addrs))); err != nil {
-		return nil, fmt.Errorf("failed to set nr_addrs: %w", err)
+		return nil, nil, fmt.Errorf("failed to set nr_addrs: %w", err)
 	}
 	if err := spec.Variables["has_endbr"].Set(uint32(b2i(hasEndbr))); err != nil {
-		return nil, fmt.Errorf("failed to set has_endbr: %w", err)
+		return nil, nil, fmt.Errorf("failed to set has_endbr: %w", err)
+	}
+	if err := spec.Variables["tramp_jmp"].Set(uint32(b2i(trampJmpMode))); err != nil {
+		return nil, nil, fmt.Errorf("failed to set tramp_jmp: %w", err)
 	}
 
 	spec.Programs["detect"].AttachTo = sysNanosleepSymbol
-	coll, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{
-		Programs: ebpf.ProgramOptions{
-			LogDisabled: true,
-		},
-	})
+	coll, err := ebpf.NewCollection(spec)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create bpf collection: %w", err)
+		return nil, nil, fmt.Errorf("failed to create bpf collection: %w", err)
 	}
 	defer coll.Close()
 
@@ -60,7 +59,7 @@ func detectTraceable(spec *ebpf.CollectionSpec, addrs []uintptr) ([]uintptr, err
 		AttachType: ebpf.AttachTraceFEntry,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to fentry nanosleep: %w", err)
+		return nil, nil, fmt.Errorf("failed to fentry nanosleep: %w", err)
 	}
 	defer l.Close()
 
@@ -68,25 +67,23 @@ func detectTraceable(spec *ebpf.CollectionSpec, addrs []uintptr) ([]uintptr, err
 
 	var run bool
 	if err := coll.Variables["run"].Get(&run); err != nil {
-		return nil, fmt.Errorf("failed to get run: %w", err)
+		return nil, nil, fmt.Errorf("failed to get run: %w", err)
 	}
 	if !run {
-		return nil, errors.New("traceable detection was not triggered")
+		return nil, nil, errors.New("traceable detection was not triggered")
+	}
+
+	var tramps [AddrCap]uint64
+	if err := coll.Variables["tramps"].Get(&tramps); err != nil {
+		return nil, nil, fmt.Errorf("failed to get tramps: %w", err)
 	}
 
 	var traceables [AddrCap]bool
 	if err := coll.Variables["traceables"].Get(&traceables); err != nil {
-		return nil, fmt.Errorf("failed to get traceables: %w", err)
+		return nil, nil, fmt.Errorf("failed to get traceables: %w", err)
 	}
 
-	var nontraceables []uintptr
-	for i := 0; i < len(addrs); i++ {
-		if !traceables[i] {
-			nontraceables = append(nontraceables, addrs[i])
-		}
-	}
-
-	return nontraceables, nil
+	return traceables[:len(addrs)], tramps[:len(addrs)], nil
 }
 
 func detectTraceables(kfuncs KFuncs, silent bool) (KFuncs, error) {
@@ -108,14 +105,16 @@ func detectTraceables(kfuncs KFuncs, silent bool) (KFuncs, error) {
 			addrs = nil
 		}
 
-		nontraceables, err := detectTraceable(spec, detect)
+		traceables, _, err := detectTraceable(spec, detect)
 		if err != nil {
 			return kfuncs, fmt.Errorf("failed to detect traceable: %w", err)
 		}
 
-		for _, nt := range nontraceables {
-			verboseLogIf(!silent, "Skip non-traceable kernel function %s", kfuncs[nt].Ksym.name)
-			delete(kfuncs, nt)
+		for i, t := range traceables {
+			if !t {
+				verboseLogIf(!silent, "Skip non-traceable kernel function %s", kfuncs[detect[i]].Ksym.name)
+				delete(kfuncs, detect[i])
+			}
 		}
 	}
 

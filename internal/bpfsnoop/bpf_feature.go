@@ -126,7 +126,7 @@ func btfEnumValue(enum, value string) (bool, error) {
 }
 
 func haveTrampolineJmpMode(insns []byte) {
-	if len(insns) < 9 {
+	if !onAmd64 || len(insns) < 9 {
 		return
 	}
 
@@ -136,4 +136,5 @@ func haveTrampolineJmpMode(insns []byte) {
 	}
 
 	trampJmpMode = insns[0] == 0xE9 /* jmp rel32 */
+	DebugLog("Trampoline jmp mode: %v", trampJmpMode)
 }

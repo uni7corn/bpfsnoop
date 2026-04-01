@@ -55,7 +55,7 @@ func guessBytes(kaddr uintptr, ks *Kallsyms, bytes uint) uint {
 		return 4096 // limit to 4KiB
 	}
 
-	return uint(nxt.addr) - uint(kaddr)
+	return min(uint(nxt.addr)-uint(kaddr), 4096)
 }
 
 func trimTailingInsns(b []byte) []byte {

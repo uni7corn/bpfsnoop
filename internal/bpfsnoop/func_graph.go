@@ -110,7 +110,6 @@ type FuncGraph struct {
 	ArgsEnSz int
 	ArgsExSz int
 	bytes    uint
-	traced   bool
 }
 
 type FuncGraphs map[uint64]*FuncGraph // key is the func IP
@@ -233,8 +232,4 @@ func FindGraphFuncs(ctx context.Context, flags *Flags, kfuncs KFuncs, bprogs *bp
 		}
 	}
 	return parser.graphs, nil
-}
-
-func FgraphExceedMaxDepth(flags *Flags, graphs FuncGraphs) bool {
-	return len(graphs) > 0 && flags.fgraphDepth > 10 && !tailcallInfo.supportTailcallInBpf2bpf
 }

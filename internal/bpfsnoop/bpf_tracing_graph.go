@@ -7,14 +7,18 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/link"
+	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 
 	"github.com/bpfsnoop/bpfsnoop/internal/bpf"
+	"github.com/bpfsnoop/bpfsnoop/internal/slicex"
+	"github.com/bpfsnoop/gapstone"
 )
 
 const (
@@ -134,7 +138,6 @@ func (t *bpfTracing) traceGraph(spec *ebpf.CollectionSpec,
 	})
 	t.llock.Unlock()
 
-	graph.traced = true
 	return nil
 }
 
@@ -267,6 +270,10 @@ func (t *bpfTracing) traceGraphs(reusedMaps map[string]*ebpf.Map, graphs FuncGra
 		return fmt.Errorf("failed to populate fgraph tracee IPs map: %w", err)
 	}
 
+	if err := t.populateFgraphTrampolineIPs(traceeIPs, graphs); err != nil {
+		return fmt.Errorf("failed to populate fgraph trampoline IPs: %w", err)
+	}
+
 	return nil
 }
 
@@ -306,6 +313,108 @@ func (t *bpfTracing) populateFgraphTraceeIPs(ips *ebpf.Map, graphs FuncGraphs) e
 	}
 	if _, err := ips.BatchUpdate(keys, vals, nil); err != nil {
 		return fmt.Errorf("failed to update fgraph tracee IPs map: %w", err)
+	}
+
+	return nil
+}
+
+func probeTrampAddrs(graphs FuncGraphs, silent bool) ([]uint64, []uint64, error) {
+	spec, err := bpf.LoadTraceable()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to load traceable bpf spec: %w", err)
+	}
+
+	addrs := maps.Keys(graphs)
+	slices.Sort(addrs)
+
+	trampAddrs := make([]uint64, 0, len(addrs))
+	kfuncAddrs := make([]uint64, 0, len(addrs))
+	for len(addrs) != 0 {
+		var detect []uintptr
+		if len(addrs) > AddrCap {
+			detect = slicex.U64sToUintptrs(addrs[:AddrCap])
+			addrs = addrs[AddrCap:]
+		} else {
+			detect = slicex.U64sToUintptrs(addrs)
+			addrs = nil
+		}
+
+		traceable, tramps, err := detectTraceable(spec, detect)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to detect traceable: %w", err)
+		}
+
+		for i := range detect {
+			if traceable[i] {
+				// map trampoline call-return addr to the original func
+				// addr, so that we can recognize them in stack
+				// unwinding.
+				trampAddrs = append(trampAddrs, tramps[i])
+				kfuncAddrs = append(kfuncAddrs, uint64(detect[i]))
+			}
+		}
+	}
+
+	return trampAddrs, kfuncAddrs, nil
+}
+
+func (t *bpfTracing) extractTrampolineIPs(addr uint64, engine *gapstone.Engine, ksyms *Kallsyms) ([]uint64, error) {
+	insts, err := disasmKfuncAt(addr, 0, ksyms, engine)
+	if err != nil {
+		return nil, fmt.Errorf("failed to disassemble trampoline at %#x: %w", addr, err)
+	}
+
+	ips, pc := make([]uint64, 0, 4), addr
+	for i := range insts {
+		pc += uint64(insts[i].Size)
+		if insts[i].Bytes[0] == 0xE8 { // callq
+			ips = append(ips, pc)
+		}
+	}
+	return ips, nil
+}
+
+func (t *bpfTracing) populateFgraphTrampolineIPs(ips *ebpf.Map, graphs FuncGraphs) error {
+	if !trampJmpMode {
+		return nil
+	}
+
+	trampAddrs, kfuncAddrs, err := probeTrampAddrs(graphs, true)
+	if err != nil {
+		return fmt.Errorf("failed to probe trampoline addresses: %w", err)
+	}
+
+	ksyms, err := NewKallsyms()
+	if err != nil {
+		return fmt.Errorf("failed to read kallsyms: %w", err)
+	}
+
+	engine, err := createGapstoneEngine()
+	if err != nil {
+		return fmt.Errorf("failed to create gapstone engine: %w", err)
+	}
+	defer engine.Close()
+
+	trampIPs := make(map[uint64]uint64, len(trampAddrs)*4)
+	for i, addr := range trampAddrs {
+		ips, err := t.extractTrampolineIPs(addr, engine, ksyms)
+		if err != nil {
+			return fmt.Errorf("failed to extract trampoline IPs: %w", err)
+		}
+
+		for _, ip := range ips {
+			trampIPs[ip] = kfuncAddrs[i]
+		}
+	}
+
+	keys := make([]uint64, 0, len(trampIPs))
+	vals := make([]uint64, 0, len(trampIPs))
+	for traceeIP, funcIP := range trampIPs {
+		keys = append(keys, traceeIP)
+		vals = append(vals, funcIP)
+	}
+	if _, err := ips.BatchUpdate(keys, vals, nil); err != nil {
+		return fmt.Errorf("failed to update fgraph trampoline IPs to bpf map: %w", err)
 	}
 
 	return nil

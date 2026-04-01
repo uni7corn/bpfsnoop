@@ -99,7 +99,7 @@ func main() {
 	assert.NoErr(err, "Failed to set PID: %v")
 
 	maxArg, err := bpfsnoop.DetectSupportedMaxArg(bpfSpec, kallsyms)
-	assert.NoErr(err, "Failed to detect supported func max arg: %v")
+	assert.NoVerifierErr(err, "Failed to detect supported func max arg: %v")
 	bpfsnoop.VerboseLog("Max arg count limits to %d", maxArg)
 
 	kfuncs, err := bpfsnoop.FindKernelFuncs(flags.Kfuncs(), kallsyms, maxArg)
@@ -154,8 +154,6 @@ func main() {
 	assert.NoErr(err, "Failed to find graph functions: %v")
 	defer graphs.Close()
 	bpfsnoop.DebugLog("Found %d graph functions/progs cost %s", len(graphs), time.Since(fgTs))
-	assert.False(bpfsnoop.FgraphExceedMaxDepth(flags, graphs),
-		"Current kernel does not support too large --fgraph-max-depth %d, limit 10", flags.FgraphMaxDepth())
 
 	select {
 	case <-ctx.Done():

@@ -119,18 +119,15 @@ try_get_session(void *ctx, int *depth, __u64 pid_tgid)
         if (!func_ip)
             continue;
 
-        if (!after_current && func_ip != cfg->func_ip)
-            continue;
+        if (after_current) {
+            session_id = get_session(pid_tgid, func_ip);
+            if (session_id)
+                return session_id;
 
-        session_id = get_session(pid_tgid, func_ip);
-        if (session_id)
-            return session_id;
-
-        if (!after_current) {
-            after_current = true;
-        } else {
             if (++(*depth) > cfg->max_depth)
                 return 0;
+        } else if (func_ip == cfg->func_ip) {
+            after_current = true;
         }
     }
 

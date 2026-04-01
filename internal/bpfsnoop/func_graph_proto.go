@@ -81,12 +81,12 @@ func detectKfuncTraceable(fnName string, ksyms *Kallsyms, fexit, silent bool) (b
 		return false, fmt.Errorf("failed to load traceable spec: %w", err)
 	}
 
-	nontraceables, err := detectTraceable(spec, []uintptr{uintptr(ksym.addr)})
+	traceables, _, err := detectTraceable(spec, []uintptr{uintptr(ksym.addr)})
 	if err != nil {
 		return false, fmt.Errorf("failed to detect traceable functions: %w", err)
 	}
 
-	return !slices.Contains(nontraceables, uintptr(ksym.addr)), nil
+	return traceables[0], nil
 }
 
 func (p *fgraphProto) checkTraceable(fnName string) bool {
