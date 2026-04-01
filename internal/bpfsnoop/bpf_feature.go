@@ -20,6 +20,7 @@ var (
 	hasFsession      bool
 	hasKprobeMulti   bool
 	hasKprobeSession bool
+	trampJmpMode     bool
 )
 
 type BPFFeatures struct {
@@ -122,4 +123,17 @@ func btfEnumValue(enum, value string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+func haveTrampolineJmpMode(insns []byte) {
+	if len(insns) < 9 {
+		return
+	}
+
+	u32 := ne.Uint32(insns[:4])
+	if isEndbrInsn(u32) {
+		insns = insns[4:]
+	}
+
+	trampJmpMode = insns[0] == 0xE9 /* jmp rel32 */
 }

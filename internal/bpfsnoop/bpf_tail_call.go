@@ -66,6 +66,7 @@ func probeTailcallInfo(prog *ebpf.Program) (TailcallInfo, error) {
 		kaddr += 4
 	}
 
+	haveTrampolineJmpMode(jinsns)
 	if !isTailcallReachable(jinsns) {
 		return info, nil
 	}
