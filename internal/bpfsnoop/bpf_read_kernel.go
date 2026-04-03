@@ -43,7 +43,7 @@ func readKernel(addr uint64, size uint32) ([]byte, error) {
 		return nil, fmt.Errorf("failed to set __size: %w", err)
 	}
 
-	spec.Programs["read"].AttachTo = sysNanosleepSymbol
+	spec.Programs["read"].AttachTo = bpfFentryTest1
 	coll, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{
 		Programs: ebpf.ProgramOptions{
 			LogDisabled: true,
@@ -69,11 +69,14 @@ func readKernel(addr uint64, size uint32) ([]byte, error) {
 			time.Sleep(time.Duration(rand.Int32N(100) * int32(time.Millisecond)))
 			continue
 		}
-		return nil, fmt.Errorf("failed to fentry nanosleep: %w", err)
+		return nil, fmt.Errorf("failed to fentry %s: %w", bpfFentryTest1, err)
 	}
 	defer l.Close()
 
-	nanosleep()
+	_, err = prog.Run(nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to run read program: %w", err)
+	}
 
 	var run bool
 	if err := coll.Variables["run"].Get(&run); err != nil {

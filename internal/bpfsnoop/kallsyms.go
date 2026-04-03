@@ -22,6 +22,8 @@ const (
 	kmodBuiltinPfx = "__builtin"
 	kmodBpf        = "bpf"
 
+	bpfFentryTest1 = "bpf_fentry_test1"
+
 	bpfRawTpStart = "__start__bpf_raw_tp"
 	bpfRawTpStop  = "__stop__bpf_raw_tp"
 
@@ -34,10 +36,7 @@ const (
 	onArm64 = runtime.GOARCH == archARM64
 )
 
-var (
-	sysBPFSymbol       = "__x64_sys_bpf"
-	sysNanosleepSymbol = "__x64_sys_nanosleep"
-)
+var sysBPFSymbol = "__x64_sys_bpf"
 
 func init() {
 	switch runtime.GOARCH {
@@ -46,7 +45,6 @@ func init() {
 
 	case archARM64:
 		sysBPFSymbol = "__arm64_sys_bpf"
-		sysNanosleepSymbol = "__arm64_sys_nanosleep"
 
 	default:
 		log.Fatalf("unsupported architecture %s", runtime.GOARCH)

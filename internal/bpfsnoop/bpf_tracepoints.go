@@ -42,7 +42,7 @@ func probeTracepointInfos(spec *ebpf.CollectionSpec, start uint64, cnt uint32) (
 		return nil, fmt.Errorf("failed to set nr_tps: %w", err)
 	}
 
-	spec.Programs["probe"].AttachTo = sysNanosleepSymbol
+	spec.Programs["probe"].AttachTo = bpfFentryTest1
 	coll, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{
 		Programs: ebpf.ProgramOptions{
 			LogDisabled: true,
@@ -59,11 +59,14 @@ func probeTracepointInfos(spec *ebpf.CollectionSpec, start uint64, cnt uint32) (
 		AttachType: ebpf.AttachTraceFEntry,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to fentry nanosleep: %w", err)
+		return nil, fmt.Errorf("failed to fentry %s: %w", bpfFentryTest1, err)
 	}
 	defer l.Close()
 
-	nanosleep()
+	_, err = prog.Run(nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to run probe program: %w", err)
+	}
 
 	var run bool
 	if err := coll.Variables["run"].Get(&run); err != nil {

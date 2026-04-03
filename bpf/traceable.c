@@ -55,8 +55,8 @@ probe_addr_info(int i)
     traceables[i] = traceable;
 }
 
-SEC("fentry/__x64_sys_nanosleep")
-int BPF_PROG(detect, struct pt_regs *regs)
+SEC("fentry/bpf_fentry_test1")
+int BPF_PROG(detect)
 {
     if (run)
         return BPF_OK;

@@ -20,8 +20,8 @@ subprog(void *ctx, int index)
     return BPF_OK;
 }
 
-SEC("kprobe/__x64_sys_nanosleep")
-int BPF_KPROBE(entry, struct pt_regs *regs)
+SEC("kprobe/bpf_fentry_test1")
+int BPF_PROG(entry)
 {
     subprog(ctx, 0);
 

@@ -13,8 +13,8 @@ struct __features {
     bool has_stack_id;
 } features;
 
-SEC("fentry/__x64_sys_nanosleep")
-int BPF_PROG(detect, struct pt_regs *regs)
+SEC("fentry/bpf_fentry_test1")
+int BPF_PROG(detect)
 {
     features.run = true;
 

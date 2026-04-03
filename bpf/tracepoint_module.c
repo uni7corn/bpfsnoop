@@ -42,8 +42,8 @@ probe_module_info(struct bpf_trace_module *mod, int i)
     BPF_CORE_READ_INTO(&info->bpf_raw_events, mod, module, bpf_raw_events);
 }
 
-SEC("fentry/__x64_sys_nanosleep")
-int BPF_PROG(probe, struct pt_regs *regs)
+SEC("fentry/bpf_fentry_test1")
+int BPF_PROG(probe)
 {
     struct list_head *start = (typeof(start)) __start, *next;
     struct list_head *modules = (typeof(modules)) __head;

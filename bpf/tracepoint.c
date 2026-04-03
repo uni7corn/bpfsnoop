@@ -32,8 +32,8 @@ probe_tp_info(struct bpf_raw_event_map *btp, int i)
     BPF_CORE_READ_INTO(&tp->num_args, btp, num_args);
 }
 
-SEC("fentry/__x64_sys_nanosleep")
-int BPF_PROG(probe, struct pt_regs *regs)
+SEC("fentry/bpf_fentry_test1")
+int BPF_PROG(probe)
 {
     struct bpf_raw_event_map *btp = (typeof(btp)) __start;
 

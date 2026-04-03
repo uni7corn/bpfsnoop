@@ -36,7 +36,7 @@ func DetectBPFFeatures() error {
 		return fmt.Errorf("failed to load feat bpf spec: %w", err)
 	}
 
-	spec.Programs["detect"].AttachTo = sysNanosleepSymbol
+	spec.Programs["detect"].AttachTo = bpfFentryTest1
 	coll, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to create bpf collection: %w", err)
@@ -49,11 +49,14 @@ func DetectBPFFeatures() error {
 		AttachType: ebpf.AttachTraceFEntry,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to fentry nanosleep: %w", err)
+		return fmt.Errorf("failed to fentry %s: %w", bpfFentryTest1, err)
 	}
 	defer l.Close()
 
-	nanosleep()
+	_, err = prog.Run(nil)
+	if err != nil {
+		return fmt.Errorf("failed to run detect program: %w", err)
+	}
 
 	var feat BPFFeatures
 	if err := coll.Maps[".bss"].Lookup(uint32(0), &feat); err != nil {

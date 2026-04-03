@@ -10,8 +10,8 @@ volatile const __u32 __size = 0;
 __u8 buff[4096] SEC(".data.buff");
 bool run SEC(".data.run");
 
-SEC("fentry/__x64_sys_nanosleep")
-int BPF_PROG(read, struct pt_regs *regs)
+SEC("fentry/bpf_fentry_test1")
+int BPF_PROG(read)
 {
     if (run)
         return BPF_OK;
@@ -28,8 +28,8 @@ read_stub(__u8 *b)
     return b[0];
 }
 
-SEC("fentry/__x64_sys_nanosleep")
-int BPF_PROG(read_data, struct pt_regs *regs)
+SEC("fentry/bpf_fentry_test1")
+int BPF_PROG(read_data)
 {
     int ret;
     __u8 *b;

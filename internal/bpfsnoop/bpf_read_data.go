@@ -59,7 +59,7 @@ func readKernelData(expr string, helpers *Helpers) error {
 	progSpec := spec.Programs["read_data"]
 	injectInsns(progSpec, stubReadData, insns)
 
-	progSpec.AttachTo = sysNanosleepSymbol
+	progSpec.AttachTo = bpfFentryTest1
 	coll, err := ebpf.NewCollection(spec)
 	if err != nil {
 		return fmt.Errorf("failed to create collection: %w", err)
@@ -72,11 +72,14 @@ func readKernelData(expr string, helpers *Helpers) error {
 		AttachType: ebpf.AttachTraceFEntry,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to fentry nanosleep: %w", err)
+		return fmt.Errorf("failed to fentry %s: %w", bpfFentryTest1, err)
 	}
 	defer l.Close()
 
-	nanosleep()
+	_, err = prog.Run(nil)
+	if err != nil {
+		return fmt.Errorf("failed to run read_data program: %w", err)
+	}
 
 	var run bool
 	if err := coll.Variables["run"].Get(&run); err != nil {

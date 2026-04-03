@@ -46,7 +46,7 @@ func detectTraceable(spec *ebpf.CollectionSpec, addrs []uintptr) ([]bool, []uint
 		return nil, nil, fmt.Errorf("failed to set tramp_jmp: %w", err)
 	}
 
-	spec.Programs["detect"].AttachTo = sysNanosleepSymbol
+	spec.Programs["detect"].AttachTo = bpfFentryTest1
 	coll, err := ebpf.NewCollection(spec)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create bpf collection: %w", err)
@@ -59,11 +59,14 @@ func detectTraceable(spec *ebpf.CollectionSpec, addrs []uintptr) ([]bool, []uint
 		AttachType: ebpf.AttachTraceFEntry,
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to fentry nanosleep: %w", err)
+		return nil, nil, fmt.Errorf("failed to fentry %s: %w", bpfFentryTest1, err)
 	}
 	defer l.Close()
 
-	nanosleep()
+	_, err = prog.Run(nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to run detect program: %w", err)
+	}
 
 	var run bool
 	if err := coll.Variables["run"].Get(&run); err != nil {
