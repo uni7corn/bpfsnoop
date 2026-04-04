@@ -95,6 +95,8 @@ func main() {
 	err = bpfsnoop.ProbeTailcallIssue(bpfSpec)
 	assert.NoVerifierErr(err, "Failed to probe tailcall info: %v")
 
+	defer bpfsnoop.FlushReadObjs()
+
 	err = bpfSpec.Variables["PID"].Set(uint32(os.Getpid()))
 	assert.NoErr(err, "Failed to set PID: %v")
 
@@ -192,6 +194,8 @@ func main() {
 
 	kallsyms, err = bpfsnoop.NewKallsyms()
 	assert.NoErr(err, "Failed to reread /proc/kallsyms: %v")
+
+	bpfsnoop.FlushReadObjs()
 
 	reader, err := ringbuf.NewReader(reusedMaps["bpfsnoop_events"])
 	assert.NoErr(err, "Failed to create ringbuf reader: %v")

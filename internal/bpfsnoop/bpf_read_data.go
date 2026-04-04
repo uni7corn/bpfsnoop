@@ -7,12 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/link"
 	"github.com/fatih/color"
+	"golang.org/x/sys/unix"
 
 	"github.com/bpfsnoop/bpfsnoop/internal/assert"
 	"github.com/bpfsnoop/bpfsnoop/internal/bpf"
@@ -30,6 +32,9 @@ func readKernelData(expr string, helpers *Helpers) error {
 	err := PrepareKernelBTF()
 	assert.NoErr(err, "Failed to prepare kernel BTF: %v", err)
 	krnl := getKernelBTF()
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 
 	readSize, err := arg.compile(nil, krnl, krnl, 0, int(cc.MemoryReadFlagForce), "__read_data_fail")
 	if err != nil {
@@ -51,10 +56,10 @@ func readKernelData(expr string, helpers *Helpers) error {
 	}
 	delete(spec.Programs, "read") // not used here
 
-	size := (uint32(readSize) + 7) & (^uint32(7)) // round up to 8-times bytes
-	buff := make([]byte, size)
-	spec.Maps[".data.buff"].ValueSize = size
-	spec.Maps[".data.buff"].Contents[0].Value = buff
+	pidTgid := uint64(os.Getpid())<<32 | uint64(unix.Gettid())
+	if err := spec.Variables["target_pid_tgid"].Set(pidTgid); err != nil {
+		return fmt.Errorf("failed to update target_pid_tgid: %w", err)
+	}
 
 	progSpec := spec.Programs["read_data"]
 	injectInsns(progSpec, stubReadData, insns)
@@ -89,9 +94,7 @@ func readKernelData(expr string, helpers *Helpers) error {
 		return errors.New("reading kernel was not triggered")
 	}
 
-	if err := coll.Maps[".data.buff"].Lookup(uint32(0), buff); err != nil {
-		return fmt.Errorf("failed to lookup .data.buff: %w", err)
-	}
+	buff := cloneVar(coll.Variables["buff"], int(readSize))
 
 	hist := newHistogram(helpers.Flags.histExpr)
 	defer hist.render(os.Stdout)
@@ -123,6 +126,8 @@ func readKernelDatum(exprs []string, flags *Flags) {
 
 	progs, err := NewBPFProgs([]ProgFlag{{all: true}}, false, false)
 	assert.NoErr(err, "Failed to prepare BPF programs: %v")
+
+	defer FlushReadObjs()
 
 	var helpers Helpers
 	helpers.Ksyms = ksyms

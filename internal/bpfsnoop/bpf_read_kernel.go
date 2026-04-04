@@ -6,10 +6,14 @@ package bpfsnoop
 import (
 	"errors"
 	"fmt"
-	"math/rand/v2"
-	"time"
+	"os"
+	"runtime"
+	"slices"
+	"sync"
+	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/link"
 	"golang.org/x/sys/unix"
 
@@ -20,75 +24,123 @@ const (
 	readLimit = 65536
 )
 
+var (
+	readMu   sync.Mutex
+	readColl *ebpf.Collection
+	readLink link.Link
+)
+
+func initReadKernel() error {
+	spec, err := bpf.LoadRead()
+	if err != nil {
+		return fmt.Errorf("failed to load read bpf spec: %w", err)
+	}
+	delete(spec.Programs, "read_data") // not used here
+
+	spec.Programs["read"].AttachTo = bpfFentryTest1
+
+	coll, err := ebpf.NewCollection(spec)
+	if err != nil {
+		return fmt.Errorf("failed to create read collection: %w", err)
+	}
+
+	link, err := link.AttachTracing(link.TracingOptions{
+		Program:    coll.Programs["read"],
+		AttachType: ebpf.AttachTraceFEntry,
+	})
+	if err != nil {
+		coll.Close()
+		return fmt.Errorf("failed to fentry %s: %w", bpfFentryTest1, err)
+	}
+
+	readColl = coll
+	readLink = link
+
+	return nil
+}
+
+func FlushReadObjs() {
+	readMu.Lock()
+	defer readMu.Unlock()
+
+	if readLink != nil {
+		readLink.Close()
+		readLink = nil
+	}
+	if readColl != nil {
+		readColl.Close()
+		readColl = nil
+	}
+}
+
 func readKernel(addr uint64, size uint32) ([]byte, error) {
+	readMu.Lock()
+	defer readMu.Unlock()
+
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	if readColl == nil {
+		if err := initReadKernel(); err != nil {
+			return nil, err
+		}
+	}
+
 	readSize := (size + 7) & (^uint32(7)) // round up to 8-times bytes
 	if readSize > readLimit {
 		return nil, fmt.Errorf("read size %d is too large", readSize)
 	}
 
-	spec, err := bpf.LoadRead()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load read bpf spec: %w", err)
+	pidTgid := uint64(os.Getpid())<<32 | uint64(unix.Gettid())
+	if err := readColl.Variables["target_pid_tgid"].Set(pidTgid); err != nil {
+		return nil, fmt.Errorf("failed to update target_pid_tgid: %w", err)
 	}
-	delete(spec.Programs, "read_data") // not used here
-
-	buff := make([]byte, readSize)
-	spec.Maps[".data.buff"].ValueSize = readSize
-	spec.Maps[".data.buff"].Contents[0].Value = buff
-
-	if err := spec.Variables["__addr"].Set(addr); err != nil {
-		return nil, fmt.Errorf("failed to set __addr: %w", err)
+	if err := readColl.Variables["target_addr"].Set(addr); err != nil {
+		return nil, fmt.Errorf("failed to update target_addr: %w", err)
 	}
-	if err := spec.Variables["__size"].Set(size); err != nil {
-		return nil, fmt.Errorf("failed to set __size: %w", err)
+	if err := readColl.Variables["target_size"].Set(readSize); err != nil {
+		return nil, fmt.Errorf("failed to update target_size: %w", err)
+	}
+	if err := readColl.Variables["run"].Set(uint8(0)); err != nil {
+		return nil, fmt.Errorf("failed to reset run: %w", err)
 	}
 
-	spec.Programs["read"].AttachTo = bpfFentryTest1
-	coll, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{
-		Programs: ebpf.ProgramOptions{
-			LogDisabled: true,
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create collection: %w", err)
-	}
-	defer coll.Close()
-
-	var l link.Link
-	prog := coll.Programs["read"]
-	for {
-		l, err = link.AttachTracing(link.TracingOptions{
-			Program:    prog,
-			AttachType: ebpf.AttachTraceFEntry,
-		})
-		if err == nil {
-			break
-		}
-		if errors.Is(err, unix.E2BIG) {
-			// BPF_MAX_TRAMP_PROGS 38
-			time.Sleep(time.Duration(rand.Int32N(100) * int32(time.Millisecond)))
-			continue
-		}
-		return nil, fmt.Errorf("failed to fentry %s: %w", bpfFentryTest1, err)
-	}
-	defer l.Close()
-
-	_, err = prog.Run(nil)
-	if err != nil {
+	if _, err := readColl.Programs["read"].Run(nil); err != nil {
 		return nil, fmt.Errorf("failed to run read program: %w", err)
 	}
 
 	var run bool
-	if err := coll.Variables["run"].Get(&run); err != nil {
-		return nil, fmt.Errorf("failed to get run: %w", err)
+	if err := readColl.Variables["run"].Get(&run); err != nil {
+		return nil, fmt.Errorf("failed to get run flag: %w", err)
 	}
 	if !run {
 		return nil, errors.New("reading kernel was not triggered")
 	}
 
-	if err := coll.Maps[".data.buff"].Lookup(uint32(0), buff); err != nil {
-		return nil, fmt.Errorf("failed to lookup .data.buff: %w", err)
-	}
+	return cloneVar(readColl.Variables["buff"], int(size)), nil
+}
 
-	return buff[:size], nil
+type Memory struct {
+	b    []byte
+	ro   bool
+	heap bool
+
+	cleanup runtime.Cleanup
+}
+
+type Variable struct {
+	name   string
+	offset uint64
+	size   uint64
+	t      *btf.Var
+
+	mm *Memory
+}
+
+func (v *Variable) clone(n int) []byte {
+	return slices.Clone(v.mm.b[v.offset : v.offset+uint64(n)])
+}
+
+func cloneVar(v *ebpf.Variable, n int) []byte {
+	return (*Variable)(unsafe.Pointer(v)).clone(n)
 }

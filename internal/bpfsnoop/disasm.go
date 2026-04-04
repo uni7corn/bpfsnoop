@@ -188,6 +188,8 @@ func dumpKfunc(kfunc string, kmods []string, bytes uint) {
 	data, err := readKernel(kaddr, uint32(bytes))
 	assert.NoErr(err, "Failed to read kernel memory: %v")
 
+	defer FlushReadObjs()
+
 	data = trimTailingInsns(data)
 	log.Printf("Disassembling %s at %s (%d bytes) ..",
 		color.New(color.FgYellow, color.Bold).Sprint(kfunc),
